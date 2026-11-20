@@ -1,0 +1,11 @@
+# Reglas de patrones propias para el plugin security-guidance (capa 1, sin modelo).
+#
+# IMPORTANTE: el esquema exacto de este archivo NO está verificado en esta plantilla.
+# Antes de añadir reglas, consulta la documentación oficial del plugin
+# (instálalo y revisa su README/docs) y adapta el formato. Un formato inválido
+# podría ignorarse en silencio.
+#
+# Ideas de reglas a definir cuando conozcas el esquema:
+#   - Patrones de credenciales internas de tu organización (prefijos de tokens)
+#   - Consultas a tablas multi-tenant sin filtro por tenant_id
+#   - Uso de librerías prohibidas por política
