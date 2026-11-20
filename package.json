@@ -1,0 +1,37 @@
+{
+  "name": "boquitas659",
+  "version": "1.0.0",
+  "description": "Plantilla base para proyectos Node/TypeScript con Claude Code en VS Code: flujo spec-driven y seguridad en capas.",
+  "main": "dist/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmralcala/boquitas659.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/jmralcala/boquitas659/issues"
+  },
+  "homepage": "https://github.com/jmralcala/boquitas659#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
+  }
+}

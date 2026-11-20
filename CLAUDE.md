@@ -1,6 +1,6 @@
-# Proyecto: <NOMBRE>
+# Proyecto: boquitas659
 
-<Una frase: qué es y para quién.>
+app web para agendar citas en una clinica dental
 
 ## Stack
 - Node.js (LTS) + TypeScript
