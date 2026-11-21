@@ -1,11 +1,11 @@
 # Proyecto: boquitas659
 
-app web para agendar citas en una clinica dental
+Plataforma web de agenda para consultorios dentales: el médico (que paga una suscripción mensual) publica su calendario en un micrositio y sus pacientes reservan citas, convencionales o de urgencia, sin intermediarios. Decisiones de producto: `docs/decisions/0001-resumen-grill-me.md`.
 
 ## Stack
 - Node.js (LTS) + TypeScript
 - Gestor de paquetes: npm  <!-- cámbialo si usas pnpm/yarn y ajusta settings.json y hooks -->
-- Tests: <vitest|jest>  ·  Lint: ESLint  ·  Formato: Prettier
+- Tests: vitest  ·  Lint: ESLint  ·  Formato: Prettier
 
 ## Comandos
 - `npm run lint` · `npm run typecheck` · `npm run test` · `npm run build` · `npm run format`
