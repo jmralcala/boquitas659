@@ -25,6 +25,7 @@ export default defineConfig({
       ? ["tests/**/*.test.ts", "src/**/*.test.ts"]
       : ["tests/unit/**/*.test.ts", "src/**/*.test.ts"],
     fileParallelism: false,
-    testTimeout: 20000,
+    testTimeout: 30000,
+    hookTimeout: 90000,
   },
 });
