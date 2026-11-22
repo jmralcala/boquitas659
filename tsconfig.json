@@ -7,8 +7,8 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "types": ["node"],
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src"]
+  "include": ["src", "tests", "scripts", "vitest.config.ts"]
 }
