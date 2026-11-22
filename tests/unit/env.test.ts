@@ -20,7 +20,16 @@ describe("loadEnv", () => {
     expect(env.RIGHTS_CONTACT_EMAIL).toBe("soporte@innvend.com");
     expect(env.RIGHTS_RESPONSE_DAYS).toBe(20);
     expect(env.TRUST_PROXY).toBe(false);
-    expect(loadEnv({ ...base, TRUST_PROXY: "true" }).TRUST_PROXY).toBe(true);
+  });
+
+  it("TRUST_PROXY acepta false, un número de saltos o una lista de IP/CIDR, y nunca true", () => {
+    expect(loadEnv({ ...base, TRUST_PROXY: "0" }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ ...base, TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);
+    expect(loadEnv({ ...base, TRUST_PROXY: "10.0.0.0/8, 127.0.0.1" }).TRUST_PROXY).toEqual(["10.0.0.0/8", "127.0.0.1"]);
+    expect(loadEnv({ ...base, TRUST_PROXY: "::1" }).TRUST_PROXY).toEqual(["::1"]);
+    for (const invalido of ["true", "11", "-1", "1.5", "10.0.0.0/33", "no-es-ip", "1/2/3"]) {
+      expect(() => loadEnv({ ...base, TRUST_PROXY: invalido }), invalido).toThrow(/TRUST_PROXY/);
+    }
   });
 
   it("devuelve un objeto inmutable", () => {

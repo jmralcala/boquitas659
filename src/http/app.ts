@@ -13,8 +13,8 @@ import { installSession } from "./session-plugin.js";
 
 export interface AppOptions {
   appEnv: "development" | "production";
-  /** Verdadero cuando la app corre detrás del proxy del hosting (para leer la IP real). */
-  trustProxy?: boolean;
+  /** Confianza en el proxy del hosting para leer la IP real: número de saltos o lista de IP/CIDR. Nunca `true`. */
+  trustProxy?: false | number | string[];
   /** Servicio de sesiones. Si se entrega junto con `csrfSecret`, se activan sesión y CSRF. */
   sessions?: SessionService;
   /** Secreto para derivar los tokens CSRF (`SESSION_SECRET`). */
