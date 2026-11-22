@@ -96,3 +96,48 @@ export async function createUser(
   );
   return { id: result.insertId, email, role, password: DEFAULT_TEST_PASSWORD };
 }
+
+let doctorCounter = 0;
+
+export interface CreatedDoctor {
+  user: CreatedUser;
+  doctorId: number;
+  cedula: string;
+  mobile: string;
+}
+
+/** Médico de fábrica con cédula y móvil únicos. Por defecto queda aprobado. */
+export async function createDoctor(
+  pool: Db,
+  options: {
+    status?: "pending" | "approved" | "rejected";
+    email?: string;
+    fullName?: string;
+    cedulaFileName?: string;
+  } = {},
+): Promise<CreatedDoctor> {
+  doctorCounter += 1;
+  const user = await createUser(pool, { role: "doctor", email: options.email });
+  const cedula = String(1000000 + doctorCounter);
+  const mobile = `55${String(10000000 + doctorCounter)}`;
+  const status = options.status ?? "approved";
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    `INSERT INTO doctor (user_id, full_name, cedula_number, cedula_normalized, cedula_file_path, emergency_mobile,
+                         approval_status, rejection_reason, approved_at, approved_by_user_id, trial_started_at, trial_ends_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    [
+      user.id,
+      options.fullName ?? `Dr. Prueba ${doctorCounter}`,
+      cedula,
+      cedula,
+      options.cedulaFileName ?? null,
+      mobile,
+      status,
+      status === "rejected" ? "Motivo de prueba" : null,
+      status === "approved" ? new Date() : null,
+      status === "approved" ? new Date() : null,
+      status === "approved" ? new Date(Date.now() + 5 * 86_400_000) : null,
+    ],
+  );
+  return { user, doctorId: result.insertId, cedula, mobile };
+}

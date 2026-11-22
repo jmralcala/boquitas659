@@ -38,7 +38,7 @@ export function passwordInput(options: FieldOptions): SafeHtml {
 }
 
 /** Casilla de aceptación. No admite valor inicial: siempre aparece sin marcar. */
-export function checkbox(options: { name: string; label: string; errors?: readonly string[] }): SafeHtml {
+export function checkbox(options: { name: string; label: string | SafeHtml; errors?: readonly string[] }): SafeHtml {
   return html`<p>
   <label><input type="checkbox" name="${options.name}" value="yes"> ${options.label}</label>
   ${errorList(options.errors)}

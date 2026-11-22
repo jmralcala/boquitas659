@@ -2,6 +2,7 @@ import type { Writable } from "node:stream";
 import cookie from "@fastify/cookie";
 import formbody from "@fastify/formbody";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { html } from "../lib/html.js";
@@ -9,6 +10,7 @@ import type { SessionService } from "../modules/auth/sessions.js";
 import { installCsrf } from "./csrf.js";
 import { AppError, NotFoundError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
+import { wantsJson } from "./negotiation.js";
 import { installSession } from "./session-plugin.js";
 
 export interface AppOptions {
@@ -31,10 +33,6 @@ function toFastifyTrustProxy(value: AppOptions["trustProxy"]): boolean | string[
   if (value === undefined || value === false) return false;
   if (typeof value === "number") return (_address, hop) => hop < value;
   return value;
-}
-
-function wantsJson(request: FastifyRequest): boolean {
-  return (request.headers.accept ?? "").includes("application/json");
 }
 
 function sendError(
@@ -73,6 +71,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(helmet);
   await app.register(cookie);
   await app.register(formbody);
+  // Los archivos llegan como Buffer dentro de `request.body` (así el CSRF y zod ven todos los campos).
+  await app.register(multipart, {
+    attachFieldsToBody: "keyValues",
+    limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 20, parts: 25 },
+  });
   await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute" });
 
   if (options.sessions && options.csrfSecret) {
@@ -94,6 +97,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       return sendError(request, reply, error.status, error.code, error.publicMessage, error.fields);
     }
     const status = typeof error.statusCode === "number" ? error.statusCode : 500;
+    if (status === 413) {
+      return sendError(request, reply, 413, "payload_too_large", "El archivo es demasiado grande (máximo 5 MB).");
+    }
     if (status === 429) {
       return sendError(request, reply, 429, "rate_limited", "Demasiadas peticiones. Intenta de nuevo en un momento.");
     }

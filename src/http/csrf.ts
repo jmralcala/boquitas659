@@ -19,6 +19,11 @@ function safeEqual(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+/** Token CSRF de una sesión (derivado del secreto de la aplicación y del secreto CSRF de la sesión). */
+export function sessionCsrfToken(secret: string, sessionCsrfSecret: string): string {
+  return hmac(secret, `s:${sessionCsrfSecret}`);
+}
+
 export interface Csrf {
   /** Token para el formulario de la petición actual (de sesión o, sin sesión, de doble envío). */
   tokenFor(request: FastifyRequest, reply: FastifyReply): string;
@@ -39,7 +44,7 @@ declare module "fastify" {
 export function installCsrf(app: FastifyInstance, secret: string): void {
   const csrf: Csrf = {
     tokenFor(request, reply) {
-      if (request.auth) return hmac(secret, `s:${request.auth.csrfSecret}`);
+      if (request.auth) return sessionCsrfToken(secret, request.auth.csrfSecret);
       let cookieValue = request.cookies[ANON_CSRF_COOKIE];
       if (typeof cookieValue !== "string" || cookieValue.length === 0) {
         cookieValue = generateToken();
@@ -66,7 +71,7 @@ export function installCsrf(app: FastifyInstance, secret: string): void {
 
     let expected: string | null;
     if (request.auth) {
-      expected = hmac(secret, `s:${request.auth.csrfSecret}`);
+      expected = sessionCsrfToken(secret, request.auth.csrfSecret);
     } else {
       const cookieValue = request.cookies[ANON_CSRF_COOKIE];
       expected = typeof cookieValue === "string" && cookieValue.length > 0 ? hmac(secret, `a:${cookieValue}`) : null;

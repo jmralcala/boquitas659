@@ -19,7 +19,7 @@ export interface AuthRoutesDeps {
 /** Página de inicio de cada rol tras iniciar sesión. */
 export const HOME_BY_ROLE: Record<UserRole, string> = {
   patient: "/pacientes/panel",
-  doctor: "/medicos/panel",
+  doctor: "/medicos/inicio",
   reception: "/recepcion/panel",
   support: "/soporte/medicos",
 };

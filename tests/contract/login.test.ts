@@ -72,7 +72,7 @@ describe("POST /login", () => {
   it("con credenciales correctas crea la sesión y redirige al panel del rol", async () => {
     const roles = [
       ["patient", "/pacientes/panel"],
-      ["doctor", "/medicos/panel"],
+      ["doctor", "/medicos/inicio"],
       ["reception", "/recepcion/panel"],
       ["support", "/soporte/medicos"],
     ] as const;

@@ -1,5 +1,6 @@
 import type { Db } from "../db/pool.js";
 import type { TokenPurpose } from "../modules/auth/one-time-tokens.js";
+import { doctorTemplates } from "../modules/doctors/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
 export type EmailPayload = Readonly<Record<string, string | number | null>>;
@@ -35,4 +36,6 @@ export type TemplateRegistry = Readonly<Record<string, EmailTemplate>>;
  * Plantillas de la aplicación, en español y sin datos personales en el asunto.
  * Cada historia añade las suyas aquí (ver `contracts/email-notifications.md`).
  */
-export const defaultTemplates: Record<string, EmailTemplate> = {};
+export const defaultTemplates: Record<string, EmailTemplate> = {
+  ...doctorTemplates,
+};

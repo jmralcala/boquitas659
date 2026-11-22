@@ -2,7 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFixedClock, type FixedClock } from "../../src/lib/clock.js";
 import { createSessionService, type SessionService } from "../../src/modules/auth/sessions.js";
-import { clearTables, createTestPool, createUser, resetDatabase } from "./helpers/db.js";
+import { clearTables, createDoctor, createTestPool, createUser, resetDatabase } from "./helpers/db.js";
 
 const pool = createTestPool();
 const MINUTE = 60_000;
@@ -125,8 +125,9 @@ describe("SessionService", () => {
     const user = await createUser(pool, { role: "reception" });
     const { token } = await sessions.create(user.id);
     const session = await sessions.validate(token);
-    await sessions.setActiveDoctor(session!.sessionId, 77);
-    expect(await sessions.validate(token)).toMatchObject({ activeDoctorId: 77 });
+    const doctor = await createDoctor(pool);
+    await sessions.setActiveDoctor(session!.sessionId, doctor.doctorId);
+    expect(await sessions.validate(token)).toMatchObject({ activeDoctorId: doctor.doctorId });
     await sessions.setActiveDoctor(session!.sessionId, null);
     expect(await sessions.validate(token)).toMatchObject({ activeDoctorId: null });
   });
