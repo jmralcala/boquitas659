@@ -74,7 +74,8 @@ export const authTemplates: Record<string, EmailTemplate> = {
     },
     // El enlace queda ligado a la dirección de destino: si mientras tanto se pidió otro correo, este se cancela.
     async shouldSend({ payload, db }) {
-      const [rows] = await db.execute<RowDataPacket[]>("SELECT pending_email_normalized FROM `user` WHERE id = ?", [userIdOf(payload)]);
+      // FOR UPDATE: espera a que termine una petición de cambio de correo en curso y decide con su resultado.
+      const [rows] = await db.execute<RowDataPacket[]>("SELECT pending_email_normalized FROM `user` WHERE id = ? FOR UPDATE", [userIdOf(payload)]);
       return typeof payload.newEmail === "string" && rows[0]?.pending_email_normalized === payload.newEmail;
     },
     render: ({ link }) => ({

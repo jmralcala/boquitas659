@@ -119,3 +119,10 @@ críticos o altos** y ningún bloqueante. Se corrigió lo siguiente, cada punto 
 - Desactivar el doble factor y cambiar el móvil de emergencias piden solo la contraseña (no un código TOTP).
 - Almacén compartido para el límite de peticiones por IP si la aplicación corre en varias instancias.
 - Paginar el panel de recepción más allá de las 500 filas actuales.
+
+### Nota posterior: carrera entre la comprobación y el envío
+Una revisión automática señaló que `shouldSend` se evaluaba fuera de la transacción que crea el token: si entre la
+comprobación y la creación se pedía otro cambio de correo, el enlace del primero quedaba vigente. Ahora la
+comprobación se repite DENTRO de la transacción de envío con `SELECT … FOR UPDATE` sobre la fila de la que depende
+(el usuario, o la invitación), de modo que ambas peticiones se serializan. Hay una prueba que intercala el cambio
+justo después de la comprobación; se verificó que falla con el código anterior.

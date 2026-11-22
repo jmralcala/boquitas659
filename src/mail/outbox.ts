@@ -55,6 +55,9 @@ export interface OutboxResult {
 
 const BACKOFF_CAP_MINUTES = 60;
 
+/** Señal interna: la plantilla pidió cancelar el correo; se revierte la transacción y se marca como cancelado. */
+class CancelSignal extends Error {}
+
 /**
  * Procesa los correos vencidos. Es idempotente y seguro si el cron se solapa: cada fila se reserva con una
  * actualización condicional, así que un correo solo lo envía un proceso. Las plantillas con enlace crean su
@@ -104,15 +107,13 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
       if (!template) throw Object.assign(new Error("Plantilla desconocida"), { code: "UNKNOWN_TEMPLATE" });
       const payload = JSON.parse(String(row.payload_ref)) as EmailPayload;
 
-      // Si el correo ya no tiene sentido (invitación revocada, otro cambio de correo pedido), se cancela sin enviar.
-      if (template.shouldSend && !(await template.shouldSend({ payload, db: deps.db, now: clock.now() }))) {
-        await deps.db.execute("UPDATE email_outbox SET status = 'cancelled', attempts = ?, locked_until = NULL WHERE id = ?", [attempts - 1, id]);
-        result.cancelled += 1;
-        deps.log?.({ event: "cancelled", id, template: templateName, attempts: attempts - 1 });
-        continue;
-      }
-
       await withTransaction(deps.db, async (connection) => {
+        // La comprobación va DENTRO de la transacción, con bloqueo de la fila de la que depende: si en ese instante hay
+        // un cambio en curso (otro correo pedido, invitación revocada) se espera a que termine y se decide con el estado
+        // ya confirmado. Así nunca se crea ni se envía un enlace que esa petición acaba de dejar sin sentido.
+        if (template.shouldSend && !(await template.shouldSend({ payload, db: connection, now: clock.now() }))) {
+          throw new CancelSignal();
+        }
         let link: string | null = null;
         if (template.token) {
           const { token } = await deps.tokens.create(
@@ -130,6 +131,13 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
       });
       result.sent += 1;
     } catch (error) {
+      if (error instanceof CancelSignal) {
+        // La transacción ya se revirtió (no queda token ni envío): el correo se marca como cancelado.
+        await deps.db.execute("UPDATE email_outbox SET status = 'cancelled', attempts = ?, locked_until = NULL WHERE id = ?", [attempts - 1, id]);
+        result.cancelled += 1;
+        deps.log?.({ event: "cancelled", id, template: templateName, attempts: attempts - 1 });
+        continue;
+      }
       // Se registra solo el tipo y el código del error: el mensaje y el cuerpo pueden contener datos personales.
       const info = error as { name?: string; code?: string };
       const base = { id, template: templateName, attempts, errorName: info.name, errorCode: info.code };

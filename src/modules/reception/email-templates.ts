@@ -19,7 +19,8 @@ export const receptionTemplates: Record<string, EmailTemplate> = {
     },
     // Si la invitación se revocó, venció o ya se aceptó mientras el correo esperaba en cola, no se envía.
     async shouldSend({ payload, db, now }) {
-      const [rows] = await db.execute<RowDataPacket[]>("SELECT status, expires_at FROM reception_invitation WHERE id = ?", [idOf(payload, "invitationId")]);
+      // FOR UPDATE: serializa con la revocación o aceptación de la invitación.
+      const [rows] = await db.execute<RowDataPacket[]>("SELECT status, expires_at FROM reception_invitation WHERE id = ? FOR UPDATE", [idOf(payload, "invitationId")]);
       const row = rows[0];
       return row !== undefined && row.status === "pending" && (row.expires_at as Date).getTime() > now.getTime();
     },

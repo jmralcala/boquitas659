@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { processOutbox } from "../../src/mail/outbox.js";
 import { clearTables, createDoctor, createPatient, createTestPool, createUser, resetDatabase } from "../integration/helpers/db.js";
 import { anonymousForm, createTestApp, linkTokenSentTo, loginRequest, postForm, sessionFor, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
 
@@ -372,5 +373,75 @@ describe("cambio de correo: enlace ligado a su destino y límite por usuario", (
     t.clock.advance(61 * 60_000); // pasada la hora, vuelve a permitirse (la sesión de un paciente caduca a los 60 min: se abre otra)
     const fresh = await sessionFor(t.services, user);
     expect((await post(fresh, "/cuenta/correo", { currentPassword: user.password, newEmail: "otro@example.com" })).statusCode).toBe(200);
+  });
+});
+
+describe("carrera entre el envío del enlace y un nuevo cambio de correo", () => {
+  it("si hay un cambio en curso al enviar, el enlace del correo anterior no se crea ni se envía", async () => {
+    const user = await createUser(pool, { email: "viejo@example.com" });
+    const client = await sessionFor(t.services, user);
+    const before = t.transport.sent.length;
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "primero@example.com" }); // correo en cola, sin enviar
+
+    // Otra petición (pedir «segundo») tiene la fila del usuario bloqueada y todavía no confirma.
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    await connection.execute("UPDATE `user` SET pending_email = 'segundo@example.com', pending_email_normalized = 'segundo@example.com' WHERE id = ?", [user.id]);
+
+    const processing = t.runOutbox(); // debe esperar el bloqueo en lugar de decidir con datos viejos
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await connection.commit();
+    connection.release();
+    await processing;
+
+    expect(t.transport.sent.slice(before).some((m) => m.to === "primero@example.com")).toBe(false);
+    expect(await rows("SELECT status FROM email_outbox WHERE template = 'email_change_confirm' AND to_email = 'primero@example.com'")).toEqual([{ status: "cancelled" }]);
+    expect(await rows("SELECT COUNT(*) AS n FROM one_time_token WHERE purpose = 'email_change'")).toEqual([{ n: 0 }]);
+  });
+
+  it("el bloqueo se mantiene hasta crear el token: un cambio pedido justo después de la comprobación invalida el enlace recién creado", async () => {
+    const user = await createUser(pool, { email: "viejo@example.com" });
+    const client = await sessionFor(t.services, user);
+    const before = t.transport.sent.length;
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "primero@example.com" });
+
+    // La plantilla real, pero con una pausa justo después de comprobar que el correo sigue vigente.
+    const original = t.services.templates.email_change_confirm;
+    if (!original) throw new Error("Falta la plantilla email_change_confirm.");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let entered!: () => void;
+    const inside = new Promise<void>((resolve) => (entered = resolve));
+    const slowed = {
+      ...original,
+      shouldSend: async (ctx: Parameters<NonNullable<typeof original.shouldSend>>[0]) => {
+        const ok = (await original.shouldSend?.(ctx)) ?? true;
+        entered();
+        await gate; // aquí otra petición intentará pedir un cambio nuevo
+        return ok;
+      },
+    };
+
+    const processing = processOutbox({
+      db: pool,
+      transport: t.transport,
+      tokens: t.services.tokens,
+      templates: { ...t.services.templates, email_change_confirm: slowed },
+      baseUrl: "http://localhost:3000",
+      clock: t.clock,
+    });
+    await inside; // el outbox ya comprobó y está a punto de crear el token
+    const second = post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "segundo@example.com" });
+    await new Promise((resolve) => setTimeout(resolve, 400)); // si el bloqueo no se mantuviera, la petición ya habría terminado
+    release();
+    await processing;
+    expect((await second).statusCode).toBe(200);
+
+    const link = t.transport.sent.slice(before).filter((m) => m.to === "primero@example.com").at(-1)?.text ?? "";
+    const token = /\/cuenta\/correo\/confirmar\/([A-Za-z0-9_-]{43})/.exec(link)?.[1];
+    expect(token).toBeDefined();
+    // El cambio a «segundo» se confirmó DESPUÉS de crearse el token: lo invalida. El enlace del correo «primero» no sirve.
+    expect((await t.app.inject({ method: "GET", url: `/cuenta/correo/confirmar/${token}` })).statusCode).toBe(410);
+    expect(await rows("SELECT pending_email FROM `user` WHERE id = ?", [user.id])).toEqual([{ pending_email: "segundo@example.com" }]);
   });
 });

@@ -31,8 +31,12 @@ export interface EmailTemplate {
     linkPath: (token: string) => string;
     subject: (payload: EmailPayload) => { userId?: number; invitationId?: number };
   };
-  /** Si devuelve `false` el correo se cancela sin enviarse (ya no tiene sentido). */
-  shouldSend?(context: { payload: EmailPayload; db: Db; now: Date }): Promise<boolean>;
+  /**
+   * Si devuelve `false` el correo se cancela sin enviarse (ya no tiene sentido). Se evalúa DENTRO de la transacción
+   * de envío (`db` es la conexión de esa transacción): la consulta debe usar `SELECT … FOR UPDATE` sobre la fila de la
+   * que depende, para que cualquier cambio concurrente quede serializado con la creación del token.
+   */
+  shouldSend?(context: { payload: EmailPayload; db: Pick<Db, "execute">; now: Date }): Promise<boolean>;
   render(context: RenderContext): Promise<RenderedEmail> | RenderedEmail;
 }
 
