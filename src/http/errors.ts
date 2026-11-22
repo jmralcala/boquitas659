@@ -60,3 +60,23 @@ export class WrongPasswordError extends AppError {
     this.name = "WrongPasswordError";
   }
 }
+
+/** Enlace de un solo uso vencido, ya usado o revocado. */
+export class InvalidLinkError extends AppError {
+  constructor() {
+    super(410, "invalid_link", "El enlace venció o ya se usó.");
+    this.name = "InvalidLinkError";
+  }
+}
+
+/** Los textos legales del rol siguen siendo provisionales (sin revisión legal): no se admiten altas en producción. */
+export class LegalReviewPendingError extends AppError {
+  constructor() {
+    super(
+      403,
+      "legal_review_pending",
+      "El registro todavía no está disponible: estamos terminando la revisión legal de nuestros avisos. Inténtalo de nuevo más adelante.",
+    );
+    this.name = "LegalReviewPendingError";
+  }
+}

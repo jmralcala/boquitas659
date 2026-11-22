@@ -59,7 +59,7 @@ describe("POST /pacientes/adicionales", () => {
     });
 
     const [consents] = await pool.query<RowDataPacket[]>(
-      "SELECT user_id, on_behalf_of_patient_id FROM consent_acceptance",
+      "SELECT user_id, on_behalf_of_patient_id FROM consent_acceptance WHERE on_behalf_of_patient_id IS NOT NULL",
     );
     expect(consents).toEqual([{ user_id: tutor.userId, on_behalf_of_patient_id: children[0]?.id }]);
   });
@@ -71,7 +71,8 @@ describe("POST /pacientes/adicionales", () => {
       expect(response.body).toContain("aviso de privacidad");
     }
     expect(await count("patient")).toBe(1);
-    expect(await count("consent_acceptance")).toBe(0);
+    const [onBehalf] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM consent_acceptance WHERE on_behalf_of_patient_id IS NOT NULL");
+    expect(Number(onBehalf[0]?.n)).toBe(0);
   });
 
   it("valida nombre y fecha de nacimiento", async () => {

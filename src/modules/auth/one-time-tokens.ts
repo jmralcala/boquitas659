@@ -5,8 +5,9 @@ import { generateToken, hashToken } from "../../lib/tokens.js";
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60_000;
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60_000;
+export const EMAIL_CHANGE_TTL_MS = 60 * 60_000;
 
-export type TokenPurpose = "password_reset" | "reception_invite";
+export type TokenPurpose = "password_reset" | "reception_invite" | "email_change";
 
 export interface TokenSubject {
   userId: number | null;

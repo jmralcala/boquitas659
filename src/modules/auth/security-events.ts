@@ -7,6 +7,7 @@ export type SecurityEventType =
   | "new_device"
   | "password_changed"
   | "password_reset"
+  | "email_change_requested"
   | "email_changed"
   | "emergency_mobile_changed"
   | "mfa_enabled"

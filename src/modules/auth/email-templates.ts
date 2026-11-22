@@ -1,5 +1,5 @@
 import type { EmailPayload, EmailTemplate } from "../../mail/templates.js";
-import { PASSWORD_RESET_TTL_MS } from "./one-time-tokens.js";
+import { EMAIL_CHANGE_TTL_MS, PASSWORD_RESET_TTL_MS } from "./one-time-tokens.js";
 
 const dateTimeFormat = new Intl.DateTimeFormat("es-MX", {
   dateStyle: "long",
@@ -61,6 +61,41 @@ export const authTemplates: Record<string, EmailTemplate> = {
         ].join("\n"),
       };
     },
+  },
+
+  // Al correo NUEVO: el enlace lo confirma. Mientras tanto el correo de acceso no cambia.
+  email_change_confirm: {
+    token: {
+      purpose: "email_change",
+      ttlMs: EMAIL_CHANGE_TTL_MS,
+      linkPath: (token) => `/cuenta/correo/confirmar/${token}`,
+      subject: (payload) => ({ userId: userIdOf(payload) }),
+    },
+    render: ({ link }) => ({
+      subject: "Confirma tu correo nuevo",
+      text: [
+        "Pediste usar este correo como el de tu cuenta.",
+        "",
+        `Para confirmarlo abre este enlace: ${link}`,
+        "",
+        "El enlace caduca en 60 minutos y solo funciona una vez.",
+        "Si no lo pediste, ignora este correo: nada cambiará.",
+      ].join("\n"),
+    }),
+  },
+
+  // Al correo ACTUAL: aviso de que alguien pidió el cambio (todavía no se aplicó).
+  email_change_requested: {
+    render: ({ baseUrl }) => ({
+      subject: "Se pidió cambiar el correo de tu cuenta",
+      text: [
+        "Se pidió cambiar el correo de tu cuenta a otra dirección. El cambio solo se aplica si esa dirección lo confirma.",
+        "",
+        "Si fuiste tú, no necesitas hacer nada más.",
+        `Si no fuiste tú, cambia tu contraseña ahora: ${new URL("/cuenta/contrasena", baseUrl).toString()}`,
+        "y escribe a soporte.",
+      ].join("\n"),
+    }),
   },
 
   email_changed_old: {

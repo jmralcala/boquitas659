@@ -17,6 +17,8 @@ Una fila por correo; un solo rol por correo (supuesto de la spec).
 | password_changed_at | |
 | mfa_enabled, mfa_secret_encrypted | secreto TOTP cifrado en reposo |
 | status | `active` · `disabled` |
+| pending_email, pending_email_normalized | correo nuevo pendiente de confirmar; el de acceso (`email`) no cambia hasta que esa dirección abre el enlace |
+| full_name | solo personal de recepción (los demás roles guardan su nombre en su propia tabla) |
 | created_at | |
 
 ### mfa_recovery_code
@@ -152,8 +154,9 @@ Disparadores impiden `UPDATE` y `DELETE` (FR-020). Regla de reaceptación: el us
 Sin contenido del paciente (FR-041). Disparadores impiden `UPDATE` y `DELETE`.
 
 ### reception_action_log
-`id`, `reception_user_id`, `doctor_id`, `action`, `target_type`, `target_id`, `occurred_at`. Alimenta FR-030; las
-acciones de citas llegarán con la feature 3, aquí se registran las de invitación, aceptación y retiro.
+`id`, `actor_user_id` (quien hizo la acción: el médico o la persona de recepción), `doctor_id`, `action`
+(`invite`, `accept`, `revoke_invitation`, `remove`, `select_active_doctor`), `target_type`, `target_id`,
+`occurred_at`. Alimenta FR-030; las acciones de citas llegarán con la feature 3 sobre la misma tabla.
 
 ### security_event
 `id`, `user_id`, `type` (`password_changed`, `new_device`, `mfa_enabled`, `email_changed`, `login_failed_burst` …),

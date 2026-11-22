@@ -12,7 +12,9 @@ una pantalla que muestra el resumen y un botón; abrirlos nunca cambia el estado
 | `password_reset` | Usuario | Solicita recuperación (si la cuenta existe) | Enlace de un solo uso, caduca en 30 minutos | `/recuperar/:token` |
 | `password_changed` | Titular | Cambio de contraseña | Aviso de cambio y qué hacer si no fue él o ella | `/recuperar` |
 | `new_device_login` | Titular | Inicio de sesión desde dispositivo nuevo | Fecha y hora, aviso genérico | `/cuenta/contrasena` |
-| `email_changed_old` / `email_changed_new` | Correo anterior y nuevo | Cambio de correo | Aviso de cambio; el nuevo recibe confirmación | — |
+| `email_change_confirm` | Correo **nuevo** | Se pide cambiar el correo | Enlace de un solo uso (60 min) para confirmar; el correo de acceso no cambia hasta abrirlo | `/cuenta/correo/confirmar/:token` |
+| `email_change_requested` | Correo actual | Se pide cambiar el correo | Aviso de que se pidió el cambio (aún no aplicado) | `/cuenta/contrasena` |
+| `email_changed_old` / `email_changed_new` | Correo anterior y nuevo | Se confirma el cambio de correo | Aviso de cambio; el nuevo recibe confirmación | — |
 | `emergency_mobile_changed` | Médico | Cambio del móvil de emergencias | Aviso de cambio, sin mostrar el número completo | `/cuenta/contrasena` |
 | `mfa_enabled` / `mfa_disabled` | Titular | Cambio de doble factor | Aviso | — |
 | `reception_invitation` | Invitado | Médico invita | Quién invita (nombre del médico), caducidad de 7 días | `/recepcion/invitacion/:token` |

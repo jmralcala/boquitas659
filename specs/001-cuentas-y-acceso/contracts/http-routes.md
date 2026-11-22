@@ -26,7 +26,9 @@ Aplicación con vistas HTML renderizadas en el servidor. Convenciones comunes:
 | `GET/POST /cuenta/contrasena` | autenticado | `currentPassword`, `newPassword` | Pide contraseña actual; revoca las demás sesiones; avisa por correo |
 | `GET/POST /cuenta/mfa` | M, R, S | `code` | Activa o desactiva TOTP; muestra códigos de recuperación una sola vez |
 | `GET/POST /cuenta/mfa/alta` | S | `code` | Alta obligatoria de TOTP antes de cualquier otra ruta de soporte |
-| `GET/POST /cuenta/correo` | autenticado | `currentPassword`, `newEmail` | Cambio sensible; avisa al correo anterior y al nuevo |
+| `GET/POST /cuenta/correo` | autenticado | `currentPassword`, `newEmail` | Pide el cambio: el correo nuevo queda **pendiente** y se le envía un enlace de confirmación (60 min, un solo uso); el correo de acceso NO cambia todavía. Avisa al correo actual de que se pidió el cambio |
+| `GET /cuenta/correo/confirmar/:token` | Pub | `token` | Muestra el correo nuevo y un botón; **no consume** |
+| `POST /cuenta/correo/confirmar/:token` | Pub | — | Consume el token, aplica el cambio, avisa al correo anterior y al nuevo y cierra **todas** las sesiones. Si otra cuenta ya usa el correo: 400 genérico |
 | `GET/POST /cuenta/movil-emergencia` | M | `currentPassword`, `emergencyMobile` (10 dígitos MX) | Cambio sensible; valida unicidad; el móvil nuevo queda sin verificar hasta la fase con WhatsApp; avisa por correo |
 
 ## Médicos
@@ -73,7 +75,7 @@ Permisos negados a recepción (siempre 403, con prueba): configuración, pagos, 
 |---------------|-----|---------|-----------|
 | `GET /legal` | Pub | — | Índice de documentos vigentes |
 | `GET /legal/:type` · `GET /legal/:type/v/:version` | Pub | `type` en lista cerrada, `version` entero | Texto vigente o histórico |
-| `GET /legal/aceptar` · `POST /legal/aceptar` | autenticado | `documentIds[]`, casillas | Pantalla que bloquea el uso hasta aceptar las versiones vigentes (FR-021); escribe `consent_acceptance` |
+| `GET /legal/aceptar` · `POST /legal/aceptar` | autenticado | una casilla `accept_<id>` por documento pendiente | Pantalla que bloquea el uso hasta aceptar las versiones vigentes (FR-021); escribe `consent_acceptance` |
 | (pie) | todas las páginas públicas | — | Enlace al aviso de privacidad (FR-022) |
 | `GET /derechos` | Pub | — | Canal y plazo para ejercer derechos ARCO (FR-024), leídos de `RIGHTS_CONTACT_EMAIL` y `RIGHTS_RESPONSE_DAYS` |
 

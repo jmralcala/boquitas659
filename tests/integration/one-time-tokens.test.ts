@@ -7,7 +7,7 @@ import {
   createOneTimeTokenService,
   type OneTimeTokenService,
 } from "../../src/modules/auth/one-time-tokens.js";
-import { clearTables, createTestPool, createUser, resetDatabase } from "./helpers/db.js";
+import { clearTables, createDoctor, createInvitation, createTestPool, createUser, resetDatabase } from "./helpers/db.js";
 
 const pool = createTestPool();
 const MINUTE = 60_000;
@@ -53,7 +53,9 @@ describe("OneTimeTokenService", () => {
 
   it("se rechaza vencido: a los 30 minutos la recuperación, a los 7 días la invitación", async () => {
     const reset = await tokens.create({ purpose: "password_reset", userId, ttlMs: PASSWORD_RESET_TTL_MS });
-    const invite = await tokens.create({ purpose: "reception_invite", invitationId: 55, ttlMs: INVITATION_TTL_MS });
+    const doctor = await createDoctor(pool);
+    const invitationId = await createInvitation(pool, { doctorId: doctor.doctorId, invitedByUserId: doctor.user.id, email: "persona@example.com" });
+    const invite = await tokens.create({ purpose: "reception_invite", invitationId, ttlMs: INVITATION_TTL_MS });
 
     clock.advance(29 * MINUTE);
     expect(await tokens.peek(reset.token, "password_reset")).not.toBeNull();
@@ -61,7 +63,7 @@ describe("OneTimeTokenService", () => {
     expect(await tokens.peek(reset.token, "password_reset")).toBeNull();
     expect(await tokens.consume(reset.token, "password_reset")).toBeNull();
 
-    expect(await tokens.peek(invite.token, "reception_invite")).toEqual({ userId: null, invitationId: 55 });
+    expect(await tokens.peek(invite.token, "reception_invite")).toEqual({ userId: null, invitationId });
     clock.advance(7 * 24 * 60 * MINUTE);
     expect(await tokens.consume(invite.token, "reception_invite")).toBeNull();
   });

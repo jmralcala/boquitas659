@@ -2,7 +2,7 @@ import type { ResultSetHeader } from "mysql2/promise";
 import { z } from "zod";
 import type { Db } from "../../db/pool.js";
 import { withTransaction } from "../../db/tx.js";
-import { AppError, NotFoundError, ValidationError } from "../../http/errors.js";
+import { AppError, LegalReviewPendingError, NotFoundError, ValidationError } from "../../http/errors.js";
 import { parseInput } from "../../http/validate.js";
 import { systemClock, type Clock } from "../../lib/clock.js";
 import { normalizeCedula, normalizeEmail, normalizeMxPhone } from "../../lib/normalize.js";
@@ -20,6 +20,8 @@ export interface DoctorServiceDeps {
   cedulaStorage: CedulaStorage;
   clock?: Clock;
   supportEmail: string;
+  /** En producción, mientras los avisos sean provisionales no se admiten registros (FR-023). */
+  blockProvisional?: boolean;
 }
 
 const required = "Este campo es obligatorio.";
@@ -89,6 +91,9 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
 
   return {
     async register(raw) {
+      if (deps.blockProvisional && (await deps.legal.hasProvisional(["doctor_privacy", "terms_doctor"]))) {
+        throw new LegalReviewPendingError();
+      }
       const input = parseInput(registrationSchema, raw ?? {});
       const fields: Record<string, string[]> = {};
 

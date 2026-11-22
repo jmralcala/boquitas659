@@ -2,7 +2,7 @@ import type { ResultSetHeader } from "mysql2/promise";
 import { z } from "zod";
 import type { Db } from "../../db/pool.js";
 import { withTransaction } from "../../db/tx.js";
-import { ValidationError } from "../../http/errors.js";
+import { LegalReviewPendingError, ValidationError } from "../../http/errors.js";
 import { parseInput } from "../../http/validate.js";
 import { parseBirthDate, todayInZone } from "../../lib/age.js";
 import { systemClock, type Clock } from "../../lib/clock.js";
@@ -20,6 +20,8 @@ export interface PatientRegistrationDeps {
   hasher: PasswordHasher;
   legal: LegalService;
   clock?: Clock;
+  /** En producción, mientras el aviso sea provisional no se admiten altas (FR-023). */
+  blockProvisional?: boolean;
 }
 
 const required = "Este campo es obligatorio.";
@@ -46,6 +48,9 @@ export function createPatientRegistration(deps: PatientRegistrationDeps): Patien
 
   return {
     async register(raw) {
+      if (deps.blockProvisional && (await deps.legal.hasProvisional(["patient_privacy"]))) {
+        throw new LegalReviewPendingError();
+      }
       const input = parseInput(registrationSchema, raw ?? {});
       const fields: Record<string, string[]> = {};
 

@@ -28,3 +28,25 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 - Cookies: `__Host-` exige `Secure`; en desarrollo sobre `http://localhost` los navegadores modernos lo aceptan.
 - La lista de contraseñas comunes está en `src/modules/auth/data/common-passwords.txt` (ver su encabezado para fuente y
   licencia).
+
+## Textos legales: de provisionales a revisados
+
+Los 5 documentos (aviso de pacientes, aviso de médicos, aviso de recepción, compromiso de confidencialidad de
+recepción y términos para médicos) se siembran al arrancar como **provisionales**. Con `APP_ENV=production` mientras
+la última versión de un documento siga provisional **no se admiten** altas de pacientes, registros de médicos ni
+aceptación de invitaciones de recepción (403).
+
+Cuando el abogado entregue el texto revisado de cada documento:
+
+1. Guarda el texto en un archivo UTF-8 (párrafos separados por una línea en blanco).
+2. Publícalo marcándolo como revisado (compila antes con `npm run build`):
+
+   ```text
+   npm run legal:publish -- --type patient_privacy --file aviso-pacientes.txt --reviewed
+   ```
+
+   Tipos válidos: `patient_privacy`, `doctor_privacy`, `reception_privacy`, `reception_confidentiality`, `terms_doctor`.
+   Opcional: `--title "Título del documento"`. Sin `--reviewed` queda provisional.
+3. Cada publicación crea una versión nueva (las anteriores se conservan). Quien ya tenía cuenta deberá aceptar la
+   nueva versión la próxima vez que entre (pantalla `/legal/aceptar`).
+4. Repite para los 5 documentos. Antes del piloto, comprueba en `/legal` que ninguno diga "provisional".

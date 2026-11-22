@@ -7,6 +7,8 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { html } from "../lib/html.js";
 import type { SessionService } from "../modules/auth/sessions.js";
+import type { LegalService } from "../modules/legal/legal-service.js";
+import { installLegalGate } from "../modules/legal/legal-gate.js";
 import { installCsrf } from "./csrf.js";
 import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
@@ -21,6 +23,8 @@ export interface AppOptions {
   sessions?: SessionService;
   /** Secreto para derivar los tokens CSRF (`SESSION_SECRET`). */
   csrfSecret?: string;
+  /** Servicio legal: activa el filtro que exige aceptar las versiones vigentes de los avisos. */
+  legal?: LegalService;
   /** Solo para pruebas: destino alternativo de los registros. */
   logStream?: Writable;
 }
@@ -81,6 +85,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   if (options.sessions && options.csrfSecret) {
     installSession(app, options.sessions);
     installCsrf(app, options.csrfSecret);
+    if (options.legal) installLegalGate(app, options.legal);
   }
 
   app.addHook("onSend", async (request, reply) => {

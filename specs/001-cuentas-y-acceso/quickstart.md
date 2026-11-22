@@ -55,6 +55,7 @@ en [data-model.md](data-model.md) y [contracts/](contracts/).
 | 27 | `consent_acceptance` y `patient_access_log` rechazan UPDATE y DELETE | FR-020, FR-041 |
 | 28 | Cambiar el móvil de emergencias exige la contraseña actual, rechaza duplicados y avisa por correo | US3 · FR-038 |
 | 29 | Un correo ya registrado con otro rol se rechaza con mensaje genérico (registro e invitación) | Casos límite |
+| 31 | Cambiar el correo exige la contraseña actual, deja el nuevo pendiente y solo se aplica al confirmar desde ese correo; confirmar cierra todas las sesiones | US3 · FR-038 |
 | 30 | El token de recuperación o invitación se crea al enviar el correo; un reintento invalida el anterior y no se guarda en claro | US3, US4 · FR-026, FR-034 |
 
 ## Recorrido manual (humo)

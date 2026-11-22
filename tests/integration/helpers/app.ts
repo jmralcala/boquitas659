@@ -174,6 +174,21 @@ export async function loginRequest(
   return postForm(app, "/login", { email, password, _csrf: token }, cookies, options.ip);
 }
 
+/**
+ * Procesa el outbox y devuelve el token del último enlace `pathPrefix/<token>` enviado a `to`
+ * (los tokens nacen al enviar el correo y nunca se guardan en claro).
+ */
+export async function linkTokenSentTo(t: TestApp, to: string, pathPrefix: string): Promise<string> {
+  await t.runOutbox();
+  // Los prefijos de ruta usados solo llevan letras y barras; se escapan igualmente los metacaracteres.
+  const escaped = pathPrefix.replace(/[.*+?^${}()|[\]\\]/g, (char) => `\\${char}`);
+  const pattern = new RegExp(`${escaped}/([A-Za-z0-9_-]{43})`);
+  const message = [...t.transport.sent].reverse().find((m) => m.to === to && pattern.test(m.text));
+  const token = pattern.exec(message?.text ?? "")?.[1];
+  if (!token) throw new Error(`No llegó un enlace ${pathPrefix} a ${to}.`);
+  return token;
+}
+
 export const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(128, 7)]);
 export const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(128, 8)]);
 export const PDF = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(128, 9)]);

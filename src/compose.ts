@@ -25,6 +25,11 @@ import { createSupportService, type SupportService } from "./modules/support/sup
 import { createDependentsService, type DependentsService } from "./modules/patients/dependents-service.js";
 import { createPatientRegistration, type PatientRegistration } from "./modules/patients/registration-service.js";
 import { registerPatientRoutes } from "./modules/patients/routes.js";
+import { createInvitationService, type InvitationService } from "./modules/reception/invitation-service.js";
+import { createMembershipService, type MembershipService } from "./modules/reception/membership-service.js";
+import { registerReceptionRoutes } from "./modules/reception/routes.js";
+import { createTenantResolver, type TenantResolver } from "./modules/reception/tenant-resolver.js";
+import { registerLegalRoutes } from "./modules/legal/routes.js";
 import { registerSupportRoutes } from "./modules/support/support-routes.js";
 
 export interface Services {
@@ -45,6 +50,9 @@ export interface Services {
   throttle: LoginThrottle;
   devices: DeviceService;
   reauth: Reauth;
+  invitations: InvitationService;
+  memberships: MembershipService;
+  tenants: TenantResolver;
 }
 
 export interface ComposeOptions {
@@ -66,6 +74,9 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   const legal = createLegalService(db, clock);
   const cedulaStorage = createCedulaStorage(env.CEDULA_STORAGE_DIR);
   const throttle = createLoginThrottle(db, clock, env.SESSION_SECRET);
+  // En producción, los avisos provisionales (sin revisión legal) bloquean las altas.
+  const blockProvisional = env.APP_ENV === "production";
+  const tokens = createOneTimeTokenService(db, clock);
   const services: Services = {
     env,
     db,
@@ -73,17 +84,20 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     sessions,
     hasher,
     legal,
-    tokens: createOneTimeTokenService(db, clock),
+    tokens,
     cedulaStorage,
     templates: defaultTemplates,
-    doctors: createDoctorService({ db, hasher, legal, cedulaStorage, clock, supportEmail: env.SUPPORT_EMAIL }),
+    doctors: createDoctorService({ db, hasher, legal, cedulaStorage, clock, supportEmail: env.SUPPORT_EMAIL, blockProvisional }),
     doctorGuards: createDoctorGuards(db),
     support: createSupportService(db, clock),
-    patients: createPatientRegistration({ db, hasher, legal, clock }),
+    patients: createPatientRegistration({ db, hasher, legal, clock, blockProvisional }),
     dependents: createDependentsService({ db, legal, clock }),
     throttle,
     devices: createDeviceService(db, clock, env.SESSION_SECRET),
     reauth: createReauth(db, hasher, throttle),
+    invitations: createInvitationService({ db, tokens, legal, hasher, clock, blockProvisional }),
+    memberships: createMembershipService({ db, sessions, clock }),
+    tenants: createTenantResolver(db),
   };
 
   // Garantiza que existan los textos legales (provisionales); en producción bloquean las altas hasta revisarse.
@@ -94,6 +108,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     trustProxy: env.TRUST_PROXY,
     sessions: services.sessions,
     csrfSecret: env.SESSION_SECRET,
+    legal,
   });
 
   registerAuthRoutes(app, services);
@@ -103,6 +118,8 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   registerDoctorRegistrationRoutes(app, services);
   registerDoctorStatusRoutes(app, services);
   registerPatientRoutes(app, services);
+  registerReceptionRoutes(app, services);
+  registerLegalRoutes(app, services);
   // Las rutas de soporte aprueban cuentas de médicos: hasta que el doble factor sea obligatorio para soporte (US6),
   // no se registran en producción. En desarrollo y pruebas sí.
   if (env.APP_ENV !== "production") {

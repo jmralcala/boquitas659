@@ -1,6 +1,7 @@
 import type { Db } from "../db/pool.js";
 import type { TokenPurpose } from "../modules/auth/one-time-tokens.js";
 import { authTemplates } from "../modules/auth/email-templates.js";
+import { receptionTemplates } from "../modules/reception/email-templates.js";
 import { doctorTemplates } from "../modules/doctors/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
@@ -40,4 +41,5 @@ export type TemplateRegistry = Readonly<Record<string, EmailTemplate>>;
 export const defaultTemplates: Record<string, EmailTemplate> = {
   ...authTemplates,
   ...doctorTemplates,
+  ...receptionTemplates,
 };

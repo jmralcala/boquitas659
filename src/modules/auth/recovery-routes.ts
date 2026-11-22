@@ -3,7 +3,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import type { Services } from "../../compose.js";
 import { withTransaction } from "../../db/tx.js";
-import { AppError, ValidationError } from "../../http/errors.js";
+import { InvalidLinkError, ValidationError } from "../../http/errors.js";
 import { parseInput } from "../../http/validate.js";
 import { errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
@@ -19,12 +19,6 @@ const resetSchema = z.object({
   password: z.string({ error: "Este campo es obligatorio." }).min(1, "Este campo es obligatorio.").max(256),
   passwordConfirm: z.string({ error: "Este campo es obligatorio." }).min(1, "Este campo es obligatorio.").max(256),
 });
-
-class InvalidLinkError extends AppError {
-  constructor() {
-    super(410, "invalid_link", "El enlace venció o ya se usó.");
-  }
-}
 
 function sendPage(reply: FastifyReply, status: number, content: ReturnType<typeof html>, title: string): FastifyReply {
   return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content }));

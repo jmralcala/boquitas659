@@ -1,6 +1,6 @@
 import { LEGAL_TYPES, type LegalService, type LegalType } from "./legal-service.js";
 
-const TITLES: Record<LegalType, string> = {
+export const DEFAULT_TITLES: Record<LegalType, string> = {
   patient_privacy: "Aviso de privacidad para pacientes",
   doctor_privacy: "Aviso de privacidad para médicos",
   reception_privacy: "Aviso de privacidad para personal de recepción",
@@ -21,8 +21,8 @@ export async function seedProvisionalDocuments(legal: LegalService): Promise<voi
     if ((await legal.latest(type)) !== null) continue;
     await legal.publish({
       type,
-      title: TITLES[type],
-      body: `${PROVISIONAL_NOTICE}\n\n${TITLES[type]}.`,
+      title: DEFAULT_TITLES[type],
+      body: `${PROVISIONAL_NOTICE}\n\n${DEFAULT_TITLES[type]}.`,
       isProvisional: true,
     });
   }

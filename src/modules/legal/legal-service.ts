@@ -47,6 +47,8 @@ export interface LegalService {
   ): Promise<void>;
   /** Tipos de documento que aplican a un rol. */
   applicableTypes(role: UserRole): readonly LegalType[];
+  /** Verdadero si la última versión publicada de alguno de esos documentos sigue marcada como provisional. */
+  hasProvisional(types: readonly LegalType[]): Promise<boolean>;
   /** Últimas versiones aplicables al rol que el usuario aún no ha aceptado. */
   pendingFor(userId: number, role: UserRole): Promise<LegalDocument[]>;
 }
@@ -123,6 +125,14 @@ export function createLegalService(db: Db, clock: Clock = systemClock): LegalSer
 
     applicableTypes(role) {
       return APPLICABLE[role];
+    },
+
+    async hasProvisional(types) {
+      for (const type of types) {
+        const latest = await service.latest(type);
+        if (latest?.isProvisional) return true;
+      }
+      return false;
     },
 
     async pendingFor(userId, role) {

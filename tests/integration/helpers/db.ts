@@ -83,9 +83,33 @@ export interface CreatedUser {
   password: string;
 }
 
+const LEGAL_TYPES_BY_ROLE: Record<Role, string[]> = {
+  patient: ["patient_privacy"],
+  doctor: ["doctor_privacy", "terms_doctor"],
+  reception: ["reception_privacy", "reception_confidentiality"],
+  support: [],
+};
+
+/** Registra la aceptación de la última versión de los documentos legales publicados que aplican al rol. */
+export async function acceptLatestLegalDocuments(pool: Db, userId: number, role: Role): Promise<void> {
+  const types = LEGAL_TYPES_BY_ROLE[role];
+  if (types.length === 0) return;
+  await pool.execute(
+    `INSERT INTO consent_acceptance (user_id, legal_document_id, accepted_at)
+     SELECT ?, d.id, UTC_TIMESTAMP(3) FROM legal_document d
+      WHERE d.type IN (${types.map(() => "?").join(", ")})
+        AND d.version = (SELECT MAX(x.version) FROM legal_document x WHERE x.type = d.type)`,
+    [userId, ...types],
+  );
+}
+
+/**
+ * Usuario de fábrica. Por defecto queda con la última versión publicada de los avisos de su rol aceptada
+ * (`acceptLegal: false` para probar el filtro de reaceptación).
+ */
 export async function createUser(
   pool: Db,
-  options: { role?: Role; email?: string; status?: "active" | "disabled" } = {},
+  options: { role?: Role; email?: string; status?: "active" | "disabled"; acceptLegal?: boolean } = {},
 ): Promise<CreatedUser> {
   userCounter += 1;
   const role = options.role ?? "patient";
@@ -94,6 +118,7 @@ export async function createUser(
     "INSERT INTO `user` (email, email_normalized, role, password_hash, password_changed_at, status) VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3), ?)",
     [email, email, role, await defaultPasswordHash(), options.status ?? "active"],
   );
+  if (options.acceptLegal !== false) await acceptLatestLegalDocuments(pool, result.insertId, role);
   return { id: result.insertId, email, role, password: DEFAULT_TEST_PASSWORD };
 }
 
@@ -176,4 +201,37 @@ export async function createDoctor(
     ],
   );
   return { user, doctorId: result.insertId, cedula, mobile };
+}
+
+/** Vínculo vigente de una persona de recepción con un médico. */
+export async function createMembership(pool: Db, doctorId: number, receptionUserId: number): Promise<number> {
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO reception_membership (doctor_id, reception_user_id, active_flag, created_at) VALUES (?, ?, 1, UTC_TIMESTAMP(3))",
+    [doctorId, receptionUserId],
+  );
+  return result.insertId;
+}
+
+export async function createInvitation(
+  pool: Db,
+  options: {
+    doctorId: number;
+    invitedByUserId: number;
+    email: string;
+    status?: "pending" | "accepted" | "expired" | "revoked";
+    expiresAt?: Date;
+  },
+): Promise<number> {
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    `INSERT INTO reception_invitation (doctor_id, email_normalized, status, invited_by_user_id, created_at, expires_at)
+     VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3), ?)`,
+    [
+      options.doctorId,
+      options.email.toLowerCase(),
+      options.status ?? "pending",
+      options.invitedByUserId,
+      options.expiresAt ?? new Date(Date.now() + 7 * 86_400_000),
+    ],
+  );
+  return result.insertId;
 }
