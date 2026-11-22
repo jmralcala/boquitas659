@@ -43,7 +43,7 @@ percibida inmediata (< 1 s p95 sin contar el hash de contraseña); hash de contr
 correo y tareas por cron (latencia de hasta ~1 min); cero datos personales en logs; revocación de acceso de
 recepción efectiva en la siguiente petición.
 
-**Scale/Scope**: 4 roles (paciente, médico, recepción, soporte), ~14 tablas, ~25 rutas HTTP, 6 tipos de correo.
+**Scale/Scope**: 4 roles (paciente, médico, recepción, soporte), ~19 tablas, ~25 rutas HTTP, 13 plantillas de correo.
 
 ## Constitution Check
 
@@ -51,7 +51,7 @@ recepción efectiva en la siguiente petición.
 
 | Principio | Evaluación previa | Evaluación posterior al diseño |
 |-----------|-------------------|--------------------------------|
-| I. Privacidad y datos de salud primero | Pasa: la spec exige casillas sin marcar, registro de aceptaciones, versionado y logs sin datos. | Pasa: `consent_acceptance` de solo anexar, documentos con marca `is_provisional` que bloquea el alta de pacientes en producción, redacción de logs, sin historial clínico en el modelo. |
+| I. Privacidad y datos de salud primero | Pasa: la spec exige casillas sin marcar, registro de aceptaciones, versionado y logs sin datos. | Pasa: `consent_acceptance` de solo anexar, documentos con marca `is_provisional` que bloquea en producción el alta de pacientes, el registro de médicos y las invitaciones de recepción, redacción de logs, sin historial clínico en el modelo. |
 | II. Aislamiento por médico | Pasa: se exige filtro por médico en servidor. | Pasa: repositorios reciben `TenantContext` obligatorio; la recepción se revalida contra la tabla de vínculos en cada petición; prueba automática de aislamiento definida. |
 | III. Integridad de la agenda | No aplica a esta feature (no hay citas). | No aplica. Se reutiliza el patrón de transacción con bloqueo de la fila del médico para el límite de 2 invitaciones. Enlaces de correo: GET nunca cambia estado, POST con CSRF. |
 | IV. Seguridad y validación en runtime | Pasa: zod, SQL parametrizado, hash fuerte, cookies seguras, límites de tasa. | Pasa: cada ruta tiene esquema zod ([contracts/http-routes.md](contracts/http-routes.md)); argon2id/bcrypt; CSRF por sesión; subida de archivos validada por firma y tamaño. |

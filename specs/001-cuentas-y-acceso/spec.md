@@ -101,7 +101,7 @@ Los textos legales (aviso del paciente, aviso del médico, aviso de recepción c
 1. **Given** una versión nueva de un documento legal, **When** un usuario con aceptación anterior inicia sesión, **Then** debe aceptar la nueva versión antes de usar el producto.
 2. **Given** un usuario, **When** acepta un documento, **Then** se guarda un registro inmodificable con su identidad, el documento, la versión y la fecha y hora.
 3. **Given** cualquier visitante sin sesión, **When** busca el aviso de privacidad, **Then** lo encuentra accesible desde el registro y desde los sitios públicos.
-4. **Given** el entorno de producción, **When** un documento está marcado como provisional (sin revisión legal), **Then** no se permite el alta de pacientes reales con ese texto.
+4. **Given** el entorno de producción, **When** un documento está marcado como provisional (sin revisión legal), **Then** no se permite el alta de pacientes, el registro de médicos ni la aceptación de invitaciones de recepción con ese texto.
 
 ---
 
@@ -126,7 +126,7 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 
 - Un médico se registra pero nunca sube una cédula legible: soporte debe poder rechazar con motivo y el médico corregir y reenviar sin crear otra cuenta.
 - Un médico aprobado cuya cédula se registró por error o por otra persona: solo soporte puede liberarla (herramienta de administración mínima, ver supuestos).
-- Un correo ya usado como paciente que se quiere usar también como médico o recepción: se rechaza o se aclara el manejo de roles múltiples (ver supuestos).
+- Un correo ya registrado con otro rol se rechaza al registrarse o al invitar, con un mensaje genérico que no revela el rol de la cuenta existente.
 - Un tutor intenta eliminar o editar a un paciente adicional con citas existentes: el comportamiento de borrado queda fuera de esta feature (se resuelve con la política de retención).
 - Un menor cumple la mayoría de edad: su cuenta sigue bajo el tutor hasta que se defina lo contrario (fuera de alcance).
 - Enlaces de invitación o de recuperación abiertos automáticamente por antivirus o clientes de correo: abrir el enlace nunca lo consume; solo la acción de confirmar lo hace.
@@ -168,7 +168,7 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 - **FR-020**: Cada aceptación MUST registrarse con quién, qué documento, qué versión y cuándo, y el registro MUST ser de solo lectura para los usuarios.
 - **FR-021**: Los documentos legales MUST estar versionados; cuando cambie una versión, cada persona afectada MUST aceptarla de nuevo antes de continuar.
 - **FR-022**: El aviso de privacidad MUST ser consultable sin sesión desde el registro y desde los sitios públicos del producto.
-- **FR-023**: Los documentos marcados como provisionales MUST impedir el alta de pacientes reales en el entorno de producción.
+- **FR-023**: Los documentos marcados como provisionales MUST impedir, en el entorno de producción, el alta de pacientes, el registro de médicos y la aceptación de invitaciones de recepción con ese texto.
 - **FR-024**: El sistema MUST ofrecer un canal visible para que los titulares ejerzan sus derechos de acceso, rectificación, cancelación y oposición, con plazo de respuesta definido en el aviso.
 
 **Recepción**
@@ -241,4 +241,6 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 - **Tiempo de inactividad**: el límite de sesión por inactividad se define en el plan; se asume un valor razonable (por ejemplo 30 minutos para soporte y médicos con datos de pacientes).
 - **Idioma y zona horaria**: el producto opera en español y las fechas se muestran en la zona horaria del consultorio.
 - **Dependencias**: envío de correo transaccional disponible para invitaciones, recuperación, avisos y notificación a soporte; la entrega confiable de correo es prerrequisito de varias historias.
+- **Acciones de citas de recepción**: las acciones de recepción sobre citas (crear, cancelar) y la vista de agenda llegan con las features 2 y 3, que registrarán sus acciones en el mismo registro de acciones de recepción; en esta feature solo se prueban los permisos negativos y el acceso a datos de contacto de pacientes.
+- **Derechos del titular**: el canal (por defecto `soporte@innvend.com`) y el plazo de respuesta (por defecto 20 días hábiles) son provisionales hasta la revisión legal.
 - **Constitución**: la feature está sujeta a los principios I (privacidad), II (aislamiento por médico) y IV (seguridad) de `.specify/memory/constitution.md`.

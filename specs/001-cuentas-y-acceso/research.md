@@ -111,8 +111,11 @@ usar y por qué.
 ### 12. Correo
 - **Decision**: tabla `email_outbox` (destinatario, plantilla, datos mínimos, estado, intentos, `next_attempt_at`);
   un script de cron cada minuto la procesa con reintentos y envía con `nodemailer` por el SMTP de Hostinger. El
-  contenido sensible (enlaces con token) se genera al enviar a partir del identificador de la fila, y el cuerpo
-  enviado no se guarda. Las filas entregadas se limpian después de unos días.
+  contenido sensible se genera al enviar a partir del identificador de la fila, y el cuerpo enviado no se
+  guarda. Para plantillas con enlace (`password_reset`, `reception_invitation`) el procesador crea el token de
+  un solo uso en el momento de enviar, en la misma transacción que marca el correo como enviado; el token nunca
+  se guarda en claro y su caducidad (30 minutos o 7 días) cuenta desde el envío. Si se reintenta el envío, el
+  token anterior se invalida y se crea uno nuevo. Las filas entregadas se limpian después de unos días.
 - **Rationale**: encaja con el cron por minuto de 0001 y la constitución (VI), tolera caídas del SMTP, evita enviar
   dentro de la petición HTTP.
 - **Alternatives**: envío síncrono (bloquea y pierde correos si falla); proveedor transaccional (queda como respaldo,

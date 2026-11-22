@@ -23,17 +23,18 @@ Aplicación con vistas HTML renderizadas en el servidor. Convenciones comunes:
 | `GET /recuperar` · `POST /recuperar` | Pub | `email` | Siempre la misma pantalla; si existe, encola correo con enlace de 30 min |
 | `GET /recuperar/:token` | Pub | `token` | Muestra formulario si es válido; **no consume** |
 | `POST /recuperar/:token` | Pub | `password`, `passwordConfirm` | Consume el token, cambia la contraseña, revoca otras sesiones, avisa por correo |
-| `GET/POST /cuenta/contrasena` | autenticado | `currentPassword`, `newPassword` | Pide contraseña actual; avisa por correo |
+| `GET/POST /cuenta/contrasena` | autenticado | `currentPassword`, `newPassword` | Pide contraseña actual; revoca las demás sesiones; avisa por correo |
 | `GET/POST /cuenta/mfa` | M, R, S | `code` | Activa o desactiva TOTP; muestra códigos de recuperación una sola vez |
 | `GET/POST /cuenta/mfa/alta` | S | `code` | Alta obligatoria de TOTP antes de cualquier otra ruta de soporte |
 | `GET/POST /cuenta/correo` | autenticado | `currentPassword`, `newEmail` | Cambio sensible; avisa al correo anterior y al nuevo |
+| `GET/POST /cuenta/movil-emergencia` | M | `currentPassword`, `emergencyMobile` (10 dígitos MX) | Cambio sensible; valida unicidad; el móvil nuevo queda sin verificar hasta la fase con WhatsApp; avisa por correo |
 
 ## Médicos
 
 | Método y ruta | Rol | Entrada | Resultado |
 |---------------|-----|---------|-----------|
 | `GET /medicos/registro` | Pub | — | Formulario con casillas sin marcar |
-| `POST /medicos/registro` | Pub | multipart: `fullName`, `email`, `password`, `cedulaNumber`, `cedulaFile` (≤ 5 MB; JPEG/PNG/PDF por firma), `emergencyMobile` (10 dígitos MX), `officePhone?`, `acceptPrivacy`, `acceptTerms` | 303 a `/medicos/estado`; sin ambas casillas, 400. Cédula o móvil duplicados, 400 con mensaje que remite a soporte |
+| `POST /medicos/registro` | Pub | multipart: `fullName`, `email`, `password`, `cedulaNumber`, `cedulaFile` (≤ 5 MB; JPEG/PNG/PDF por firma), `emergencyMobile` (10 dígitos MX), `officePhone?`, `acceptPrivacy`, `acceptTerms` | 303 a `/medicos/estado`; sin ambas casillas, 400. Cédula o móvil duplicados, 400 con mensaje que remite a soporte. Correo ya registrado con otro rol, 400 con mensaje genérico. En producción con aviso provisional: 403 |
 | `GET /medicos/estado` | Mp | — | Estado de la solicitud y motivo si fue rechazada |
 | `POST /medicos/estado/reenviar` | Mp rechazado | `cedulaNumber?`, `cedulaFile?`, `emergencyMobile?` | Vuelve a `pending` |
 | `GET /medicos/panel` | M | — | Panel mínimo (marcador de las demás features) |
@@ -60,7 +61,7 @@ cumplir FR-040 y FR-041 con datos de prueba.
 | `POST /medicos/recepcion/:membershipId/retirar` | M | `membershipId` | Retira el acceso al instante y revoca sus sesiones con ese médico |
 | `POST /medicos/recepcion/invitaciones/:id/revocar` | M | `id` | Revoca una invitación pendiente |
 | `GET /recepcion/invitacion/:token` | Pub | `token` | Muestra resumen e invitado; **no consume** |
-| `POST /recepcion/invitacion/:token` | Pub | `fullName`, `password?` (solo si es cuenta nueva), `acceptPrivacy`, `acceptConfidentiality` | Consume el token, vincula a la persona con el médico |
+| `POST /recepcion/invitacion/:token` | Pub | `fullName`, `password?` (solo si es cuenta nueva), `acceptPrivacy`, `acceptConfidentiality` | Consume el token, vincula a la persona con el médico. En producción con aviso provisional: 403 |
 | `GET/POST /recepcion/medico-activo` | R | `doctorId` | Elige con qué médico trabaja (solo entre vínculos vigentes) |
 | `GET /recepcion/panel` | R | — | Panel mínimo con el médico activo |
 
@@ -74,7 +75,7 @@ Permisos negados a recepción (siempre 403, con prueba): configuración, pagos, 
 | `GET /legal/:type` · `GET /legal/:type/v/:version` | Pub | `type` en lista cerrada, `version` entero | Texto vigente o histórico |
 | `GET /legal/aceptar` · `POST /legal/aceptar` | autenticado | `documentIds[]`, casillas | Pantalla que bloquea el uso hasta aceptar las versiones vigentes (FR-021); escribe `consent_acceptance` |
 | (pie) | todas las páginas públicas | — | Enlace al aviso de privacidad (FR-022) |
-| `GET /derechos` | Pub | — | Canal y plazo para ejercer derechos ARCO (FR-024) |
+| `GET /derechos` | Pub | — | Canal y plazo para ejercer derechos ARCO (FR-024), leídos de `RIGHTS_CONTACT_EMAIL` y `RIGHTS_RESPONSE_DAYS` |
 
 Cualquier ruta autenticada responde 403 con redirección a `/legal/aceptar` si falta la aceptación de una versión vigente.
 

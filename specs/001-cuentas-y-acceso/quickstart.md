@@ -13,9 +13,10 @@ en [data-model.md](data-model.md) y [contracts/](contracts/).
 
 ## Preparación
 
-1. `npm run migrate` aplica las migraciones y crea los disparadores de solo anexar.
-2. `npm run support:create` crea la cuenta de soporte (contraseña por entrada estándar).
-3. `npm run dev` levanta la aplicación; en otra terminal `npm run jobs:outbox` (o su equivalente de pruebas) procesa los
+1. `npm run build` compila (los scripts `migrate`, `dev` y `jobs:*` ejecutan la salida compilada de `dist/src` y `dist/scripts`).
+2. `npm run migrate` aplica las migraciones y crea los disparadores de solo anexar.
+3. `npm run support:create` crea la cuenta de soporte (contraseña por entrada estándar).
+4. `npm run dev` levanta la aplicación; en otra terminal `npm run jobs:outbox` (o su equivalente de pruebas) procesa los
    correos.
 
 ## Verificación automática
@@ -46,12 +47,15 @@ en [data-model.md](data-model.md) y [contracts/](contracts/).
 | 19 | Recepción en dos médicos no mezcla datos entre ellos | US4 · FR-029 |
 | 20 | Acciones de recepción registran quién las hizo | US4 · FR-030 |
 | 21 | Nueva versión de un documento obliga a aceptarla; registro es de solo anexar | US5 · FR-020, FR-021 |
-| 22 | En producción, documento provisional bloquea el alta de pacientes | US5 · FR-023 |
+| 22 | En producción, documento provisional bloquea el alta de pacientes, el registro de médicos y la aceptación de invitaciones de recepción | US5 · FR-023 |
 | 23 | Aviso de privacidad accesible sin sesión | US5 · FR-022 |
 | 24 | Soporte sin TOTP queda obligado a configurarlo; médico con TOTP lo usa | US6 · FR-036 |
 | 25 | Abrir detalle de paciente (permitido y denegado) escribe `patient_access_log` sin contenido | US6 · FR-041, SC-007 |
 | 26 | Los registros técnicos no contienen contraseñas, tokens ni datos personales | FR-042 |
 | 27 | `consent_acceptance` y `patient_access_log` rechazan UPDATE y DELETE | FR-020, FR-041 |
+| 28 | Cambiar el móvil de emergencias exige la contraseña actual, rechaza duplicados y avisa por correo | US3 · FR-038 |
+| 29 | Un correo ya registrado con otro rol se rechaza con mensaje genérico (registro e invitación) | Casos límite |
+| 30 | El token de recuperación o invitación se crea al enviar el correo; un reintento invalida el anterior y no se guarda en claro | US3, US4 · FR-026, FR-034 |
 
 ## Recorrido manual (humo)
 
