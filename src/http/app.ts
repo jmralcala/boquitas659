@@ -40,6 +40,9 @@ function toFastifyTrustProxy(value: AppOptions["trustProxy"]): boolean | string[
   return value;
 }
 
+/** Únicas rutas que reciben archivos (cédula del médico). En el resto, multipart se rechaza antes de leer el cuerpo. */
+const MULTIPART_ROUTES = new Set(["/medicos/registro", "/medicos/estado/reenviar"]);
+
 function sendError(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -90,8 +93,24 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (options.legal) installLegalGate(app, options.legal);
   }
 
+  // Evita que cualquier POST anónimo haga leer hasta 5 MB en memoria antes de que el filtro CSRF lo rechace.
+  app.addHook("onRequest", async (request, reply) => {
+    const type = request.headers["content-type"];
+    if (typeof type === "string" && type.toLowerCase().startsWith("multipart/") && !MULTIPART_ROUTES.has(request.routeOptions?.url ?? "")) {
+      return sendError(request, reply, 415, "unsupported_media_type", "Este formulario no admite archivos.");
+    }
+  });
+
   app.addHook("onSend", async (request, reply) => {
     void reply.header("x-request-id", request.id);
+  });
+
+  // Las páginas pueden contener códigos de recuperación, secretos TOTP, enlaces con token o datos de pacientes:
+  // no deben quedar en cachés ni reaparecer con «atrás» tras cerrar sesión.
+  app.addHook("onSend", async (_request, reply) => {
+    if (String(reply.getHeader("content-type") ?? "").startsWith("text/html") && !reply.hasHeader("cache-control")) {
+      void reply.header("cache-control", "no-store");
+    }
   });
 
   app.setNotFoundHandler((request, reply) => {

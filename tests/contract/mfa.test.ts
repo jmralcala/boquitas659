@@ -263,3 +263,58 @@ describe("estado en /cuenta/mfa", () => {
     expect(anonymous.token.length).toBeGreaterThan(10);
   });
 });
+
+describe("endurecimiento del doble factor", () => {
+  it("el contador de intentos NO se reinicia al repetir la contraseña: la espera sigue creciendo", async () => {
+    const doctor = await createDoctor(pool, { email: "dra@example.com" });
+    const { secret } = await enroll(doctor.user);
+    t.clock.advance(60_000);
+
+    const a = await loginWithMfa("dra@example.com", doctor.user.password);
+    expect((await submitCode(a.cookie, "000000")).statusCode).toBe(401); // 1.er fallo: espera de 1 s
+    t.clock.advance(1500);
+
+    const b = await loginWithMfa("dra@example.com", doctor.user.password); // contraseña correcta otra vez
+    expect(b.first.statusCode).toBe(303);
+    expect((await submitCode(b.cookie, "000000")).statusCode).toBe(401); // 2.º fallo: espera de 2 s (no se reinició)
+    t.clock.advance(1500);
+    expect((await submitCode(b.cookie, await codeAt(secret))).statusCode).toBe(429); // 1,5 s < 2 s
+    t.clock.advance(1000);
+    expect((await submitCode(b.cookie, await codeAt(secret))).statusCode).toBe(303);
+  });
+
+  it("entrar con un código de recuperación deja evento y avisa por correo; con el TOTP no", async () => {
+    const doctor = await createDoctor(pool, { email: "dra@example.com" });
+    const { recovery, secret } = await enroll(doctor.user);
+    t.clock.advance(60_000);
+
+    const withTotp = await loginWithMfa("dra@example.com", doctor.user.password);
+    expect((await submitCode(withTotp.cookie, await codeAt(secret))).statusCode).toBe(303);
+    expect(await rows("SELECT COUNT(*) AS n FROM security_event WHERE type = 'mfa_recovery_used'")).toEqual([{ n: 0 }]);
+
+    t.clock.advance(60_000);
+    const withRecovery = await loginWithMfa("dra@example.com", doctor.user.password);
+    expect((await submitCode(withRecovery.cookie, recovery[0] ?? "")).statusCode).toBe(303);
+    expect(await rows("SELECT COUNT(*) AS n FROM security_event WHERE type = 'mfa_recovery_used'")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT to_email FROM email_outbox WHERE template = 'mfa_recovery_used'")).toEqual([{ to_email: "dra@example.com" }]);
+  });
+
+  it("generar un secreto nuevo con el doble factor ya activo falla y no desactiva nada", async () => {
+    const doctor = await createDoctor(pool);
+    await enroll(doctor.user);
+    await expect(t.services.mfa.beginEnrollment(doctor.user.id)).rejects.toMatchObject({ status: 409 });
+    expect((await rows("SELECT mfa_enabled FROM `user` WHERE id = ?", [doctor.user.id]))[0]?.mfa_enabled).toBe(1);
+  });
+
+  it("la activación y el desactivado dejan el evento y el aviso en la misma transacción que el cambio", async () => {
+    const doctor = await createDoctor(pool, { email: "dra@example.com" });
+    const { cookie } = await enroll(doctor.user);
+    expect(await rows("SELECT COUNT(*) AS n FROM security_event WHERE type = 'mfa_enabled'")).toEqual([{ n: 1 }]);
+
+    const client = await clientForCookie(t.services, cookie);
+    t.clock.advance(5 * 60_000);
+    await post(client, "/cuenta/mfa/desactivar", { currentPassword: doctor.user.password });
+    expect(await rows("SELECT COUNT(*) AS n FROM security_event WHERE type = 'mfa_disabled'")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT COUNT(*) AS n FROM email_outbox WHERE template = 'mfa_disabled'")).toEqual([{ n: 1 }]);
+  });
+});

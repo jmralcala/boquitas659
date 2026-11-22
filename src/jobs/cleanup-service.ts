@@ -17,7 +17,8 @@ export interface CleanupResult {
  * toca los correos pendientes (`queued`), los registros de solo anexar ni los dispositivos conocidos.
  * - tokens de un solo uso: usados o vencidos hace más de 1 día;
  * - sesiones: revocadas o vencidas (tope absoluto) hace más de 1 día, o sin actividad desde hace más de 2 días;
- * - correos: entregados hace más de 7 días y fallidos hace más de 30;
+ * - correos: entregados y fallidos hace más de 30 días (la misma retención, para que el informe de entrega no se
+ *   sesgue) y cancelados hace más de 7;
  * - control de intentos: sin fallos desde hace más de 1 día.
  */
 export async function runCleanup(db: Db, clock: Clock = systemClock): Promise<CleanupResult> {
@@ -33,8 +34,8 @@ export async function runCleanup(db: Db, clock: Clock = systemClock): Promise<Cl
     [ago(DAY), ago(DAY), ago(2 * DAY)],
   );
   const [emails] = await db.execute<ResultSetHeader>(
-    "DELETE FROM email_outbox WHERE (status = 'sent' AND sent_at < ?) OR (status = 'failed' AND created_at < ?)",
-    [ago(7 * DAY), ago(30 * DAY)],
+    "DELETE FROM email_outbox WHERE (status = 'sent' AND sent_at < ?) OR (status = 'failed' AND created_at < ?) OR (status = 'cancelled' AND created_at < ?)",
+    [ago(30 * DAY), ago(30 * DAY), ago(7 * DAY)],
   );
   const [throttle] = await db.execute<ResultSetHeader>("DELETE FROM login_throttle WHERE updated_at < ?", [ago(DAY)]);
 

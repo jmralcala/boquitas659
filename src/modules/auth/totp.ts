@@ -53,9 +53,10 @@ export async function verifyTotpCode(input: {
     ...(input.afterTimeStep === undefined ? {} : { afterTimeStep: input.afterTimeStep }),
   });
   if (!result.valid) return { valid: false };
-  // La biblioteca devuelve el desfase (`delta`) respecto al paso actual; el paso coincidente es el actual más ese desfase.
+  // Se usa el paso que devuelve la biblioteca; si su tipo no lo expone, es el paso actual más el desfase (`delta`).
   const delta = "delta" in result && typeof result.delta === "number" ? result.delta : 0;
-  return { valid: true, timeStep: Math.floor(input.nowMs / 1000 / 30) + delta };
+  const timeStep = "timeStep" in result && typeof result.timeStep === "number" ? result.timeStep : Math.floor(input.nowMs / 1000 / 30) + delta;
+  return { valid: true, timeStep };
 }
 
 // --- Códigos de recuperación -------------------------------------------------------------------------------
@@ -96,10 +97,14 @@ export interface MfaService {
   /** Alta pendiente (para volver a mostrar el secreto tras un código erróneo), o `null`. */
   pendingEnrollment(userId: number): Promise<{ secret: string; otpauthUri: string } | null>;
   /** Activa con un código correcto y devuelve los códigos de recuperación (una sola vez); `null` si el código no vale. */
-  confirmEnrollment(userId: number, code: string): Promise<{ recoveryCodes: string[] } | null>;
+  confirmEnrollment(
+    userId: number,
+    code: string,
+    onActivated?: (connection: import("mysql2/promise").PoolConnection) => Promise<void>,
+  ): Promise<{ recoveryCodes: string[] } | null>;
   /** Código TOTP o de recuperación del inicio de sesión. Cada uno solo sirve una vez. */
   verifyLogin(userId: number, code: string): Promise<boolean>;
-  disable(userId: number): Promise<void>;
+  disable(userId: number, onDisabled?: (connection: import("mysql2/promise").PoolConnection) => Promise<void>): Promise<void>;
   isEnabled(userId: number): Promise<boolean>;
 }
 
@@ -129,10 +134,12 @@ export function createMfaService(db: Db, clock: Clock = systemClock, keyHex: str
       const user = await loadUser(userId);
       if (user.enabled) throw new AppError(409, "mfa_already_enabled", "El doble factor ya está activo.");
       const secret = generateSecret();
-      await db.execute(
-        "UPDATE `user` SET mfa_secret_encrypted = ?, mfa_enabled = 0, mfa_last_time_step = NULL WHERE id = ?",
+      // Condicionado a `mfa_enabled = 0`: si otra petición lo activó entre tanto, no se desactiva por accidente.
+      const [update] = await db.execute<import("mysql2/promise").ResultSetHeader>(
+        "UPDATE `user` SET mfa_secret_encrypted = ?, mfa_enabled = 0, mfa_last_time_step = NULL WHERE id = ? AND mfa_enabled = 0",
         [encryptSecret(secret, keyHex), userId],
       );
+      if (update.affectedRows !== 1) throw new AppError(409, "mfa_already_enabled", "El doble factor ya está activo.");
       return describe(user.email, secret);
     },
 
@@ -141,7 +148,7 @@ export function createMfaService(db: Db, clock: Clock = systemClock, keyHex: str
       return !user.enabled && user.secret ? describe(user.email, user.secret) : null;
     },
 
-    async confirmEnrollment(userId, code) {
+    async confirmEnrollment(userId, code, onActivated) {
       const user = await loadUser(userId);
       if (user.enabled) throw new AppError(409, "mfa_already_enabled", "El doble factor ya está activo.");
       if (!user.secret) return null;
@@ -159,6 +166,8 @@ export function createMfaService(db: Db, clock: Clock = systemClock, keyHex: str
             clock.now(),
           ]);
         }
+        // El evento de seguridad y el aviso por correo van en la misma transacción que el cambio.
+        if (onActivated) await onActivated(connection);
       });
       return { recoveryCodes };
     },
@@ -195,13 +204,14 @@ export function createMfaService(db: Db, clock: Clock = systemClock, keyHex: str
       return update.affectedRows === 1;
     },
 
-    async disable(userId) {
+    async disable(userId, onDisabled) {
       await withTransaction(db, async (connection) => {
         await connection.execute(
           "UPDATE `user` SET mfa_enabled = 0, mfa_secret_encrypted = NULL, mfa_last_time_step = NULL WHERE id = ?",
           [userId],
         );
         await connection.execute("DELETE FROM mfa_recovery_code WHERE user_id = ?", [userId]);
+        if (onDisabled) await onDisabled(connection);
       });
     },
 

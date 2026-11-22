@@ -81,7 +81,8 @@ export async function listPatientsForDoctor(ctx: TenantContext, executor: Execut
     `SELECT ${COLUMNS}
        FROM patient p JOIN doctor_patient dp ON dp.patient_id = p.id
       WHERE dp.doctor_id = ?
-      ORDER BY p.full_name ASC, p.id ASC`,
+      ORDER BY p.full_name ASC, p.id ASC
+      LIMIT 500`,
     [ctx.doctorId],
   );
   return rows.map(toPatient);

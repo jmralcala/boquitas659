@@ -25,7 +25,8 @@ function ageLabel(age: number): string {
  * (permitido o denegado) antes de responder. Un paciente de otro médico y uno inexistente dan el mismo 404.
  */
 export function registerPatientDetailRoutes(app: FastifyInstance, services: Services): void {
-  app.get("/agenda/pacientes/:patientId", async (request, reply) => {
+  // 120 consultas por minuto y por IP: cada intento (también el denegado) deja una fila que no se puede borrar.
+  app.get("/agenda/pacientes/:patientId", { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } }, async (request, reply) => {
     const tenant = await services.tenants.resolve(request);
     const { patientId } = parseInput(params, request.params);
 

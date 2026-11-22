@@ -273,7 +273,7 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 - [ ] T123 Ejecutar la validación completa de `quickstart.md` (los 30 escenarios y el recorrido manual).
 - [x] T124 Documentar en `docs/decisions/0002-cuentas-y-acceso.md` las decisiones técnicas (respaldo bcrypt, sesiones en base de datos, outbox con cron, corrección de FR-004) y actualizar `spec.md` para reflejar lo implementado, como exige la definición de terminado.
 - [x] T125 Preparar y documentar en `docs/configuration.md` el humo de despliegue en Hostinger: carga de `argon2`, latencia real del cron de un minuto con `jobs:outbox`, SPF/DKIM/DMARC y límites de envío del SMTP, y directorio de cédulas fuera de la raíz pública (resultados quedan como pendientes hasta desplegar).
-- [ ] T126 Ejecutar `code-review` sobre el diff y `/security-review` antes del PR, y corregir los hallazgos.
+- [x] T126 Ejecutar `code-review` sobre el diff y `/security-review` antes del PR, y corregir los hallazgos.
 
 ---
 

@@ -65,6 +65,7 @@ describe("servidor en producción", () => {
         SMTP_USER: "usuario",
         SMTP_PASS: "clave-de-prueba",
         SMTP_FROM: "no-responder@example.com",
+        TRUST_PROXY: "0",
       }),
     );
     try {

@@ -13,6 +13,8 @@ export interface RenderContext {
   link: string | null;
   baseUrl: string;
   db: Db;
+  /** Hora del procesamiento (reloj de la aplicación). */
+  now: Date;
 }
 
 export interface RenderedEmail {
@@ -29,6 +31,8 @@ export interface EmailTemplate {
     linkPath: (token: string) => string;
     subject: (payload: EmailPayload) => { userId?: number; invitationId?: number };
   };
+  /** Si devuelve `false` el correo se cancela sin enviarse (ya no tiene sentido). */
+  shouldSend?(context: { payload: EmailPayload; db: Db; now: Date }): Promise<boolean>;
   render(context: RenderContext): Promise<RenderedEmail> | RenderedEmail;
 }
 

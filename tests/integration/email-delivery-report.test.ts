@@ -19,7 +19,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-async function add(template: string, status: "queued" | "sent" | "failed", count: number, daysAgo = 1): Promise<void> {
+async function add(template: string, status: "queued" | "sent" | "failed" | "cancelled", count: number, daysAgo = 1): Promise<void> {
   const createdAt = new Date(NOW.getTime() - daysAgo * DAY);
   for (let i = 0; i < count; i += 1) {
     await pool.execute(
@@ -53,9 +53,17 @@ describe("deliveryReport (SC-010)", () => {
     await add("new_device_login", "failed", 1);
     const report = await deliveryReport(pool, range);
     expect(report.byTemplate).toEqual([
-      { template: "new_device_login", sent: 2, failed: 1, queued: 0 },
-      { template: "password_reset", sent: 3, failed: 0, queued: 0 },
+      { template: "new_device_login", sent: 2, failed: 1, queued: 0, cancelled: 0 },
+      { template: "password_reset", sent: 3, failed: 0, queued: 0, cancelled: 0 },
     ]);
+  });
+
+  it("los correos cancelados no cuentan como fallos de entrega", async () => {
+    await add("a", "sent", 99);
+    await add("a", "failed", 1);
+    await add("a", "cancelled", 50);
+    const report = await deliveryReport(pool, range);
+    expect(report).toMatchObject({ sent: 99, failed: 1, cancelled: 50, deliveredPercent: 99 });
   });
 
   it("solo cuenta el periodo pedido", async () => {

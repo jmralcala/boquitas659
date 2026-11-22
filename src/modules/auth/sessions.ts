@@ -1,4 +1,4 @@
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import type { Db } from "../../db/pool.js";
 import { systemClock, type Clock } from "../../lib/clock.js";
 import { generateToken, hashToken } from "../../lib/tokens.js";
@@ -36,7 +36,12 @@ export interface SessionService {
   /** Devuelve la sesión vigente (y renueva su inactividad) o `null`. */
   validate(token: string): Promise<SessionData | null>;
   revoke(token: string): Promise<void>;
-  revokeAllForUser(userId: number, exceptSessionId?: number): Promise<void>;
+  /** Con `executor` (una conexión de transacción) el cierre ocurre dentro de ella y se revierte junto con el cambio. */
+  revokeAllForUser(
+    userId: number,
+    exceptSessionId?: number,
+    executor?: Pick<Pool, "execute"> | Pick<PoolConnection, "execute">,
+  ): Promise<void>;
   /** Cambia el token (al iniciar sesión o subir de privilegio) e invalida el anterior. */
   rotate(sessionId: number, options: { mfaVerified: boolean }): Promise<{ token: string }>;
   setActiveDoctor(sessionId: number, doctorId: number | null): Promise<void>;
@@ -105,8 +110,8 @@ export function createSessionService(
       ]);
     },
 
-    async revokeAllForUser(userId, exceptSessionId) {
-      await db.execute(
+    async revokeAllForUser(userId, exceptSessionId, executor) {
+      await (executor ?? db).execute(
         "UPDATE session SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL AND id <> ?",
         [clock.now(), userId, exceptSessionId ?? 0],
       );

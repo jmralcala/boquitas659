@@ -175,3 +175,13 @@ describe("POST /login con límite de intentos", () => {
     expect(response.statusCode).toBe(429);
   });
 });
+
+describe("LoginThrottle: fallos simultáneos", () => {
+  it("nunca acortan una espera ya fijada por otro intento", async () => {
+    const clock = createFixedClock(new Date("2026-06-01T10:00:00.000Z"));
+    const throttle = createLoginThrottle(pool, clock, SECRET, { baseDelayMs: 1000, maxDelayMs: 10_000, ipFreeAttempts: 3, resetAfterMs: 3_600_000 });
+    const key = throttle.accountKey("ana@example.com");
+    await Promise.all(Array.from({ length: 8 }, () => throttle.recordFailure(key, "203.0.113.1")));
+    expect((await throttle.check(key, "203.0.113.9")).retryAfterMs).toBe(10_000);
+  });
+});

@@ -327,3 +327,50 @@ describe("POST /cuenta/movil-emergencia", () => {
     expect((await post(client, "/cuenta/movil-emergencia", { currentPassword: doctor.user.password, emergencyMobile: "5599887766" }, false)).statusCode).toBe(403);
   });
 });
+
+describe("cambio de correo: enlace ligado a su destino y límite por usuario", () => {
+  it("si se pide otro correo antes de enviar el primero, el primero se cancela y solo el último puede confirmarse", async () => {
+    const user = await createUser(pool, { email: "viejo@example.com" });
+    const client = await sessionFor(t.services, user);
+    const before = t.transport.sent.length;
+
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "primero@example.com" });
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "segundo@example.com" });
+    await t.runOutbox(); // los dos correos esperaban en cola
+
+    const sentNow = t.transport.sent.slice(before);
+    expect(sentNow.some((m) => m.to === "primero@example.com")).toBe(false);
+    expect(sentNow.filter((m) => m.to === "segundo@example.com")).toHaveLength(1);
+    expect(await rows("SELECT status FROM email_outbox WHERE template = 'email_change_confirm' AND to_email = 'primero@example.com'")).toEqual([{ status: "cancelled" }]);
+
+    const token = await linkTokenSentTo(t, "segundo@example.com", "/cuenta/correo/confirmar");
+    const form = await anonymousForm(t.app, `/cuenta/correo/confirmar/${token}`);
+    const response = await postForm(t.app, `/cuenta/correo/confirmar/${token}`, { _csrf: form.token }, form.cookie);
+    expect(response.statusCode).toBe(303);
+    expect(await rows("SELECT email FROM `user` WHERE id = ?", [user.id])).toEqual([{ email: "segundo@example.com" }]);
+  });
+
+  it("un enlace ya enviado deja de servir en cuanto se pide otro cambio", async () => {
+    const user = await createUser(pool, { email: "viejo@example.com" });
+    const client = await sessionFor(t.services, user);
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "primero@example.com" });
+    const first = await linkTokenSentTo(t, "primero@example.com", "/cuenta/correo/confirmar");
+    await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: "segundo@example.com" });
+    expect((await t.app.inject({ method: "GET", url: `/cuenta/correo/confirmar/${first}` })).statusCode).toBe(410);
+  });
+
+  it("limita a 5 solicitudes por hora y usuario (no sirve para bombardear un buzón ajeno)", async () => {
+    const user = await createUser(pool, { email: "viejo@example.com" });
+    const client = await sessionFor(t.services, user);
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      statuses.push((await post(client, "/cuenta/correo", { currentPassword: user.password, newEmail: `destino${i}@example.com` })).statusCode);
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    expect(await rows("SELECT COUNT(*) AS n FROM email_outbox WHERE template = 'email_change_confirm'")).toEqual([{ n: 5 }]);
+
+    t.clock.advance(61 * 60_000); // pasada la hora, vuelve a permitirse (la sesión de un paciente caduca a los 60 min: se abre otra)
+    const fresh = await sessionFor(t.services, user);
+    expect((await post(fresh, "/cuenta/correo", { currentPassword: user.password, newEmail: "otro@example.com" })).statusCode).toBe(200);
+  });
+});

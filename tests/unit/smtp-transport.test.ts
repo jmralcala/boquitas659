@@ -22,6 +22,15 @@ describe("createSmtpTransport", () => {
     expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({ secure: false, requireTLS: true }));
   });
 
+  it("define timeouts menores que la reserva de 2 minutos del outbox", () => {
+    createSmtpTransport({ ...base, port: 587 });
+    const options = (createTransport.mock.calls[0] as unknown as [Record<string, number>])[0];
+    for (const key of ["connectionTimeout", "greetingTimeout", "socketTimeout"] as const) {
+      expect(options[key]).toBeGreaterThan(0);
+      expect(options[key]).toBeLessThan(2 * 60_000);
+    }
+  });
+
   it("verifica el certificado y exige TLS 1.2 o superior", () => {
     createSmtpTransport({ ...base, port: 587 });
     expect(createTransport).toHaveBeenCalledWith(

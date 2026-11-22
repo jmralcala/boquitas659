@@ -238,3 +238,30 @@ describe("POST /recepcion/invitacion/:token (cuenta de recepción existente)", (
     expect(await rows("SELECT COUNT(*) AS n FROM reception_membership WHERE reception_user_id = ?", [person.id])).toEqual([{ n: 2 }]);
   });
 });
+
+describe("correos de invitaciones que dejaron de ser vigentes", () => {
+  it("una invitación revocada antes de enviarse no genera correo y queda cancelada", async () => {
+    const before = t.transport.sent.length;
+    const { invitationId } = await t.services.invitations.invite(doctor.doctorId, doctor.user.id, "laura@example.com");
+    await t.services.invitations.revoke(doctor.doctorId, doctor.user.id, invitationId);
+    await t.runOutbox();
+    expect(t.transport.sent.slice(before).some((m) => m.to === "laura@example.com")).toBe(false);
+    expect(await rows("SELECT status FROM email_outbox WHERE template = 'reception_invitation'")).toEqual([{ status: "cancelled" }]);
+    expect(await rows("SELECT COUNT(*) AS n FROM one_time_token")).toEqual([{ n: 0 }]);
+  });
+
+  it("una invitación que venció mientras esperaba en cola tampoco se envía", async () => {
+    const before = t.transport.sent.length;
+    await t.services.invitations.invite(doctor.doctorId, doctor.user.id, "laura@example.com");
+    t.clock.advance(8 * DAY);
+    await t.runOutbox();
+    expect(t.transport.sent.slice(before).some((m) => m.to === "laura@example.com")).toBe(false);
+  });
+
+  it("una invitación vigente se envía con normalidad", async () => {
+    const before = t.transport.sent.length;
+    await t.services.invitations.invite(doctor.doctorId, doctor.user.id, "laura@example.com");
+    await t.runOutbox();
+    expect(t.transport.sent.slice(before).some((m) => m.to === "laura@example.com")).toBe(true);
+  });
+});

@@ -57,12 +57,20 @@ export function registerRecoveryRoutes(app: FastifyInstance, services: Services)
       );
       const user = rows[0];
       if (user && user.status === "active") {
-        // El token se crea al enviar el correo (outbox), nunca se guarda en claro.
-        await enqueueEmail(
-          services.db,
-          { template: "password_reset", to: String(user.email), payload: { userId: Number(user.id) } },
-          services.clock,
+        // Máximo 3 correos de recuperación por hora a la misma dirección: evita bombardear un buzón ajeno y que
+        // alguien invalide una y otra vez el enlace de la víctima. La respuesta es la misma en todos los casos.
+        const [recent] = await services.db.execute<RowDataPacket[]>(
+          "SELECT COUNT(*) AS n FROM email_outbox WHERE template = 'password_reset' AND to_email = ? AND created_at > ?",
+          [String(user.email), new Date(services.clock.now().getTime() - 60 * 60_000)],
         );
+        if (Number(recent[0]?.n) < 3) {
+          // El token se crea al enviar el correo (outbox), nunca se guarda en claro.
+          await enqueueEmail(
+            services.db,
+            { template: "password_reset", to: String(user.email), payload: { userId: Number(user.id) } },
+            services.clock,
+          );
+        }
       }
     }
     // Misma respuesta exista o no la cuenta.
@@ -131,9 +139,12 @@ ${form({
         ]);
         await recordSecurityEvent(connection, services.clock, userId, "password_reset");
         await enqueueEmail(connection, { template: "password_changed", to: String(user.email), payload: { userId } }, services.clock);
+        // Cambiar la contraseña cierra todas las sesiones (también la de quien pudiera tener acceso indebido), dentro de la
+        // misma transacción: si no se pueden cerrar, la contraseña no cambia.
+        await services.sessions.revokeAllForUser(userId, undefined, connection);
       });
-      // Cambiar la contraseña cierra todas las sesiones (también la de quien pudiera tener acceso indebido).
-      await services.sessions.revokeAllForUser(userId);
+      // Quien se había bloqueado por intentos fallidos y recuperó su acceso no debe seguir esperando.
+      await services.throttle.recordSuccess(services.throttle.accountKey(String(user.email)));
       return reply.redirect("/login", 303);
     } catch (error) {
       if (error instanceof InvalidLinkError) return invalidLink(reply);

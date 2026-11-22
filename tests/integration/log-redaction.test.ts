@@ -38,7 +38,7 @@ beforeAll(async () => {
       callback();
     },
   });
-  t = await createTestApp(pool, { APP_ENV: "production", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_USER: "u", SMTP_PASS: "p", SMTP_FROM: "n@example.com" }, { logStream: stream });
+  t = await createTestApp(pool, { APP_ENV: "production", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_USER: "u", SMTP_PASS: "p", SMTP_FROM: "n@example.com", TRUST_PROXY: "0" }, { logStream: stream });
 });
 
 beforeEach(async () => {

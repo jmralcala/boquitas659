@@ -60,7 +60,7 @@ describe("email_outbox", () => {
     await enqueueEmail(pool, { template: "simple", to: "ana@example.com" }, clock);
     const result = await processOutbox(deps);
 
-    expect(result).toEqual({ sent: 1, retried: 0, failed: 0 });
+    expect(result).toEqual({ sent: 1, retried: 0, failed: 0, cancelled: 0 });
     expect(transport.sent).toEqual([
       { to: "ana@example.com", subject: "Asunto de prueba", text: "Cuerpo de prueba con datos privados" },
     ]);
@@ -81,28 +81,28 @@ describe("email_outbox", () => {
     await enqueueEmail(pool, { template: "simple", to: "ana@example.com" }, clock);
     transport.failNext(10);
 
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 1, failed: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 1, failed: 0, cancelled: 0 });
     let [row] = await outboxRows();
     expect(row).toMatchObject({ status: "queued", attempts: 1 });
     expect((row?.next_attempt_at as Date).getTime()).toBe(clock.now().getTime() + 1 * MINUTE);
 
     // Aún no vence la espera: no se intenta.
     clock.advance(30_000);
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0, cancelled: 0 });
 
     clock.advance(31_000);
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 1, failed: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 1, failed: 0, cancelled: 0 });
     [row] = await outboxRows();
     expect((row?.next_attempt_at as Date).getTime()).toBe(clock.now().getTime() + 2 * MINUTE);
 
     clock.advance(3 * MINUTE);
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 1 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 1, cancelled: 0 });
     [row] = await outboxRows();
     expect(row).toMatchObject({ status: "failed", attempts: 3 });
 
     // Ya no se vuelve a intentar.
     clock.advance(60 * MINUTE);
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0, cancelled: 0 });
     expect(transport.sent).toHaveLength(0);
   });
 
@@ -111,8 +111,8 @@ describe("email_outbox", () => {
     transport.failNext(1);
     await processOutbox(deps);
     clock.advance(2 * MINUTE);
-    expect(await processOutbox(deps)).toEqual({ sent: 1, retried: 0, failed: 0 });
-    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 1, retried: 0, failed: 0, cancelled: 0 });
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0, cancelled: 0 });
     expect(transport.sent).toHaveLength(1);
   });
 
@@ -174,5 +174,59 @@ describe("plantillas con enlace de un solo uso", () => {
       [clock.now()],
     );
     expect(Number(valid[0]?.n)).toBe(1);
+  });
+});
+
+describe("registro de errores y cancelación", () => {
+  it("registra cada fallo con id, plantilla, intento, tipo y código del error, sin mensajes ni destinatarios", async () => {
+    const events: import("../../src/mail/outbox.js").OutboxLogEvent[] = [];
+    deps = { ...deps, log: (event) => events.push(event) };
+    await enqueueEmail(pool, { template: "simple", to: "persona.privada@example.com" }, clock);
+    transport.failNext(10);
+
+    await processOutbox(deps);
+    clock.advance(2 * MINUTE);
+    await processOutbox(deps);
+    clock.advance(3 * MINUTE);
+    await processOutbox(deps);
+
+    expect(events.map((e) => [e.event, e.attempts])).toEqual([
+      ["send_failed", 1],
+      ["send_failed", 2],
+      ["gave_up", 3],
+    ]);
+    expect(events[0]).toMatchObject({ template: "simple", errorName: "Error", errorCode: "ETRANSPORT" });
+    expect(events[0]?.id).toBeGreaterThan(0);
+    const dump = JSON.stringify(events);
+    expect(dump).not.toContain("persona.privada");
+    expect(dump).not.toContain("Fallo simulado");
+  });
+
+  it("una plantilla puede cancelar el correo si ya no tiene sentido: no se envía y no cuenta como fallo", async () => {
+    const events: import("../../src/mail/outbox.js").OutboxLogEvent[] = [];
+    deps = {
+      ...deps,
+      log: (event) => events.push(event),
+      templates: { ...templates, cancelable: { shouldSend: async () => false, render: () => ({ subject: "x", text: "y" }) } },
+    };
+    await enqueueEmail(pool, { template: "cancelable", to: "ana@example.com" }, clock);
+
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0, cancelled: 1 });
+    expect(transport.sent).toHaveLength(0);
+    const [row] = await outboxRows();
+    expect(row).toMatchObject({ status: "cancelled", attempts: 0 });
+    expect(events).toMatchObject([{ event: "cancelled", template: "cancelable" }]);
+    // No se vuelve a intentar.
+    clock.advance(60 * MINUTE);
+    expect(await processOutbox(deps)).toEqual({ sent: 0, retried: 0, failed: 0, cancelled: 0 });
+  });
+
+  it("si shouldSend es verdadero el correo se envía con normalidad", async () => {
+    deps = {
+      ...deps,
+      templates: { ...templates, permitido: { shouldSend: async () => true, render: () => ({ subject: "x", text: "y" }) } },
+    };
+    await enqueueEmail(pool, { template: "permitido", to: "ana@example.com" }, clock);
+    expect((await processOutbox(deps)).sent).toBe(1);
   });
 });

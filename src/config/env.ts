@@ -72,5 +72,10 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     const names = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "(raíz)"))];
     throw new Error(`Configuración de entorno inválida: ${names.join(", ")}`);
   }
+  // Sin proxy configurado, detrás del proxy del hosting todos los clientes compartirían una IP y los límites de
+  // peticiones afectarían a todos por igual. Por eso en producción se exige decidirlo (0 = sin proxy).
+  if (result.data.APP_ENV === "production" && (source.TRUST_PROXY ?? "").trim() === "") {
+    throw new Error("Configuración de entorno inválida: TRUST_PROXY (en producción debe definirse; usa 0 si no hay proxy)");
+  }
   return Object.freeze(result.data);
 }

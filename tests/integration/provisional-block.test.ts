@@ -11,6 +11,7 @@ const SMTP = {
   SMTP_USER: "usuario",
   SMTP_PASS: "clave-de-prueba",
   SMTP_FROM: "no-responder@example.com",
+  TRUST_PROXY: "0",
 };
 let production: TestApp;
 let development: TestApp;

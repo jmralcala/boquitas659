@@ -244,3 +244,27 @@ describe("POST /recuperar/:token", () => {
     expect(await rows("SELECT COUNT(*) AS n FROM security_event WHERE type = 'password_reset'")).toEqual([{ n: 1 }]);
   });
 });
+
+describe("límite de correos de recuperación por destinatario", () => {
+  it("a una misma dirección solo se le encolan 3 correos por hora, aunque se pida desde IPs distintas", async () => {
+    const user = await createUser(pool, { email: "real@example.com" });
+    const statuses: number[] = [];
+    for (let i = 0; i < 5; i += 1) statuses.push((await requestReset(user.email)).statusCode);
+    expect(statuses).toEqual([200, 200, 200, 200, 200]); // la respuesta es siempre la misma
+    expect(await rows("SELECT COUNT(*) AS n FROM email_outbox WHERE template = 'password_reset'")).toEqual([{ n: 3 }]);
+
+    t.clock.advance(61 * MINUTE); // pasada la hora, se permite de nuevo
+    await requestReset(user.email);
+    expect(await rows("SELECT COUNT(*) AS n FROM email_outbox WHERE template = 'password_reset'")).toEqual([{ n: 4 }]);
+  });
+
+  it("tras recuperar la contraseña se limpia la espera por intentos fallidos de esa cuenta", async () => {
+    const user = await createUser(pool, { email: "real@example.com" });
+    await loginRequest(t.app, user.email, "contraseña-incorrecta-1");
+    expect(await rows("SELECT COUNT(*) AS n FROM login_throttle WHERE scope = 'account'")).toEqual([{ n: 1 }]);
+
+    const token = await resetTokenFor(user.email);
+    expect((await submitNewPassword(token, { password: NEW_PASSWORD, passwordConfirm: NEW_PASSWORD })).statusCode).toBe(303);
+    expect(await rows("SELECT COUNT(*) AS n FROM login_throttle WHERE scope = 'account'")).toEqual([{ n: 0 }]);
+  });
+});

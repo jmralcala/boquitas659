@@ -69,6 +69,16 @@ ${form({
     }
     await services.throttle.recordSuccess(key);
 
+    // Entrar con un código de recuperación (no con el TOTP) es un hecho que la persona titular debe conocer.
+    if (!/^\d{6}$/.test(code.trim())) {
+      await recordSecurityEvent(services.db, services.clock, auth.userId, "mfa_recovery_used");
+      await enqueueEmail(
+        services.db,
+        { template: "mfa_recovery_used", to: String(rows[0]?.email), payload: { userId: auth.userId } },
+        services.clock,
+      );
+    }
+
     // Al subir de privilegio se cambia el token de la sesión: el anterior (a medias) deja de servir.
     const { token } = await services.sessions.rotate(auth.sessionId, { mfaVerified: true });
     setSessionCookie(reply, token);
@@ -131,7 +141,14 @@ ${form({
   app.post("/cuenta/mfa/confirmar", { preHandler: mfaRoles }, async (request, reply) => {
     const auth = requireAuth(request);
     const { code } = parseInput(codeBody, request.body ?? {});
-    const confirmed = await services.mfa.confirmEnrollment(auth.userId, code).catch((error: unknown) => {
+    const [userRows] = await services.db.execute<RowDataPacket[]>("SELECT email FROM `user` WHERE id = ?", [auth.userId]);
+    const confirmed = await services.mfa
+      .confirmEnrollment(auth.userId, code, async (connection) => {
+        // Cambio, evento y aviso van en una sola transacción.
+        await recordSecurityEvent(connection, services.clock, auth.userId, "mfa_enabled");
+        await enqueueEmail(connection, { template: "mfa_enabled", to: String(userRows[0]?.email), payload: { userId: auth.userId } }, services.clock);
+      })
+      .catch((error: unknown) => {
       if (error instanceof AppError && error.code === "mfa_already_enabled") return "already" as const;
       throw error;
     });
@@ -141,10 +158,6 @@ ${form({
       if (!pending) return renderStatus(request, reply, 400, "Primero genera tu clave con «Activar doble factor».");
       return send(reply, 400, "Activar doble factor", enrollmentPage(request, reply, pending, "El código no es correcto. Inténtalo de nuevo."));
     }
-
-    const [rows] = await services.db.execute<RowDataPacket[]>("SELECT email FROM `user` WHERE id = ?", [auth.userId]);
-    await recordSecurityEvent(services.db, services.clock, auth.userId, "mfa_enabled");
-    await enqueueEmail(services.db, { template: "mfa_enabled", to: String(rows[0]?.email), payload: { userId: auth.userId } }, services.clock);
 
     // La sesión que activó el doble factor sigue válida: se rota ya verificada.
     const { token } = await services.sessions.rotate(auth.sessionId, { mfaVerified: true });
@@ -168,9 +181,10 @@ ${form({
     try {
       const { currentPassword } = parseInput(passwordBody, request.body ?? {});
       const user = await services.reauth.confirm(auth.userId, request.ip, currentPassword);
-      await services.mfa.disable(auth.userId);
-      await recordSecurityEvent(services.db, services.clock, auth.userId, "mfa_disabled");
-      await enqueueEmail(services.db, { template: "mfa_disabled", to: user.email, payload: { userId: auth.userId } }, services.clock);
+      await services.mfa.disable(auth.userId, async (connection) => {
+        await recordSecurityEvent(connection, services.clock, auth.userId, "mfa_disabled");
+        await enqueueEmail(connection, { template: "mfa_disabled", to: user.email, payload: { userId: auth.userId } }, services.clock);
+      });
       return send(reply, 200, "Doble factor", html`<h1>Doble factor desactivado</h1><p role="status">Desactivaste el doble factor. Puedes volver a activarlo cuando quieras.</p>`);
     } catch (error) {
       if (error instanceof WrongPasswordError) return renderStatus(request, reply, 403, error.publicMessage);

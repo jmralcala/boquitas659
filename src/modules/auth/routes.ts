@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import type { Db } from "../../db/pool.js";
+import { withTransaction } from "../../db/tx.js";
 import { clearSessionCookie, isFullyAuthenticated, setSessionCookie } from "../../http/session-plugin.js";
 import { errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
@@ -124,7 +125,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
           .type("text/html; charset=utf-8")
           .send(renderLogin(app, request, reply, { email: parsed.data.email.slice(0, 254), error: LOGIN_ERROR }));
       }
-      await deps.throttle.recordSuccess(accountKey);
+      // Con doble factor el contador NO se reinicia aquí: si no, quien conoce la contraseña podría alternar fallos de
+      // código con inicios de sesión correctos y la espera nunca crecería. Se reinicia al verificar el segundo factor.
+      if (user.mfa_enabled !== 1) await deps.throttle.recordSuccess(accountKey);
 
       if (deps.hasher.needsRehash(String(user.password_hash))) {
         await deps.db.execute("UPDATE `user` SET password_hash = ? WHERE id = ?", [
@@ -138,12 +141,14 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
       const device = await deps.devices.check(userId, request.cookies[DEVICE_COOKIE]);
       setDeviceCookie(reply, device.deviceId);
       if (device.isNew) {
-        await recordSecurityEvent(deps.db, clock, userId, "new_device");
-        await enqueueEmail(
-          deps.db,
-          { template: "new_device_login", to: String(user.email), payload: { userId, at: clock.now().toISOString() } },
-          clock,
-        );
+        await withTransaction(deps.db, async (connection) => {
+          await recordSecurityEvent(connection, clock, userId, "new_device");
+          await enqueueEmail(
+            connection,
+            { template: "new_device_login", to: String(user.email), payload: { userId, at: clock.now().toISOString() } },
+            clock,
+          );
+        });
       }
 
       // Sesión nueva en cada inicio: se descarta la anterior (evita fijación de sesión).

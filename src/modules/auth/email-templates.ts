@@ -1,3 +1,4 @@
+import type { RowDataPacket } from "mysql2/promise";
 import type { EmailPayload, EmailTemplate } from "../../mail/templates.js";
 import { EMAIL_CHANGE_TTL_MS, PASSWORD_RESET_TTL_MS } from "./one-time-tokens.js";
 
@@ -71,6 +72,11 @@ export const authTemplates: Record<string, EmailTemplate> = {
       linkPath: (token) => `/cuenta/correo/confirmar/${token}`,
       subject: (payload) => ({ userId: userIdOf(payload) }),
     },
+    // El enlace queda ligado a la dirección de destino: si mientras tanto se pidió otro correo, este se cancela.
+    async shouldSend({ payload, db }) {
+      const [rows] = await db.execute<RowDataPacket[]>("SELECT pending_email_normalized FROM `user` WHERE id = ?", [userIdOf(payload)]);
+      return typeof payload.newEmail === "string" && rows[0]?.pending_email_normalized === payload.newEmail;
+    },
     render: ({ link }) => ({
       subject: "Confirma tu correo nuevo",
       text: [
@@ -106,6 +112,18 @@ export const authTemplates: Record<string, EmailTemplate> = {
         "",
         `Si no fuiste tú, cambia tu contraseña ahora: ${new URL("/cuenta/contrasena", baseUrl).toString()}`,
         "y escribe a soporte.",
+      ].join("\n"),
+    }),
+  },
+
+  mfa_recovery_used: {
+    render: ({ baseUrl }) => ({
+      subject: "Se usó un código de recuperación en tu cuenta",
+      text: [
+        "Se inició sesión en tu cuenta con uno de tus códigos de recuperación del doble factor.",
+        "",
+        `Si no fuiste tú, cambia tu contraseña ahora: ${new URL("/cuenta/contrasena", baseUrl).toString()}`,
+        "y escribe a soporte. Te conviene desactivar y volver a activar el doble factor para obtener códigos nuevos.",
       ].join("\n"),
     }),
   },

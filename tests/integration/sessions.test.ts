@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { withTransaction } from "../../src/db/tx.js";
 import { createFixedClock, type FixedClock } from "../../src/lib/clock.js";
 import { createSessionService, type SessionService } from "../../src/modules/auth/sessions.js";
 import { clearTables, createDoctor, createTestPool, createUser, resetDatabase } from "./helpers/db.js";
@@ -130,5 +131,25 @@ describe("SessionService", () => {
     expect(await sessions.validate(token)).toMatchObject({ activeDoctorId: doctor.doctorId });
     await sessions.setActiveDoctor(session!.sessionId, null);
     expect(await sessions.validate(token)).toMatchObject({ activeDoctorId: null });
+  });
+});
+
+describe("revokeAllForUser dentro de una transacción", () => {
+  it("se revierte junto con la transacción si esta falla, y se confirma si termina bien", async () => {
+    const user = await createUser(pool);
+    const { token } = await sessions.create(user.id);
+
+    await expect(
+      withTransaction(pool, async (connection) => {
+        await sessions.revokeAllForUser(user.id, undefined, connection);
+        throw new Error("falla a propósito");
+      }),
+    ).rejects.toThrow("falla a propósito");
+    expect(await sessions.validate(token)).not.toBeNull();
+
+    await withTransaction(pool, async (connection) => {
+      await sessions.revokeAllForUser(user.id, undefined, connection);
+    });
+    expect(await sessions.validate(token)).toBeNull();
   });
 });

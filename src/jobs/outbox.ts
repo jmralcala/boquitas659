@@ -33,8 +33,9 @@ try {
     tokens: createOneTimeTokenService(db),
     templates: defaultTemplates,
     baseUrl: env.PUBLIC_BASE_URL,
+    log: (event) => process.stderr.write(`${JSON.stringify({ component: "outbox", ...event })}\n`),
   });
-  process.stdout.write(`Outbox: ${result.sent} enviados, ${result.retried} reintentos, ${result.failed} fallidos.\n`);
+  process.stdout.write(`Outbox: ${result.sent} enviados, ${result.retried} reintentos, ${result.failed} fallidos, ${result.cancelled} cancelados.\n`);
 } catch (error) {
   const code = (error as { code?: string }).code ?? "desconocido";
   process.stderr.write(`Error en el outbox (${(error as Error).name}, código ${code}).\n`);

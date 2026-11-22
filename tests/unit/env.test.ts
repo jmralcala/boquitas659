@@ -64,8 +64,25 @@ describe("loadEnv", () => {
       SMTP_USER: "usuario",
       SMTP_PASS: "clave-de-prueba",
       SMTP_FROM: "no-responder@example.com",
+      TRUST_PROXY: "0",
     });
     expect(env.SMTP_PORT).toBe(465);
+  });
+
+  it("en producción exige definir TRUST_PROXY explícitamente (0 si no hay proxy)", () => {
+    const production = {
+      ...base,
+      APP_ENV: "production",
+      SMTP_HOST: "smtp.example.com",
+      SMTP_PORT: "465",
+      SMTP_USER: "usuario",
+      SMTP_PASS: "clave-de-prueba",
+      SMTP_FROM: "no-responder@example.com",
+    };
+    expect(() => loadEnv(production)).toThrow(/TRUST_PROXY/);
+    expect(() => loadEnv({ ...production, TRUST_PROXY: "  " })).toThrow(/TRUST_PROXY/);
+    expect(loadEnv({ ...production, TRUST_PROXY: "0" }).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ ...production, TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);
   });
 
   it("nunca incluye valores en el mensaje de error", () => {

@@ -11,7 +11,8 @@ export type SecurityEventType =
   | "email_changed"
   | "emergency_mobile_changed"
   | "mfa_enabled"
-  | "mfa_disabled";
+  | "mfa_disabled"
+  | "mfa_recovery_used";
 
 /** Registra un evento de seguridad de la cuenta. Sin datos personales: solo quién (id), qué y cuándo. */
 export async function recordSecurityEvent(

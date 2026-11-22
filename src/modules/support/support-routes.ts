@@ -48,7 +48,7 @@ ${
 
 /**
  * Vista mínima de soporte: revisar, aprobar, rechazar y liberar cédulas.
- * IMPORTANTE: antes de exponer estas rutas en producción debe exigirse el segundo factor (US6).
+ * El doble factor de soporte lo exige el filtro global de `src/http/support-mfa.ts`.
  */
 export function registerSupportRoutes(app: FastifyInstance, services: Services): void {
   const onlySupport = requireRole("support");

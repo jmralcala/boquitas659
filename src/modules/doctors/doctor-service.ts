@@ -89,6 +89,15 @@ export interface DoctorService {
 export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
   const clock = deps.clock ?? systemClock;
 
+  /** Borrar un archivo de cédula nunca debe ocultar el error que se está manejando. */
+  async function removeQuietly(name: string): Promise<void> {
+    try {
+      await deps.cedulaStorage.remove(name);
+    } catch {
+      // el archivo huérfano lo recogerá una limpieza manual; el error original es el importante
+    }
+  }
+
   return {
     async register(raw) {
       if (deps.blockProvisional && (await deps.legal.hasProvisional(["doctor_privacy", "terms_doctor"]))) {
@@ -157,7 +166,7 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
           return { userId: user.insertId, doctorId };
         });
       } catch (error) {
-        await deps.cedulaStorage.remove(saved.name);
+        await removeQuietly(saved.name);
         return rethrowDuplicate(error);
       }
     },
@@ -194,7 +203,7 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
           }
 
           const merged = {
-            cedulaNumber: cedula ? (input.cedulaNumber as string) : doctor.cedulaNumber,
+            cedulaNumber: cedula ?? doctor.cedulaNumber,
             cedulaNormalized: cedula ?? doctor.cedulaNormalized,
             filePath: newFile?.name ?? doctor.cedulaFilePath,
             mobile: mobile ?? doctor.emergencyMobile,
@@ -227,10 +236,10 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
           );
         });
       } catch (error) {
-        if (newFile) await deps.cedulaStorage.remove(newFile.name);
+        if (newFile) await removeQuietly(newFile.name);
         return rethrowDuplicate(error);
       }
-      if (replaced.oldFile) await deps.cedulaStorage.remove(replaced.oldFile);
+      if (replaced.oldFile) await removeQuietly(replaced.oldFile);
     },
   };
 }

@@ -64,11 +64,14 @@ export function createLoginThrottle(
     const failures = Number(rows[0]?.failures ?? 0);
     const exponent = failures - freeAttempts - 1;
     const delay = exponent >= 0 ? Math.min(config.baseDelayMs * 2 ** Math.min(exponent, 30), config.maxDelayMs) : 0;
-    await db.execute("UPDATE login_throttle SET locked_until = ? WHERE scope = ? AND key_hash = ?", [
-      delay > 0 ? new Date(now.getTime() + delay) : null,
-      scope,
-      keyHash,
-    ]);
+    if (delay > 0) {
+      const until = new Date(now.getTime() + delay);
+      // GREATEST: con fallos simultáneos nunca se acorta una espera que otro intento ya fijó.
+      await db.execute(
+        "UPDATE login_throttle SET locked_until = GREATEST(COALESCE(locked_until, ?), ?) WHERE scope = ? AND key_hash = ?",
+        [until, until, scope, keyHash],
+      );
+    }
   }
 
   return {

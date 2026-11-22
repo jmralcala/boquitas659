@@ -74,3 +74,48 @@ Origen: `specs/001-cuentas-y-acceso/` (spec, plan, research, data-model, contrac
    monitoreo y qué ocurre si falla el cron.
 7. **No probado**: envío por un SMTP real, ni los scripts de línea de comandos con una terminal interactiva (sí sus
    servicios).
+
+## Revisiones de código y de seguridad (T126)
+
+Dos revisiones independientes (calidad de código y seguridad) leyeron todo el diff de la feature: **0 hallazgos
+críticos o altos** y ningún bloqueante. Se corrigió lo siguiente, cada punto con su prueba:
+
+- **Outbox:** timeouts del SMTP menores que la reserva de 2 min; los errores se registran (id, plantilla, intento,
+  tipo y código del error, nunca mensajes ni destinatarios); la entrega es *al menos una vez* y está documentado; un
+  correo que ya no tiene sentido se cancela (`cancelled`) en lugar de enviarse (invitación revocada o vencida, otro
+  cambio de correo pedido) y no cuenta como fallo de entrega.
+- **Informe de entrega (SC-010):** los correos entregados se conservan 30 días, igual que los fallidos; antes se
+  borraban a los 7 y el porcentaje salía sesgado a la baja.
+- **Doble factor:** el contador de intentos ya no se reinicia al repetir la contraseña (la espera sigue creciendo);
+  usar un código de recuperación deja evento y avisa por correo; el alta es atómica; el evento y el aviso van en la
+  misma transacción que el cambio.
+- **Cambio de correo:** el enlace queda ligado a su dirección de destino y pedir otro cambio invalida el anterior;
+  máximo 5 solicitudes por hora y usuario.
+- **Sesiones:** al cambiar contraseña o correo, o recuperar la contraseña, el cierre de sesiones ocurre dentro de la
+  misma transacción; tras recuperar la contraseña se limpia la espera por intentos de esa cuenta.
+- **Abuso de correo:** a una misma dirección solo se le encolan 3 correos de recuperación por hora.
+- **Configuración y cabeceras:** `TRUST_PROXY` es obligatoria en producción (0 si no hay proxy); multipart solo se
+  admite en las dos rutas de la cédula; las páginas HTML llevan `Cache-Control: no-store`; límite de peticiones en el
+  detalle de pacientes.
+- **Menores:** cédula normalizada al reenviar la solicitud, borrar un archivo ya no oculta el error original, tope de
+  500 filas en el listado de pacientes de un médico, y espera por intentos que nunca se acorta con fallos simultáneos.
+
+### Decisiones de producto pendientes (no son errores de código)
+1. **Bloqueo de cuenta por terceros.** La espera por intentos es por cuenta y por IP; quien conozca un correo puede
+   mantenerlo en espera de hasta 15 min con un intento fallido cada tanto. Opciones: no aplicar la espera de cuenta a
+   los dispositivos ya conocidos (`__Host-did`), o añadir un desafío por correo.
+2. **Registro sin verificar el correo.** Un paciente o médico puede registrarse con el correo de otra persona (queda
+   sin poder crear su cuenta). La decisión 0001 acepta revelar que un correo existe, pero no cubre esto: haría falta
+   verificar el correo antes de activar la cuenta.
+3. **Invitaciones de recepción.** Un médico aprobado puede sondear qué correos tienen cuenta de otro rol (mensaje
+   genérico, pero distinto de «invitación enviada»). Alternativa: responder siempre «invitación enviada» y resolver al
+   aceptar.
+
+### Endurecimiento pendiente (bajo)
+- Derivar subclaves distintas (HKDF) para el cifrado de secretos TOTP, el HMAC de códigos de recuperación y el CSRF, y
+  documentar la rotación de claves (el prefijo `v1:` ya lo permite).
+- Exigir TLS en la conexión a la base de datos si el hosting la separa del servidor de la aplicación.
+- Limitar sesiones simultáneas por usuario y escribir `last_seen_at` como máximo una vez por minuto.
+- Desactivar el doble factor y cambiar el móvil de emergencias piden solo la contraseña (no un código TOTP).
+- Almacén compartido para el límite de peticiones por IP si la aplicación corre en varias instancias.
+- Paginar el panel de recepción más allá de las 500 filas actuales.

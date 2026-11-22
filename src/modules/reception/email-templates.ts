@@ -17,6 +17,12 @@ export const receptionTemplates: Record<string, EmailTemplate> = {
       linkPath: (token) => `/recepcion/invitacion/${token}`,
       subject: (payload) => ({ invitationId: idOf(payload, "invitationId") }),
     },
+    // Si la invitación se revocó, venció o ya se aceptó mientras el correo esperaba en cola, no se envía.
+    async shouldSend({ payload, db, now }) {
+      const [rows] = await db.execute<RowDataPacket[]>("SELECT status, expires_at FROM reception_invitation WHERE id = ?", [idOf(payload, "invitationId")]);
+      const row = rows[0];
+      return row !== undefined && row.status === "pending" && (row.expires_at as Date).getTime() > now.getTime();
+    },
     async render({ payload, link, db }) {
       const [rows] = await db.execute<RowDataPacket[]>(
         "SELECT d.full_name FROM reception_invitation i JOIN doctor d ON d.id = i.doctor_id WHERE i.id = ?",

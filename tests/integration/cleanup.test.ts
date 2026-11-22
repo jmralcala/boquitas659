@@ -46,7 +46,7 @@ async function session(hash: string, lastSeen: Date, absoluteExpires: Date, revo
   );
 }
 
-async function email(status: "queued" | "sent" | "failed", createdAt: Date, sentAt: Date | null): Promise<void> {
+async function email(status: "queued" | "sent" | "failed" | "cancelled", createdAt: Date, sentAt: Date | null): Promise<void> {
   await pool.execute(
     "INSERT INTO email_outbox (template, to_email, payload_ref, status, next_attempt_at, sent_at, created_at) VALUES ('t', 'a@example.com', '{}', ?, ?, ?, ?)",
     [status, createdAt, sentAt, createdAt],
@@ -78,16 +78,19 @@ describe("runCleanup", () => {
     expect(await count("session")).toBe(2);
   });
 
-  it("borra los correos entregados hace más de 7 días y los fallidos hace más de 30; nunca los pendientes", async () => {
-    await email("sent", ago(9 * DAY), ago(8 * DAY));
+  it("borra los entregados y los fallidos hace más de 30 días y los cancelados hace más de 7; nunca los pendientes", async () => {
+    await email("sent", ago(41 * DAY), ago(40 * DAY));
+    await email("sent", ago(12 * DAY), ago(11 * DAY)); // entregado hace 11 días: se conserva (misma retención que los fallidos)
     await email("sent", ago(2 * DAY), ago(DAY)); // entregado ayer: se conserva
     await email("failed", ago(40 * DAY), null);
     await email("failed", ago(5 * DAY), null); // fallido reciente: se conserva
+    await email("cancelled", ago(9 * DAY), null);
+    await email("cancelled", ago(2 * DAY), null); // cancelado hace 2 días: se conserva
     await email("queued", ago(90 * DAY), null); // pendiente muy antiguo: no se toca
 
     const result = await runCleanup(pool, clock);
-    expect(result.emails).toBe(2);
-    expect(await count("email_outbox")).toBe(3);
+    expect(result.emails).toBe(3);
+    expect(await count("email_outbox")).toBe(5);
     const [queued] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM email_outbox WHERE status = 'queued'");
     expect(Number(queued[0]?.n)).toBe(1);
   });
@@ -103,7 +106,7 @@ describe("runCleanup", () => {
   it("es idempotente: repetirla no borra nada más", async () => {
     await token("a", ago(3 * DAY), null);
     await session("b", ago(3 * DAY), ahead(3600_000), null);
-    await email("sent", ago(9 * DAY), ago(8 * DAY));
+    await email("sent", ago(41 * DAY), ago(40 * DAY));
     const first = await runCleanup(pool, clock);
     expect(first).toEqual({ tokens: 1, sessions: 1, emails: 1, throttle: 0 });
     expect(await runCleanup(pool, clock)).toEqual({ tokens: 0, sessions: 0, emails: 0, throttle: 0 });

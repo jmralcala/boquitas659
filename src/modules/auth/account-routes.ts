@@ -3,7 +3,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { z } from "zod";
 import type { Services } from "../../compose.js";
 import { withTransaction } from "../../db/tx.js";
-import { InvalidLinkError, ValidationError, WrongPasswordError } from "../../http/errors.js";
+import { InvalidLinkError, TooManyAttemptsError, ValidationError, WrongPasswordError } from "../../http/errors.js";
 import { parseInput } from "../../http/validate.js";
 import { requireAuth } from "../../http/session-plugin.js";
 import { errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
@@ -94,9 +94,9 @@ ${form({
         ]);
         await recordSecurityEvent(connection, services.clock, user.id, "password_changed");
         await enqueueEmail(connection, { template: "password_changed", to: user.email, payload: { userId: user.id } }, services.clock);
+        // Se cierran las demás sesiones (y se conserva la actual) dentro de la misma transacción.
+        await services.sessions.revokeAllForUser(user.id, auth.sessionId, connection);
       });
-      // Se cierran las demás sesiones y se conserva la actual.
-      await services.sessions.revokeAllForUser(user.id, auth.sessionId);
       return send(reply, 200, "Cambiar contraseña", passwordPage(request, reply, {}, true));
     } catch (error) {
       if (error instanceof WrongPasswordError || error instanceof ValidationError) {
@@ -122,12 +122,24 @@ ${form({
       if (newEmail === null) throw new ValidationError({ newEmail: ["Escribe un correo válido."] });
       if (newEmail === user.email.toLowerCase()) throw new ValidationError({ newEmail: ["Ese ya es el correo de tu cuenta."] });
 
+      // Máximo 5 solicitudes por hora y usuario: este formulario envía un correo a cualquier dirección que se escriba.
+      const [recent] = await services.db.execute<RowDataPacket[]>(
+        "SELECT COUNT(*) AS n FROM security_event WHERE user_id = ? AND type = 'email_change_requested' AND occurred_at > ?",
+        [user.id, new Date(services.clock.now().getTime() - 60 * 60_000)],
+      );
+      if (Number(recent[0]?.n) >= 5) throw new TooManyAttemptsError(15 * 60_000);
+
       // No se comprueba aquí si otra cuenta ya usa ese correo (no se revela): se resuelve al confirmar.
       await withTransaction(services.db, async (connection) => {
         await connection.execute("UPDATE `user` SET pending_email = ?, pending_email_normalized = ? WHERE id = ?", [newEmail, newEmail, user.id]);
+        // Un enlace anterior ya no puede aplicar el correo nuevo que se acaba de pedir.
+        await connection.execute(
+          "UPDATE one_time_token SET used_at = ? WHERE user_id = ? AND purpose = 'email_change' AND used_at IS NULL",
+          [services.clock.now(), user.id],
+        );
         await recordSecurityEvent(connection, services.clock, user.id, "email_change_requested");
         // El token del enlace nace al enviar el correo (outbox); pedir otro cambio invalida el enlace anterior.
-        await enqueueEmail(connection, { template: "email_change_confirm", to: newEmail, payload: { userId: user.id } }, services.clock);
+        await enqueueEmail(connection, { template: "email_change_confirm", to: newEmail, payload: { userId: user.id, newEmail } }, services.clock);
         await enqueueEmail(connection, { template: "email_change_requested", to: user.email, payload: { userId: user.id } }, services.clock);
       });
       return send(reply, 200, "Cambiar correo", emailPage(request, reply, {}, newEmail));
@@ -178,7 +190,7 @@ ${form({ action: `/cuenta/correo/confirmar/${token}`, csrf: app.csrf.tokenFor(re
       const { token } = request.params as { token: string };
       if (!TOKEN.test(token)) return invalidEmailLink(reply);
       try {
-        const userId = await withTransaction(services.db, async (connection) => {
+        await withTransaction(services.db, async (connection) => {
           // Se consume dentro de la transacción: si falla algo el enlace sigue vigente; con envíos simultáneos solo uno gana.
           const subject = await services.tokens.consume(token, "email_change", connection);
           if (subject?.userId == null) throw new InvalidLinkError();
@@ -204,10 +216,9 @@ ${form({ action: `/cuenta/correo/confirmar/${token}`, csrf: app.csrf.tokenFor(re
           await recordSecurityEvent(connection, services.clock, subject.userId, "email_changed");
           await enqueueEmail(connection, { template: "email_changed_old", to: oldEmail, payload: { userId: subject.userId } }, services.clock);
           await enqueueEmail(connection, { template: "email_changed_new", to: newEmail, payload: { userId: subject.userId } }, services.clock);
-          return subject.userId;
+          // La identidad de acceso cambió: se cierran TODAS las sesiones, dentro de la misma transacción.
+          await services.sessions.revokeAllForUser(subject.userId, undefined, connection);
         });
-        // La identidad de acceso cambió: se cierran TODAS las sesiones.
-        await services.sessions.revokeAllForUser(userId);
         return reply.redirect("/login", 303);
       } catch (error) {
         if (error instanceof InvalidLinkError) return invalidEmailLink(reply);

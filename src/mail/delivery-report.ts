@@ -8,6 +8,7 @@ export interface TemplateDelivery {
   sent: number;
   failed: number;
   queued: number;
+  cancelled: number;
 }
 
 export interface DeliveryReport {
@@ -16,6 +17,8 @@ export interface DeliveryReport {
   sent: number;
   failed: number;
   queued: number;
+  /** Cancelados antes de enviarse (no cuentan como fallo de entrega). */
+  cancelled: number;
   /** Entregados sobre resueltos (`sent / (sent + failed)`), o `null` si todavía no hay correos resueltos. */
   deliveredPercent: number | null;
   /** Verdadero si se cumple la meta de SC-010 (más de 98 %); `null` si no hay datos. */
@@ -38,9 +41,10 @@ export async function deliveryReport(db: Db, range: { from: Date; to: Date }): P
   let sent = 0;
   let failed = 0;
   let queued = 0;
+  let cancelled = 0;
   for (const row of rows) {
     const template = String(row.template);
-    const entry = byTemplate.get(template) ?? { template, sent: 0, failed: 0, queued: 0 };
+    const entry = byTemplate.get(template) ?? { template, sent: 0, failed: 0, queued: 0, cancelled: 0 };
     const n = Number(row.n);
     if (row.status === "sent") {
       entry.sent += n;
@@ -48,6 +52,9 @@ export async function deliveryReport(db: Db, range: { from: Date; to: Date }): P
     } else if (row.status === "failed") {
       entry.failed += n;
       failed += n;
+    } else if (row.status === "cancelled") {
+      entry.cancelled += n;
+      cancelled += n;
     } else {
       entry.queued += n;
       queued += n;
@@ -63,6 +70,7 @@ export async function deliveryReport(db: Db, range: { from: Date; to: Date }): P
     sent,
     failed,
     queued,
+    cancelled,
     deliveredPercent,
     meetsTarget: deliveredPercent === null ? null : deliveredPercent > DELIVERY_TARGET_PERCENT,
     byTemplate: [...byTemplate.values()],

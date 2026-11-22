@@ -32,6 +32,10 @@ export function createSmtpTransport(config: SmtpConfig): MailTransport {
     secure: implicitTls,
     requireTLS: !implicitTls,
     tls: { rejectUnauthorized: true, minVersion: "TLSv1.2" },
+    // Menores que la reserva de 2 min del outbox: un envío lento no puede ser reclamado por otro proceso.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
     auth: { user: config.user, pass: config.pass },
   });
   return {

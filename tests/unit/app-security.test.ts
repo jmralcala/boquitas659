@@ -109,3 +109,48 @@ describe("buildApp: cabeceras y errores", () => {
     expect(statuses).toEqual([200, 200, 429]);
   });
 });
+
+describe("buildApp: multipart y caché", () => {
+  const boundary = "----prueba";
+  const multipart = `--${boundary}\r\nContent-Disposition: form-data; name="a"\r\n\r\n1\r\n--${boundary}--\r\n`;
+  const headers = { "content-type": `multipart/form-data; boundary=${boundary}`, accept: "application/json" };
+
+  async function appWithUploads(): Promise<FastifyInstance> {
+    const instance = await buildApp({ appEnv: "production" });
+    instance.post("/formulario", async () => ({ ok: true }));
+    instance.post("/medicos/registro", async () => ({ ok: true }));
+    instance.post("/medicos/estado/reenviar", async () => ({ ok: true }));
+    instance.get("/pagina", async (_request, reply) => reply.type("text/html; charset=utf-8").send("<p>hola</p>"));
+    instance.get("/pagina-cacheable", async (_request, reply) =>
+      reply.type("text/html; charset=utf-8").header("cache-control", "private, max-age=60").send("<p>hola</p>"),
+    );
+    instance.get("/datos", async () => ({ ok: true }));
+    await instance.ready();
+    return instance;
+  }
+
+  it("rechaza multipart (415) en las rutas que no reciben archivos, antes de leer el cuerpo", async () => {
+    app = await appWithUploads();
+    for (const url of ["/formulario", "/ruta-inexistente"]) {
+      const response = await app.inject({ method: "POST", url, headers, payload: multipart });
+      expect(response.statusCode, url).toBe(415);
+    }
+  });
+
+  it("admite multipart solo en las dos rutas de la cédula", async () => {
+    app = await appWithUploads();
+    for (const url of ["/medicos/registro", "/medicos/estado/reenviar"]) {
+      const response = await app.inject({ method: "POST", url, headers, payload: multipart });
+      expect(response.statusCode, url).toBe(200);
+    }
+  });
+
+  it("las páginas HTML llevan Cache-Control: no-store, salvo que la ruta defina otro", async () => {
+    app = await appWithUploads();
+    expect((await app.inject({ method: "GET", url: "/pagina" })).headers["cache-control"]).toBe("no-store");
+    expect((await app.inject({ method: "GET", url: "/pagina-cacheable" })).headers["cache-control"]).toBe("private, max-age=60");
+    expect((await app.inject({ method: "GET", url: "/datos" })).headers["cache-control"]).toBeUndefined();
+    const notFound = await app.inject({ method: "GET", url: "/no-existe", headers: { accept: "text/html" } });
+    expect(notFound.headers["cache-control"]).toBe("no-store");
+  });
+});
