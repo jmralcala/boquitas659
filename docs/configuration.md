@@ -50,3 +50,20 @@ Cuando el abogado entregue el texto revisado de cada documento:
 3. Cada publicación crea una versión nueva (las anteriores se conservan). Quien ya tenía cuenta deberá aceptar la
    nueva versión la próxima vez que entre (pantalla `/legal/aceptar`).
 4. Repite para los 5 documentos. Antes del piloto, comprueba en `/legal` que ninguno diga "provisional".
+
+## Humo de despliegue en Hostinger (antes del piloto)
+
+Todo esto queda **pendiente hasta desplegar**; ninguno de estos puntos se ha podido comprobar en desarrollo.
+
+| # | Comprobación | Cómo | Resultado |
+|---|--------------|------|-----------|
+| 1 | Carga del módulo nativo `argon2` | `npm run build` y arrancar la app con `PASSWORD_HASHER=argon2`; crear un usuario con `npm run support:create` e iniciar sesión. Si falla la carga, usar `PASSWORD_HASHER=bcrypt` (ya soportado) | pendiente |
+| 2 | Disparadores de solo anexar | Con el usuario real de la base de datos, ejecutar `npm run migrate`. Si `CREATE TRIGGER` falla (log binario sin `SUPER`), aplicar el plan B de `research.md` (riesgo 5) | pendiente |
+| 3 | Pruebas de integración contra MariaDB | Repetir `npm run test` apuntando `TEST_DATABASE_URL` a una base MariaDB de pruebas (hoy solo se corrieron con MySQL 8.0) | pendiente |
+| 4 | Latencia real del cron de un minuto | Programar `npm run jobs:outbox` cada minuto y medir cuánto tarda en salir un correo de recuperación | pendiente |
+| 5 | Limpieza programada | Programar `npm run jobs:cleanup` cada hora | pendiente |
+| 6 | Correo: SPF, DKIM y DMARC | Enviar un correo de prueba a un buzón externo y revisar las cabeceras de autenticación; revisar los límites de envío del SMTP | pendiente |
+| 7 | Entrega de correos | Tras unos días de piloto, `npm run report:email` (meta: más de 98 % entregados) | pendiente |
+| 8 | Directorio de cédulas | Confirmar que `CEDULA_STORAGE_DIR` está **fuera de la raíz pública** y con permisos restringidos | pendiente |
+| 9 | Proxy inverso | Definir `TRUST_PROXY` con el número de saltos del proxy del hosting (nunca `true`) y comprobar que la IP del cliente se lee bien | pendiente |
+| 10 | Variables de entorno | Todas las de la tabla de arriba definidas en el panel del hosting, `APP_ENV=production` y SMTP completo | pendiente |

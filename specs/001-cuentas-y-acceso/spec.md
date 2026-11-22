@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implementada (decisiones técnicas en `docs/decisions/0002-cuentas-y-acceso.md`); pendiente de revisión legal de los textos y de validación en MariaDB y en el hosting
 
 **Input**: User description: "Feature 1: Cuentas y acceso. Registro del médico con cédula profesional, móvil de emergencias y aprobación manual por soporte; cuenta global del paciente con aislamiento por médico y pacientes adicionales (hijos) bajo el tutor; recepción (hasta 2 personas por médico) con invitación por correo; sesiones y seguridad de cuentas; consentimientos y aviso de privacidad con registro y versionado; registro de accesos al detalle de pacientes."
 
@@ -184,12 +184,12 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 
 - **FR-031**: Las contraseñas MUST tener al menos 10 caracteres, sin reglas de composición obligatorias, y MUST rechazarse las comunes o conocidas por filtraciones.
 - **FR-032**: Las contraseñas MUST almacenarse de forma que no sean recuperables (nunca en claro ni con cifrado reversible).
-- **FR-033**: El sistema MUST limitar los intentos de inicio de sesión con espera creciente y MUST responder igual ante correo inexistente y contraseña incorrecta.
+- **FR-033**: El sistema MUST limitar los intentos de inicio de sesión con espera creciente (1, 2, 4… segundos hasta un máximo de 15 minutos, por cuenta y por IP) y MUST responder igual ante correo inexistente y contraseña incorrecta. Los fallos al confirmar la contraseña actual en un cambio sensible y al escribir un código del doble factor cuentan para la misma espera.
 - **FR-034**: La recuperación de contraseña MUST usar un enlace de un solo uso que caduca a los 30 minutos y MUST dar la misma respuesta en pantalla exista o no la cuenta.
-- **FR-035**: Las sesiones MUST protegerse contra robo y manipulación (solo accesibles por el navegador, solo por conexión segura y sin envío entre sitios) y MUST caducar por inactividad.
-- **FR-036**: El doble factor MUST ser obligatorio para soporte y opcional para médicos y recepción.
+- **FR-035**: Las sesiones MUST protegerse contra robo y manipulación (solo accesibles por el navegador, solo por conexión segura y sin envío entre sitios) y MUST caducar por inactividad (30 minutos para médicos, recepción y soporte; 60 para pacientes) y por un tope absoluto de 12 horas.
+- **FR-036**: El doble factor (aplicación de autenticación TOTP, con 10 códigos de recuperación de un solo uso) MUST ser obligatorio para soporte y opcional para médicos y recepción; los pacientes no lo usan en esta versión. Un código TOTP no puede reutilizarse.
 - **FR-037**: El sistema MUST avisar por correo a la persona titular ante un cambio de contraseña o un inicio de sesión desde un dispositivo nuevo.
-- **FR-038**: Los cambios sensibles (contraseña, correo, móvil de emergencias) MUST pedir la contraseña actual de nuevo.
+- **FR-038**: Los cambios sensibles (contraseña, correo, móvil de emergencias) MUST pedir la contraseña actual de nuevo. El cambio de correo MUST además confirmarse desde el correo nuevo (enlace de un solo uso de 60 minutos) antes de aplicarse: hasta entonces el correo de acceso no cambia, y al aplicarse se cierran todas las sesiones.
 - **FR-039**: Las acciones que cambian estado y se hacen desde un enlace de correo o desde la sesión MUST estar protegidas contra peticiones falsificadas.
 
 **Aislamiento y auditoría**
@@ -238,7 +238,8 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 - **Retención y borrado de datos**: los plazos de conservación y qué se borra al pedirlo el titular están sin definir (supuesto abierto 2); esta feature no implementa borrado, solo el canal para solicitar derechos.
 - **Invitaciones pendientes**: cuentan hacia el límite de 2 personas de recepción (supuesto abierto 9, resuelto aquí por prudencia; puede revisarse).
 - **Mayoría de edad**: el paso de un menor a cuenta propia no se contempla en esta versión.
-- **Tiempo de inactividad**: el límite de sesión por inactividad se define en el plan; se asume un valor razonable (por ejemplo 30 minutos para soporte y médicos con datos de pacientes).
+- **Tiempo de inactividad**: 30 minutos para personal (médicos, recepción y soporte) y 60 para pacientes, con tope absoluto de 12 horas (ver `research.md`).
+- **Doble factor sin código QR**: la pantalla de alta muestra la clave y el enlace `otpauth://` para escribirlos o abrirlos en la aplicación; mostrar un código QR queda como mejora futura.
 - **Idioma y zona horaria**: el producto opera en español y las fechas se muestran en la zona horaria del consultorio.
 - **Dependencias**: envío de correo transaccional disponible para invitaciones, recuperación, avisos y notificación a soporte; la entrega confiable de correo es prerrequisito de varias historias.
 - **Acciones de citas de recepción**: las acciones de recepción sobre citas (crear, cancelar) y la vista de agenda llegan con las features 2 y 3, que registrarán sus acciones en el mismo registro de acciones de recepción; en esta feature solo se prueban los permisos negativos y el acceso a datos de contacto de pacientes.

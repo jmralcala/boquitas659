@@ -1,3 +1,4 @@
+import type { Writable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import type { Env } from "./config/env.js";
 import { createPool, type Db } from "./db/pool.js";
@@ -64,6 +65,10 @@ export interface ComposeOptions {
   db: Db;
   clock?: Clock;
   hasher?: PasswordHasher;
+  /** Solo para pruebas: destino alternativo de los registros técnicos. */
+  logStream?: Writable;
+  /** Solo para pruebas: se invoca por cada ruta registrada (auditoría de rutas contra el contrato). */
+  onRoute?: (route: { method: string | string[]; url: string }) => void;
 }
 
 /**
@@ -114,7 +119,13 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     sessions: services.sessions,
     csrfSecret: env.SESSION_SECRET,
     legal,
+    ...(options.logStream ? { logStream: options.logStream } : {}),
   });
+
+  if (options.onRoute) {
+    const onRoute = options.onRoute;
+    app.addHook("onRoute", (route) => onRoute({ method: route.method, url: route.url }));
+  }
 
   registerAuthRoutes(app, services);
   registerRecoveryRoutes(app, services);

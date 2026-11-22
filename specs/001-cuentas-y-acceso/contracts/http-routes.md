@@ -42,6 +42,7 @@ Aplicación con vistas HTML renderizadas en el servidor. Convenciones comunes:
 | `POST /medicos/registro` | Pub | multipart: `fullName`, `email`, `password`, `cedulaNumber`, `cedulaFile` (≤ 5 MB; JPEG/PNG/PDF por firma), `emergencyMobile` (10 dígitos MX), `officePhone?`, `acceptPrivacy`, `acceptTerms` | 303 a `/medicos/estado`; sin ambas casillas, 400. Cédula o móvil duplicados, 400 con mensaje que remite a soporte. Correo ya registrado con otro rol, 400 con mensaje genérico. En producción con aviso provisional: 403 |
 | `GET /medicos/estado` | Mp | — | Estado de la solicitud y motivo si fue rechazada |
 | `POST /medicos/estado/reenviar` | Mp rechazado | `cedulaNumber?`, `cedulaFile?`, `emergencyMobile?` | Vuelve a `pending` |
+| `GET /medicos/inicio` | M, Mp | — | Punto de entrada del rol: 303 a `/medicos/panel` si está aprobado o a `/medicos/estado` si no |
 | `GET /medicos/panel` | M | — | Panel mínimo (marcador de las demás features) |
 
 ## Pacientes

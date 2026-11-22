@@ -38,7 +38,14 @@ export interface TestApp {
 }
 
 /** Aplicación completa sobre la base de pruebas, con reloj controlable y correo en memoria. */
-export async function createTestApp(db: Db, overrides: Record<string, string> = {}): Promise<TestApp> {
+export async function createTestApp(
+  db: Db,
+  overrides: Record<string, string> = {},
+  options: {
+    logStream?: import("node:stream").Writable;
+    onRoute?: (route: { method: string | string[]; url: string }) => void;
+  } = {},
+): Promise<TestApp> {
   const clock = createFixedClock(new Date());
   const transport = createMemoryTransport();
   const { app, services } = await composeApp({
@@ -46,6 +53,8 @@ export async function createTestApp(db: Db, overrides: Record<string, string> = 
     db,
     clock,
     hasher: createPasswordHasher("argon2", { argon2: { memoryCost: 1024, timeCost: 2, parallelism: 1 } }),
+    ...(options.logStream ? { logStream: options.logStream } : {}),
+    ...(options.onRoute ? { onRoute: options.onRoute } : {}),
   });
   await app.ready();
   return {
