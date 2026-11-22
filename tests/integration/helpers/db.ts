@@ -97,6 +97,42 @@ export async function createUser(
   return { id: result.insertId, email, role, password: DEFAULT_TEST_PASSWORD };
 }
 
+let patientCounter = 0;
+
+export interface CreatedPatient {
+  user: CreatedUser;
+  accountId: number;
+  patientId: number;
+}
+
+/** Cuenta de paciente de fábrica (usuario, cuenta y el propio paciente). */
+export async function createPatient(
+  pool: Db,
+  options: { email?: string; fullName?: string; birthDate?: string } = {},
+): Promise<CreatedPatient> {
+  patientCounter += 1;
+  const user = await createUser(pool, { role: "patient", email: options.email });
+  const [account] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO patient_account (user_id, phone) VALUES (?, ?)",
+    [user.id, "5512345678"],
+  );
+  const [patient] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO patient (account_id, full_name, birth_date, email, phone, is_minor_dependent) VALUES (?, ?, ?, ?, ?, 0)",
+    [
+      account.insertId,
+      options.fullName ?? `Paciente Prueba ${patientCounter}`,
+      options.birthDate ?? "1990-05-17",
+      user.email,
+      "5512345678",
+    ],
+  );
+  return { user, accountId: account.insertId, patientId: patient.insertId };
+}
+
+export async function linkPatientToDoctor(pool: Db, doctorId: number, patientId: number): Promise<void> {
+  await pool.execute("INSERT INTO doctor_patient (doctor_id, patient_id) VALUES (?, ?)", [doctorId, patientId]);
+}
+
 let doctorCounter = 0;
 
 export interface CreatedDoctor {

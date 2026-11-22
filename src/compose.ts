@@ -16,6 +16,9 @@ import { registerDoctorStatusRoutes } from "./modules/doctors/status-routes.js";
 import { createLegalService, type LegalService } from "./modules/legal/legal-service.js";
 import { seedProvisionalDocuments } from "./modules/legal/seed-provisional.js";
 import { createSupportService, type SupportService } from "./modules/support/support-service.js";
+import { createDependentsService, type DependentsService } from "./modules/patients/dependents-service.js";
+import { createPatientRegistration, type PatientRegistration } from "./modules/patients/registration-service.js";
+import { registerPatientRoutes } from "./modules/patients/routes.js";
 import { registerSupportRoutes } from "./modules/support/support-routes.js";
 
 export interface Services {
@@ -31,6 +34,8 @@ export interface Services {
   doctors: DoctorService;
   doctorGuards: DoctorGuards;
   support: SupportService;
+  patients: PatientRegistration;
+  dependents: DependentsService;
 }
 
 export interface ComposeOptions {
@@ -64,6 +69,8 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     doctors: createDoctorService({ db, hasher, legal, cedulaStorage, clock, supportEmail: env.SUPPORT_EMAIL }),
     doctorGuards: createDoctorGuards(db),
     support: createSupportService(db, clock),
+    patients: createPatientRegistration({ db, hasher, legal, clock }),
+    dependents: createDependentsService({ db, legal, clock }),
   };
 
   // Garantiza que existan los textos legales (provisionales); en producción bloquean las altas hasta revisarse.
@@ -79,6 +86,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   registerAuthRoutes(app, services);
   registerDoctorRegistrationRoutes(app, services);
   registerDoctorStatusRoutes(app, services);
+  registerPatientRoutes(app, services);
   // Las rutas de soporte aprueban cuentas de médicos: hasta que el doble factor sea obligatorio para soporte (US6),
   // no se registran en producción. En desarrollo y pruebas sí.
   if (env.APP_ENV !== "production") {
