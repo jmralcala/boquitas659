@@ -19,6 +19,13 @@ Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-speci
 - Datos del paciente: nombre, fecha de nacimiento (no edad), correo, teléfono. Sin historial clínico. Consentimiento con aviso de privacidad, guardado con fecha y versión. El tutor consiente por los menores.
 - Calendario tipo aerolínea: sin fechas pasadas; al elegir el día se muestran los horarios disponibles.
 
+### Mensajes de cita al paciente
+- La cita queda agendada al reservar; el paciente no tiene que confirmarla. El correo de confirmación es informativo (fecha, hora, consultorio, ubicación) y lleva un enlace para ver o cancelar la cita.
+- El recordatorio sale unas 30 h antes de la cita (antes del límite de cancelación de 24 h) y lleva un enlace para cancelar. No hay botón de "confirmar asistencia" en la primera versión, y no hay cancelación automática si el paciente no responde.
+- Los enlaces llevan un token firmado, de un solo uso y con caducidad, ligado a la cita. Abrir el enlace nunca cambia el estado: muestra el resumen y un botón, y el cambio ocurre al pulsarlo (con protección CSRF), porque los antivirus y clientes de correo abren los enlaces automáticamente.
+- Cancelar desde el enlace exige sesión iniciada y respeta el límite de cancelación (las urgencias están exentas).
+- Después del piloto, con WhatsApp: respuestas rápidas ("Confirmo" y "Cancelar") por webhook con verificación de firma de Meta.
+
 ### Urgencias
 - Los horarios de urgencia no aparecen en el calendario y son solo para urgencias. Una urgencia también puede usar horarios convencionales.
 - El triaje (5 opciones con semáforo) asigna el espacio más próximo según el nivel. El paciente no ve calendario en una urgencia.
@@ -53,6 +60,23 @@ Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-speci
 - Tareas programadas por cron cada minuto (recordatorios, cola de mensajes con reintentos, fin de prueba, plazo de 72 h, borrado de la cola).
 - Validación de toda entrada externa en runtime con zod.
 
+### Aviso de privacidad y consentimiento (requisito de la primera versión)
+- Desde el piloto hay aviso de privacidad. Ningún paciente real entra sin los textos revisados por un abogado, tampoco en el piloto. La construcción (casillas, registro, versionado) puede hacerse antes con texto provisional.
+- Quién acepta qué:
+  - Paciente: aviso de privacidad, con consentimiento expreso por los datos de salud, al crear la cuenta (casilla sin marcar de antemano).
+  - Tutor: el mismo aviso, en nombre del menor, al añadir un paciente adicional.
+  - Médico: aviso de privacidad propio (cédula y su foto, móvil de emergencias, domicilio, datos de cobro) y términos y condiciones del servicio, al registrarse y antes de subir la cédula.
+  - Recepción: aviso de privacidad propio y compromiso de confidencialidad, al aceptar la invitación.
+  - Paciente, WhatsApp: consentimiento aparte, con casilla separada (fases con WhatsApp).
+- Responsable de los datos: el médico decide sobre los datos de sus pacientes y la plataforma los trata por él (cláusula de encargo de tratamiento en los términos con el médico). La cuenta global del paciente (correo y contraseña) la decide la plataforma.
+- El aviso debe cubrir: identidad y domicilio del responsable, datos recabados (con los sensibles señalados), finalidades necesarias y opcionales, terceros que reciben datos (Hostinger, Google, Meta, el proveedor de cobro, algunos fuera de México), cómo ejercer los derechos de acceso, rectificación, cancelación y oposición, y cómo se avisa de cambios.
+- A construir en la primera versión:
+  1. Casillas de aceptación sin marcar de antemano, que bloquean el registro.
+  2. Registro de cada aceptación: quién, qué documento, qué versión y cuándo.
+  3. Versionado de los textos, con nueva aceptación cuando cambian.
+  4. Aviso accesible siempre, desde el registro y desde el pie del micrositio.
+  5. Procedimiento de derechos del titular, con un canal real y un plazo de respuesta definido.
+
 ### Alcance de la primera versión (piloto de 3 a 5 médicos)
 - Registro y verificación del médico, calendario con espacios, bloqueos y urgencias, micrositio y flujo de reserva con cuenta de paciente, correos de confirmación y cancelación, recepción con invitación, y panel de soporte.
 - Después del piloto: WhatsApp con cuotas por plan y cobro automático con Openpay. Durante el piloto las cuentas se activan manualmente sin cobro.
@@ -64,13 +88,12 @@ Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-speci
 ## Supuestos abiertos
 1. Precios de los planes, qué más distingue a Esencial, Profesional y Élite, y cuántos médicos tendrá el piloto.
 2. Retención de datos: cuántos días se conservan tras un bloqueo largo, y qué se borra al pedirlo el titular.
-3. Responsable de los datos y aviso de privacidad (LFPDPPP): decisión legal, requiere revisión de un abogado antes de abrir.
+3. Texto legal del aviso de privacidad, de los términos y condiciones y de la cláusula de encargo de tratamiento (LFPDPPP): lo redacta y revisa un abogado antes de que entre un paciente real. Se debe verificar con él la normativa vigente y la autoridad competente.
 4. Hosting compartido: cron por minuto en lugar de un proceso permanente. Probar que los avisos de urgencia salen a tiempo y verificar la versión de MariaDB, los límites de envío del SMTP y la memoria de la app Node.
 5. Openpay y cobros variables: el cobro de excedentes necesita un cargo aparte de la suscripción fija; confirmar con su documentación.
 6. Plantillas de WhatsApp: aprobación de Meta y costo por mensaje real.
 7. Contenido médico: las instrucciones de primeros auxilios del triaje y el aviso de acudir a un hospital deben ser validadas por un dentista.
 8. Copias de seguridad, monitoreo y qué pasa si falla el cron: sin definir.
 9. El límite de 2 invitaciones de recepción por médico: falta confirmar si cuentan las pendientes.
-10. El recordatorio de 24 h y el límite de cancelación de 24 h coinciden en el mismo momento: decidir si el recordatorio sale antes.
-11. Criterio de la cédula en disputa: hace falta una herramienta de administración para liberar una cédula registrada por error o por otra persona.
-12. Reglas de triaje por categoría (ventanas de tiempo y alertas de "dificultad para tragar o respirar" o "hinchazón cerca del ojo"): la pregunta extra del flujo no está definida.
+10. Criterio de la cédula en disputa: hace falta una herramienta de administración para liberar una cédula registrada por error o por otra persona.
+11. Reglas de triaje por categoría (ventanas de tiempo y alertas de "dificultad para tragar o respirar" o "hinchazón cerca del ojo"): la pregunta extra del flujo no está definida.
