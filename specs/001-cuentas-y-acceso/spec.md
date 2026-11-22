@@ -26,7 +26,7 @@ Un médico dental se registra con su correo, contraseña, cédula profesional (c
 4. **Given** una cuenta pendiente, **When** soporte la aprueba, **Then** el médico recibe un correo, obtiene acceso y los 5 días de prueba empiezan en ese momento.
 5. **Given** una cuenta pendiente, **When** soporte la rechaza indicando el motivo, **Then** el médico es avisado por correo y no obtiene acceso.
 6. **Given** una cédula ya asociada a una cuenta, **When** otra persona intenta registrarse con la misma cédula, **Then** el registro se rechaza con un mensaje que lo dirige a soporte.
-7. **Given** un móvil de emergencias ya usado por otra cuenta, o que no es un número móvil, **When** se envía el registro, **Then** se rechaza con un mensaje claro.
+7. **Given** un móvil de emergencias ya usado por otra cuenta, o que no tiene formato de número mexicano de 10 dígitos, **When** se envía el registro, **Then** se rechaza con un mensaje claro.
 
 ---
 
@@ -143,7 +143,7 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 - **FR-001**: El sistema MUST permitir el registro de un médico con nombre, correo, contraseña, cédula profesional (número y archivo o foto), móvil de emergencias y teléfono del consultorio (opcional, puede ser fijo y no se verifica).
 - **FR-002**: El sistema MUST exigir al médico aceptar su aviso de privacidad y los términos y condiciones del servicio, mediante casillas sin marcar de antemano, antes de poder subir la cédula.
 - **FR-003**: El sistema MUST garantizar que una cédula profesional esté asociada como máximo a una cuenta.
-- **FR-004**: El sistema MUST garantizar que el móvil de emergencias sea un número móvil y no esté asociado a más de una cuenta.
+- **FR-004**: El sistema MUST validar que el móvil de emergencias tenga formato de número mexicano de 10 dígitos y MUST garantizar que no esté asociado a más de una cuenta. Como en México los números móviles y fijos no se distinguen por su formato, el sistema no puede comprobar por sí solo que sea móvil; esa confirmación llega con la verificación por WhatsApp (ver FR-010).
 - **FR-005**: El sistema MUST dejar cada cuenta de médico en estado "pendiente" hasta su aprobación manual, y MUST impedir cualquier función del producto (más allá de ver el estado de la solicitud) mientras esté pendiente o rechazada.
 - **FR-006**: El sistema MUST avisar por correo a soporte de cada solicitud nueva, sin adjuntos y con un enlace al panel donde se revisa.
 - **FR-007**: El personal de soporte MUST poder, desde una vista mínima, ver las solicitudes pendientes, aprobar o rechazar con motivo y liberar una cédula registrada por error; cada decisión MUST registrar quién la tomó y cuándo.
@@ -233,7 +233,7 @@ El personal de soporte debe usar doble factor de autenticación obligatoriamente
 - **Alcance**: esta feature cubre solo cuentas, acceso, consentimientos y auditoría; calendario, micrositio, reserva, urgencias, WhatsApp, cobro con Openpay y el panel de soporte completo quedan fuera. De soporte solo se incluye la vista mínima para revisar, aprobar, rechazar y liberar cédulas.
 - **Piloto**: 3 a 5 médicos, cuentas activadas manualmente sin cobro; la cuenta de soporte inicial la crea el equipo de la plataforma fuera del flujo público.
 - **Roles múltiples por correo**: un correo identifica a una sola cuenta con un solo rol (paciente, médico, recepción o soporte). Que una persona sea paciente y además médico o recepción queda fuera de la primera versión.
-- **Verificación del móvil**: la verificación del móvil de emergencias por WhatsApp se activa en la fase con WhatsApp; en el piloto solo se valida el formato y la unicidad.
+- **Verificación del móvil**: la verificación del móvil de emergencias por WhatsApp se activa en la fase con WhatsApp; en el piloto solo se valida el formato y la unicidad. Desde 2019 los números móviles y fijos de México tienen el mismo formato, por lo que "que sea móvil" solo puede confirmarse con esa verificación.
 - **Textos legales**: se construyen con texto provisional; los textos finales (aviso de privacidad, términos, encargo de tratamiento, compromiso de confidencialidad) los redacta y revisa un abogado antes de que entre un paciente real (supuesto abierto 3 de `docs/decisions/0001-resumen-grill-me.md`).
 - **Retención y borrado de datos**: los plazos de conservación y qué se borra al pedirlo el titular están sin definir (supuesto abierto 2); esta feature no implementa borrado, solo el canal para solicitar derechos.
 - **Invitaciones pendientes**: cuentan hacia el límite de 2 personas de recepción (supuesto abierto 9, resuelto aquí por prudencia; puede revisarse).

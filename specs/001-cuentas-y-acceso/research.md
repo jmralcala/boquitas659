@@ -7,10 +7,10 @@ usar y por qué.
 ## Hallazgos que afectan a la spec
 
 - **Móvil vs. fijo en México**: desde agosto de 2019 los números móviles y fijos mexicanos tienen el mismo formato de
-  10 dígitos (se eliminó el prefijo "1" de los móviles). Por número no se puede saber si es móvil. FR-004 pide
+  10 dígitos (se eliminó el prefijo "1" de los móviles). Por número no se puede saber si es móvil. FR-004 pedía
   garantizar que sea móvil; en esta versión solo se puede validar formato (10 dígitos mexicanos) y unicidad. La
-  comprobación real de que sea móvil llega con la verificación por WhatsApp. **Se recomienda ajustar la redacción de
-  FR-004** (la spec no se modificó desde este comando).
+  comprobación real de que sea móvil llega con la verificación por WhatsApp. **Resuelto**: FR-004, el escenario 7 de
+  la historia 1 y los Supuestos de `spec.md` ya reflejan esto (2026-11-21).
 - **Supuestos abiertos de la decisión 0001 que siguen abiertos y afectan a esta feature**: retención de datos (no se
   implementa borrado), texto legal (se usa provisional con bloqueo en producción), copias de seguridad y monitoreo.
 
