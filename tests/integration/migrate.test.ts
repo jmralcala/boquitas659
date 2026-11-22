@@ -87,6 +87,11 @@ describe("runMigrations", () => {
     const [rows] = await pool.query<RowDataPacket[]>(
       "SELECT trigger_name AS name FROM information_schema.triggers WHERE trigger_schema = DATABASE() ORDER BY trigger_name",
     );
-    expect(rows.map((row) => row.name)).toEqual(["consent_acceptance_no_delete", "consent_acceptance_no_update"]);
+    expect(rows.map((row) => row.name)).toEqual([
+      "consent_acceptance_no_delete",
+      "consent_acceptance_no_update",
+      "patient_access_log_no_delete",
+      "patient_access_log_no_update",
+    ]);
   });
 });

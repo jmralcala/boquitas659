@@ -1,7 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { clearTables, createDoctor, createPatient, createTestPool, createUser, resetDatabase } from "../integration/helpers/db.js";
-import { createTestApp, postForm, sessionFor, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
+import { createSupportWithMfa, createTestApp, postForm, sessionFor, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
 
 const pool = createTestPool();
 let t: TestApp;
@@ -141,7 +141,7 @@ describe("reaceptación al publicarse una versión nueva", () => {
   });
 
   it("soporte nunca queda bloqueado (no tiene documentos aplicables)", async () => {
-    const support = await createUser(pool, { role: "support" });
+    const support = await createSupportWithMfa(t, pool);
     const client = await sessionFor(t.services, support);
     await publishNew("patient_privacy");
     await publishNew("terms_doctor");

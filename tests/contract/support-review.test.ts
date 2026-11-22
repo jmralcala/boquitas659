@@ -1,7 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { clearTables, createDoctor, createTestPool, createUser, resetDatabase } from "../integration/helpers/db.js";
-import { JPEG, PDF, createTestApp, postForm, sessionFor, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
+import { JPEG, PDF, createSupportWithMfa, createTestApp, postForm, sessionFor, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
 
 const pool = createTestPool();
 let t: TestApp;
@@ -14,7 +14,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await clearTables(pool);
-  support = await sessionFor(t.services, await createUser(pool, { role: "support" }));
+  support = await sessionFor(t.services, await createSupportWithMfa(t, pool));
 });
 
 afterAll(async () => {

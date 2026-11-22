@@ -11,7 +11,8 @@ import { createFixedClock, type FixedClock } from "../../../src/lib/clock.js";
 import { processOutbox, type OutboxResult } from "../../../src/mail/outbox.js";
 import { createMemoryTransport, type MemoryTransport } from "../../../src/mail/transport.js";
 import { createPasswordHasher } from "../../../src/modules/auth/password-hasher.js";
-import { testDatabaseUrl, type CreatedUser } from "./db.js";
+import { generate } from "otplib";
+import { createUser, testDatabaseUrl, type CreatedUser } from "./db.js";
 
 export const CSRF_SECRET = "s".repeat(40);
 
@@ -203,6 +204,15 @@ export async function linkTokenSentTo(t: TestApp, to: string, pathPrefix: string
   const token = pattern.exec(message?.text ?? "")?.[1];
   if (!token) throw new Error(`No llegó un enlace ${pathPrefix} a ${to}.`);
   return token;
+}
+
+/** Usuario de soporte con el doble factor activo; `sessionFor` le da una sesión ya verificada. */
+export async function createSupportWithMfa(t: TestApp, db: Db): Promise<CreatedUser> {
+  const user = await createUser(db, { role: "support" });
+  const { secret } = await t.services.mfa.beginEnrollment(user.id);
+  const code = await generate({ secret, epoch: t.clock.now().getTime() / 1000 });
+  if (!(await t.services.mfa.confirmEnrollment(user.id, code))) throw new Error("No se pudo activar el doble factor de prueba.");
+  return user;
 }
 
 export const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(128, 7)]);
