@@ -49,26 +49,26 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 
 **CRITICAL**: ninguna historia puede empezar hasta terminar esta fase.
 
-- [ ] T007 [P] Escribir `tests/unit/env.test.ts`: el cargador rechaza variables faltantes o inválidas (por ejemplo `APP_ENV` fuera de `development|production`, `SESSION_SECRET` corto) y nunca incluye valores en el mensaje de error.
-- [ ] T008 Implementar `src/config/env.ts` con esquema zod que lee `process.env` una sola vez y devuelve un objeto tipado inmutable (T007 debe pasar).
+- [x] T007 [P] Escribir `tests/unit/env.test.ts`: el cargador rechaza variables faltantes o inválidas (por ejemplo `APP_ENV` fuera de `development|production`, `SESSION_SECRET` corto) y nunca incluye valores en el mensaje de error.
+- [x] T008 Implementar `src/config/env.ts` con esquema zod que lee `process.env` una sola vez y devuelve un objeto tipado inmutable (T007 debe pasar).
 - [ ] T009 [P] Crear `src/db/pool.ts` (pool de `mysql2` con consultas parametrizadas, zona UTC, `DATETIME(3)`) y `src/db/tx.ts` (helper `withTransaction` con reintento ante `deadlock`).
 - [ ] T010 [P] Escribir `tests/integration/migrate.test.ts`: aplica migraciones sobre base vacía, es idempotente al repetirse y registra las versiones en `schema_migrations`.
 - [ ] T011 Implementar `src/db/migrate.ts` y `src/db/migrate-cli.ts`: ejecutor mínimo de archivos SQL numerados en `migrations/` con tabla `schema_migrations` (T010 debe pasar).
 - [ ] T012 Crear `migrations/0001_core.sql` con las tablas de `data-model.md`: `user` (`email_normalized` único; `role` en `patient`·`doctor`·`reception`·`support`; `status` en `active`·`disabled`; `mfa_enabled`, `mfa_secret_encrypted`), `session` (`token_hash` único), `one_time_token` (`token_hash` único; `purpose` en `password_reset`·`reception_invite`), `login_throttle`, `email_outbox` (`status` en `queued`·`sent`·`failed`), `legal_document` (`type` en `patient_privacy`·`doctor_privacy`·`reception_privacy`·`reception_confidentiality`·`terms_doctor`; único (type, version); `is_provisional`), `consent_acceptance` y `security_event`; más disparadores `BEFORE UPDATE` y `BEFORE DELETE` con `SIGNAL` en `consent_acceptance` (solo anexar).
 - [ ] T013 Crear `tests/integration/helpers/db.ts`: recrea la base de `TEST_DATABASE_URL`, aplica migraciones, limpia tablas entre pruebas y ofrece fábricas (`createUser` y `createLegalDocs`; `createDoctor` se añade en T050, y `createPatient` y `linkPatientToDoctor` en T066) con un reloj inyectable. Las fábricas dejan aceptaciones vigentes por defecto para que las pruebas de US1 y US2 no choquen con el filtro legal de T100.
-- [ ] T014 [P] Escribir `tests/unit/normalize.test.ts`: correo (minúsculas, sin espacios, rechaza formato inválido), móvil mexicano (10 dígitos, acepta `+52` y separadores, rechaza otros), cédula (solo dígitos, longitud razonable).
-- [ ] T015 [P] Escribir `tests/unit/tokens.test.ts`: tokens de 32 bytes en base64url, distintos entre llamadas, hash SHA-256 estable, uso de `crypto.randomBytes` (nunca `Math.random`).
-- [ ] T016 [P] Escribir `tests/unit/html.test.ts`: la etiqueta de plantilla escapa `< > & " '` en valores interpolados y no escapa el HTML ya marcado como seguro.
-- [ ] T017 [P] Implementar `src/lib/normalize.ts` (T014 debe pasar).
-- [ ] T018 [P] Implementar `src/lib/tokens.ts` (T015 debe pasar).
-- [ ] T019 [P] Implementar `src/lib/html.ts` con la etiqueta `html` que escapa por defecto (T016 debe pasar).
-- [ ] T020 [P] Crear `src/lib/clock.ts` con la interfaz `Clock` inyectable y una implementación fija para pruebas (para caducidades de sesiones y tokens).
-- [ ] T021 [P] Escribir `tests/unit/password-hasher.test.ts`: `hash` y `verify` correctos, hashes distintos para la misma contraseña, verificación falla con contraseña errónea, mismo contrato para la implementación argon2id y la de respaldo bcrypt, y `needsRehash`.
-- [ ] T022 [P] Escribir `tests/unit/password-policy.test.ts`: rechaza menos de 10 caracteres, comunes (lista local), iguales al correo o nombre; acepta 10 o más sin símbolos ni mayúsculas (FR-031); mensajes explican el motivo.
-- [ ] T023 Implementar `src/modules/auth/password-hasher.ts`: interfaz `PasswordHasher`, implementación argon2id (parámetros calibrables por configuración, objetivo 250 a 500 ms) e implementación de respaldo con `bcryptjs`, elegida por configuración (T021 debe pasar).
-- [ ] T024 Crear `src/modules/auth/data/common-passwords.txt` (lista de contraseñas más frecuentes; anotar fuente y licencia en un comentario del encabezado de `docs/configuration.md` o de `research.md`, supuesto pendiente) e implementar `src/modules/auth/password-policy.ts` (T022 debe pasar).
-- [ ] T025 [P] Escribir `tests/unit/logger.test.ts`: la configuración de pino redacta `authorization`, `cookie`, `set-cookie`, y los campos `password`, `token`, `email`; no registra cuerpos de petición.
-- [ ] T026 Implementar `src/http/logger.ts` con pino y redacción (T025 debe pasar); los errores se registran con código y `userId`, no con correo ni nombre.
+- [x] T014 [P] Escribir `tests/unit/normalize.test.ts`: correo (minúsculas, sin espacios, rechaza formato inválido), móvil mexicano (10 dígitos, acepta `+52` y separadores, rechaza otros), cédula (solo dígitos, longitud razonable).
+- [x] T015 [P] Escribir `tests/unit/tokens.test.ts`: tokens de 32 bytes en base64url, distintos entre llamadas, hash SHA-256 estable, uso de `crypto.randomBytes` (nunca `Math.random`).
+- [x] T016 [P] Escribir `tests/unit/html.test.ts`: la etiqueta de plantilla escapa `< > & " '` en valores interpolados y no escapa el HTML ya marcado como seguro.
+- [x] T017 [P] Implementar `src/lib/normalize.ts` (T014 debe pasar).
+- [x] T018 [P] Implementar `src/lib/tokens.ts` (T015 debe pasar).
+- [x] T019 [P] Implementar `src/lib/html.ts` con la etiqueta `html` que escapa por defecto (T016 debe pasar).
+- [x] T020 [P] Crear `src/lib/clock.ts` con la interfaz `Clock` inyectable y una implementación fija para pruebas (para caducidades de sesiones y tokens).
+- [x] T021 [P] Escribir `tests/unit/password-hasher.test.ts`: `hash` y `verify` correctos, hashes distintos para la misma contraseña, verificación falla con contraseña errónea, mismo contrato para la implementación argon2id y la de respaldo bcrypt, y `needsRehash`.
+- [x] T022 [P] Escribir `tests/unit/password-policy.test.ts`: rechaza menos de 10 caracteres, comunes (lista local), iguales al correo o nombre; acepta 10 o más sin símbolos ni mayúsculas (FR-031); mensajes explican el motivo.
+- [x] T023 Implementar `src/modules/auth/password-hasher.ts`: interfaz `PasswordHasher`, implementación argon2id (parámetros calibrables por configuración, objetivo 250 a 500 ms) e implementación de respaldo con `bcryptjs`, elegida por configuración (T021 debe pasar).
+- [x] T024 Crear `src/modules/auth/data/common-passwords.txt` (lista de contraseñas más frecuentes; anotar fuente y licencia en un comentario del encabezado de `docs/configuration.md` o de `research.md`, supuesto pendiente) e implementar `src/modules/auth/password-policy.ts` (T022 debe pasar).
+- [x] T025 [P] Escribir `tests/unit/logger.test.ts`: la configuración de pino redacta `authorization`, `cookie`, `set-cookie`, y los campos `password`, `token`, `email`; no registra cuerpos de petición.
+- [x] T026 Implementar `src/http/logger.ts` con pino y redacción (T025 debe pasar); los errores se registran con código y `userId`, no con correo ni nombre.
 - [ ] T027 Escribir `tests/contract/app-security.test.ts` con `fastify.inject`: cabeceras de seguridad presentes, errores 400/404/500 sin trazas ni detalles internos, validación zod devuelve mensajes por campo, límite de tasa responde 429.
 - [ ] T028 Implementar `src/http/app.ts` (fábrica de Fastify con `@fastify/helmet`, `@fastify/cookie`, `@fastify/rate-limit`, manejador de errores uniforme, identificador de petición), `src/http/validate.ts` (helper que valida body, query y params con zod) y `src/http/errors.ts` (T027 debe pasar).
 - [ ] T029 Escribir `tests/integration/sessions.test.ts`: sesión nueva válida; caduca por inactividad (30 min personal, 60 min paciente) y por tope absoluto (12 h); revocar corta el acceso; token se guarda solo como hash; se regenera el token al iniciar sesión y al subir de privilegio.
