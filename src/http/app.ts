@@ -23,6 +23,16 @@ export interface AppOptions {
   logStream?: Writable;
 }
 
+/**
+ * Fastify no tipa el número de saltos, pero sí admite una función `(dirección, salto)`: se confía solo en los
+ * primeros `n` saltos (los proxies propios) y se ignora lo que un cliente escriba más allá en `X-Forwarded-For`.
+ */
+function toFastifyTrustProxy(value: AppOptions["trustProxy"]): boolean | string[] | ((address: string, hop: number) => boolean) {
+  if (value === undefined || value === false) return false;
+  if (typeof value === "number") return (_address, hop) => hop < value;
+  return value;
+}
+
 function wantsJson(request: FastifyRequest): boolean {
   return (request.headers.accept ?? "").includes("application/json");
 }
@@ -57,7 +67,7 @@ function sendError(
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { ...loggerOptions(options.appEnv), ...(options.logStream ? { stream: options.logStream } : {}) },
-    trustProxy: options.trustProxy ?? false,
+    trustProxy: toFastifyTrustProxy(options.trustProxy),
   });
 
   await app.register(helmet);
