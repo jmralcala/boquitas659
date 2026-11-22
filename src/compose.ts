@@ -79,7 +79,11 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   registerAuthRoutes(app, services);
   registerDoctorRegistrationRoutes(app, services);
   registerDoctorStatusRoutes(app, services);
-  registerSupportRoutes(app, services);
+  // Las rutas de soporte aprueban cuentas de médicos: hasta que el doble factor sea obligatorio para soporte (US6),
+  // no se registran en producción. En desarrollo y pruebas sí.
+  if (env.APP_ENV !== "production") {
+    registerSupportRoutes(app, services);
+  }
 
   return { app, services };
 }

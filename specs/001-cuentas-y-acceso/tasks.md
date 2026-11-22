@@ -121,7 +121,7 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 - [x] T060 [P] [US1] Añadir a `src/mail/templates.ts` las plantillas `support_new_doctor` (a `soporte@innvend.com` sin adjuntos y con enlace a `/soporte/medicos/:id`), `doctor_approved` y `doctor_rejected` según `contracts/email-notifications.md`.
 - [x] T061 [US1] Registrar los módulos de esta historia en `src/http/app.ts` y ejecutar los escenarios 1 a 4 y 29 de `quickstart.md`.
 
-**Checkpoint**: US1 funciona y se prueba sola. **Aviso**: las rutas `/soporte/*` no deben exponerse en producción hasta completar el segundo factor obligatorio (T109); mientras tanto solo en desarrollo.
+**Checkpoint**: US1 funciona y se prueba sola. **Aviso**: las rutas `/soporte/*` no se registran con `APP_ENV=production` (condición en `src/compose.ts`, con prueba en `server-smoke`) hasta completar el segundo factor obligatorio (T112); al terminarlo, quitar esa condición y exigir `mfaEnabled && mfaVerified` en la guarda de soporte.
 
 ---
 
@@ -250,7 +250,7 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 - [ ] T109 [US6] Crear `migrations/0006_mfa_audit.sql` con `mfa_recovery_code` (`user_id`, `code_hash`, `used_at`; 10 por usuario), `patient_access_log` (`outcome` en `allowed`·`denied`; sin contenido del paciente) con disparadores `BEFORE UPDATE` y `BEFORE DELETE` con `SIGNAL`, y los índices necesarios.
 - [ ] T110 [P] [US6] Implementar `src/modules/auth/totp.ts` (otplib, cifrado AES-256-GCM del secreto, 10 códigos de recuperación de un solo uso) (T105 debe pasar). Comparar los códigos TOTP y de recuperación con `crypto.timingSafeEqual` (comparación en tiempo constante, guía de seguridad).
 - [ ] T111 [US6] Implementar `src/modules/auth/mfa-routes.ts` y vistas (`GET/POST /login/mfa`, `GET/POST /cuenta/mfa`, `GET/POST /cuenta/mfa/alta`), el paso de rotación de sesión a `mfa_verified` y los correos `mfa_enabled` y `mfa_disabled` (T106 debe pasar).
-- [ ] T112 [US6] Implementar la guarda `requireSupportMfa` en `src/http/session-plugin.ts` y aplicarla a todas las rutas `/soporte/*` y al resto de rutas de soporte (T107 debe pasar); actualizar `scripts/create-support-user.ts` para que el primer acceso obligue al alta de TOTP.
+- [ ] T112 [US6] Implementar la guarda `requireSupportMfa` en `src/http/session-plugin.ts` y aplicarla a todas las rutas `/soporte/*` y al resto de rutas de soporte (T107 debe pasar); quitar la condición `APP_ENV !== "production"` de `src/compose.ts` y actualizar la prueba de `server-smoke`; actualizar `scripts/create-support-user.ts` para que el primer acceso obligue al alta de TOTP.
 - [ ] T113 [P] [US6] Implementar `src/modules/audit/access-log.ts` (escribir `patient_access_log` con actor, rol, médico, paciente y resultado, sin contenido; los intentos denegados también se registran).
 - [ ] T114 [US6] Implementar `GET /agenda/pacientes/:patientId` en `src/modules/patients/detail-routes.ts` con vista: obtiene el `TenantContext`, consulta con el repositorio de US2, registra el acceso antes de responder y devuelve 404 sin distinguir inexistente de ajeno (T108 debe pasar).
 - [ ] T115 [US6] Ejecutar los escenarios 24 a 27 de `quickstart.md` y el paso 4 del recorrido manual.

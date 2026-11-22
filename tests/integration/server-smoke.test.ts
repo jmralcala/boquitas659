@@ -27,6 +27,11 @@ afterAll(async () => {
 });
 
 describe("servidor compuesto", () => {
+  it("en desarrollo registra las rutas de soporte", async () => {
+    const response = await server.app.inject({ method: "GET", url: "/soporte/medicos", headers: { accept: "application/json" } });
+    expect(response.statusCode).toBe(401); // existe, pero exige sesión de soporte
+  });
+
   it("sirve el formulario de login con cabeceras de seguridad", async () => {
     const response = await server.app.inject({ method: "GET", url: "/login" });
     expect(response.statusCode).toBe(200);
@@ -42,5 +47,36 @@ describe("servidor compuesto", () => {
   it("siembra los 5 textos legales provisionales al arrancar", async () => {
     const [rows] = await pool.query("SELECT COUNT(*) AS n FROM legal_document WHERE is_provisional = 1");
     expect(Number((rows as { n: number }[])[0]?.n)).toBe(5);
+  });
+});
+
+describe("servidor en producción", () => {
+  it("no registra las rutas de soporte mientras el doble factor no sea obligatorio", async () => {
+    const productionServer = await createServer(
+      loadEnv({
+        APP_ENV: "production",
+        PUBLIC_BASE_URL: "https://agenda.example.com",
+        DATABASE_URL: testDatabaseUrl(),
+        SESSION_SECRET: "s".repeat(40),
+        MFA_ENCRYPTION_KEY: "b".repeat(64),
+        CEDULA_STORAGE_DIR: "./storage/cedulas-test",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_PORT: "587",
+        SMTP_USER: "usuario",
+        SMTP_PASS: "clave-de-prueba",
+        SMTP_FROM: "no-responder@example.com",
+      }),
+    );
+    try {
+      for (const url of ["/soporte/medicos", "/soporte/medicos/1", "/soporte/medicos/1/cedula"]) {
+        const response = await productionServer.app.inject({ method: "GET", url, headers: { accept: "application/json" } });
+        expect(response.statusCode, url).toBe(404);
+      }
+      const post = await productionServer.app.inject({ method: "POST", url: "/soporte/medicos/1/aprobar" });
+      // Sin ruta registrada no se ejecuta ninguna acción (el filtro CSRF puede responder 403 antes que el 404).
+      expect([403, 404]).toContain(post.statusCode);
+    } finally {
+      await productionServer.close();
+    }
   });
 });
