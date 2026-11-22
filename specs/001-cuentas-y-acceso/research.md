@@ -185,4 +185,10 @@ Antes de instalar: revisar mantenimiento, versión reciente y que el nombre no s
 2. Límites de envío del SMTP de Hostinger y entregabilidad (SPF, DKIM, DMARC) para los correos de seguridad.
 3. Latencia de hasta ~1 min por cron en correos de recuperación (aceptable con enlace de 30 min).
 4. Texto legal provisional: el bloqueo en producción depende de marcar el documento como revisado.
-5. Sin plan de copias de seguridad ni de qué pasa si falla el cron (supuesto abierto 8 de 0001).
+5. Disparadores en hosting compartido: con el log binario activo, `CREATE TRIGGER` exige `SUPER` o que el servidor tenga
+   `log_bin_trust_function_creators=1` (en desarrollo local con MySQL 8 hubo que activarlo). Probar `CREATE TRIGGER` con el
+   usuario real de Hostinger antes del piloto; si falla, el plan B es forzar el solo anexar desde la aplicación y con
+   permisos sin `UPDATE` ni `DELETE` sobre `consent_acceptance` y `patient_access_log`.
+6. Las pruebas de integración corren hoy contra MySQL 8.0 y producción será MariaDB: el SQL se limita al subconjunto
+   común (sin tipo JSON, disparadores de una sola sentencia) y las pruebas deben repetirse contra MariaDB antes del piloto.
+7. Sin plan de copias de seguridad ni de qué pasa si falla el cron (supuesto abierto 8 de 0001).
