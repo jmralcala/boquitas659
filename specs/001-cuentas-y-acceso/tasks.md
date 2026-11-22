@@ -269,8 +269,8 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 - [x] T119 [P] Escribir `tests/integration/append-only.test.ts` (escenario 27) que consolide las comprobaciones de disparadores de `consent_acceptance` y `patient_access_log`.
 - [x] T120 Revisar que toda ruta de `contracts/http-routes.md` tenga esquema zod, guarda de rol y CSRF donde cambia estado, y que ninguna consulta de datos de pacientes carezca de `TenantContext`; corregir lo que falte.
 - [x] T121 Buscar y eliminar `console.log` y secretos en `src`, `tests` y `scripts` (`rg "console\.log"`).
-- [ ] T122 Ejecutar `npm run lint`, `npm run typecheck`, `npm run test` y `npm run build`; todos deben pasar.
-- [ ] T123 Ejecutar la validación completa de `quickstart.md` (los 30 escenarios y el recorrido manual).
+- [x] T122 Ejecutar `npm run lint`, `npm run typecheck`, `npm run test` y `npm run build`; todos deben pasar.
+- [ ] T123 Ejecutar la validación completa de `quickstart.md` (los 30 escenarios y el recorrido manual). **Estado: los 31 escenarios tienen prueba automática y pasan; queda pendiente solo el recorrido manual de 5 pasos en un navegador con un SMTP real (necesita una persona).**
 - [x] T124 Documentar en `docs/decisions/0002-cuentas-y-acceso.md` las decisiones técnicas (respaldo bcrypt, sesiones en base de datos, outbox con cron, corrección de FR-004) y actualizar `spec.md` para reflejar lo implementado, como exige la definición de terminado.
 - [x] T125 Preparar y documentar en `docs/configuration.md` el humo de despliegue en Hostinger: carga de `argon2`, latencia real del cron de un minuto con `jobs:outbox`, SPF/DKIM/DMARC y límites de envío del SMTP, y directorio de cédulas fuera de la raíz pública (resultados quedan como pendientes hasta desplegar).
 - [x] T126 Ejecutar `code-review` sobre el diff y `/security-review` antes del PR, y corregir los hallazgos.
