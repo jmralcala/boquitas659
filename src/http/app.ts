@@ -14,6 +14,7 @@ import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
 import { wantsJson } from "./negotiation.js";
 import { installSession } from "./session-plugin.js";
+import { installSupportMfa } from "./support-mfa.js";
 
 export interface AppOptions {
   appEnv: "development" | "production";
@@ -85,6 +86,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   if (options.sessions && options.csrfSecret) {
     installSession(app, options.sessions);
     installCsrf(app, options.csrfSecret);
+    installSupportMfa(app);
     if (options.legal) installLegalGate(app, options.legal);
   }
 

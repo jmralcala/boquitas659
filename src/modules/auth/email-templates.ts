@@ -98,6 +98,30 @@ export const authTemplates: Record<string, EmailTemplate> = {
     }),
   },
 
+  mfa_enabled: {
+    render: ({ baseUrl }) => ({
+      subject: "Activaste el doble factor en tu cuenta",
+      text: [
+        "El doble factor de autenticación quedó activo en tu cuenta.",
+        "",
+        `Si no fuiste tú, cambia tu contraseña ahora: ${new URL("/cuenta/contrasena", baseUrl).toString()}`,
+        "y escribe a soporte.",
+      ].join("\n"),
+    }),
+  },
+
+  mfa_disabled: {
+    render: ({ baseUrl }) => ({
+      subject: "Desactivaste el doble factor en tu cuenta",
+      text: [
+        "El doble factor de autenticación se desactivó en tu cuenta.",
+        "",
+        `Si no fuiste tú, cambia tu contraseña ahora: ${new URL("/cuenta/contrasena", baseUrl).toString()}`,
+        "y escribe a soporte.",
+      ].join("\n"),
+    }),
+  },
+
   email_changed_old: {
     render: () => ({
       subject: "El correo de tu cuenta cambió",

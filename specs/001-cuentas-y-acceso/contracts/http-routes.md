@@ -18,14 +18,17 @@ Aplicación con vistas HTML renderizadas en el servidor. Convenciones comunes:
 |---------------|-----|---------------|-----------|
 | `GET /login` | Pub | — | Formulario |
 | `POST /login` | Pub | `email`, `password` | 303 al panel del rol; si hay MFA, a `/login/mfa`; mismos mensajes ante error; espera creciente tras fallos |
-| `GET/POST /login/mfa` | Pub (a medias) | `code` (TOTP o código de recuperación) | Completa la sesión |
+| `GET/POST /login/mfa` | sesión a medias | `code` (TOTP de 6 dígitos o código de recuperación) | Cada código sirve una sola vez (el TOTP no se puede reutilizar dentro de su paso de tiempo); los fallos cuentan para la espera creciente; al acertar se rota el token de la sesión |
 | `POST /logout` | cualquiera | — | Revoca la sesión |
 | `GET /recuperar` · `POST /recuperar` | Pub | `email` | Siempre la misma pantalla; si existe, encola correo con enlace de 30 min |
 | `GET /recuperar/:token` | Pub | `token` | Muestra formulario si es válido; **no consume** |
 | `POST /recuperar/:token` | Pub | `password`, `passwordConfirm` | Consume el token, cambia la contraseña, revoca otras sesiones, avisa por correo |
 | `GET/POST /cuenta/contrasena` | autenticado | `currentPassword`, `newPassword` | Pide contraseña actual; revoca las demás sesiones; avisa por correo |
-| `GET/POST /cuenta/mfa` | M, R, S | `code` | Activa o desactiva TOTP; muestra códigos de recuperación una sola vez |
-| `GET/POST /cuenta/mfa/alta` | S | `code` | Alta obligatoria de TOTP antes de cualquier otra ruta de soporte |
+| `GET /cuenta/mfa` | M, R, S | — | Estado del doble factor (los pacientes no lo usan: 403) |
+| `GET /cuenta/mfa/alta` | M, R, S | — | Misma pantalla; es la **única** a la que soporte llega mientras no active el doble factor (navegador: 303; JSON: 403 `mfa_enrollment_required` en el resto) |
+| `POST /cuenta/mfa/activar` | M, R, S | `currentPassword` | Genera el secreto (cifrado, aún inactivo) y muestra clave y URI `otpauth://` |
+| `POST /cuenta/mfa/confirmar` | M, R, S | `code` | Con un código correcto activa, rota la sesión ya verificada y muestra los 10 códigos de recuperación **una sola vez** |
+| `POST /cuenta/mfa/desactivar` | M, R | `currentPassword` | Borra secreto y códigos; avisa por correo. Soporte no puede (403) |
 | `GET/POST /cuenta/correo` | autenticado | `currentPassword`, `newEmail` | Pide el cambio: el correo nuevo queda **pendiente** y se le envía un enlace de confirmación (60 min, un solo uso); el correo de acceso NO cambia todavía. Avisa al correo actual de que se pidió el cambio |
 | `GET /cuenta/correo/confirmar/:token` | Pub | `token` | Muestra el correo nuevo y un botón; **no consume** |
 | `POST /cuenta/correo/confirmar/:token` | Pub | — | Consume el token, aplica el cambio, avisa al correo anterior y al nuevo y cierra **todas** las sesiones. Si otra cuenta ya usa el correo: 400 genérico |

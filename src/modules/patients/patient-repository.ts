@@ -101,3 +101,33 @@ export async function findPatientForDoctor(
   );
   return rows[0] ? toPatient(rows[0]) : null;
 }
+
+export interface TutorRecord {
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+}
+
+/**
+ * Tutor de un menor, SOLO si el menor está vinculado con este médico. El tutor no necesita estar vinculado por su
+ * cuenta: se llega a él a través del menor, que es la relación que autoriza al médico a verlo.
+ */
+export async function findTutorForMinor(ctx: TenantContext, executor: Executor, minorPatientId: number): Promise<TutorRecord | null> {
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT t.full_name, t.phone, t.email
+       FROM patient p
+       JOIN doctor_patient dp ON dp.patient_id = p.id AND dp.doctor_id = ?
+       JOIN patient t ON t.account_id = p.account_id AND t.is_minor_dependent = 0
+      WHERE p.id = ? AND p.is_minor_dependent = 1
+      ORDER BY t.id ASC LIMIT 1`,
+    [ctx.doctorId, minorPatientId],
+  );
+  const row = rows[0];
+  return row
+    ? {
+        fullName: String(row.full_name),
+        phone: row.phone === null ? null : String(row.phone),
+        email: row.email === null ? null : String(row.email),
+      }
+    : null;
+}

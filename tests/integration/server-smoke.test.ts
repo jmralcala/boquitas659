@@ -51,7 +51,7 @@ describe("servidor compuesto", () => {
 });
 
 describe("servidor en producción", () => {
-  it("no registra las rutas de soporte mientras el doble factor no sea obligatorio", async () => {
+  it("registra las rutas de soporte, que exigen sesión de soporte con doble factor", async () => {
     const productionServer = await createServer(
       loadEnv({
         APP_ENV: "production",
@@ -70,11 +70,11 @@ describe("servidor en producción", () => {
     try {
       for (const url of ["/soporte/medicos", "/soporte/medicos/1", "/soporte/medicos/1/cedula"]) {
         const response = await productionServer.app.inject({ method: "GET", url, headers: { accept: "application/json" } });
-        expect(response.statusCode, url).toBe(404);
+        expect(response.statusCode, url).toBe(401); // existen, pero sin sesión no se entra
       }
+      // Sin sesión ni token CSRF no se puede aprobar nada.
       const post = await productionServer.app.inject({ method: "POST", url: "/soporte/medicos/1/aprobar" });
-      // Sin ruta registrada no se ejecuta ninguna acción (el filtro CSRF puede responder 403 antes que el 404).
-      expect([403, 404]).toContain(post.statusCode);
+      expect(post.statusCode).toBe(403);
     } finally {
       await productionServer.close();
     }

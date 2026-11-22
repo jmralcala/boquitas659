@@ -104,6 +104,13 @@ export async function sessionFor(services: Services, user: CreatedUser): Promise
   return { cookie: `${SESSION_COOKIE}=${token}`, csrf: sessionCsrfToken(CSRF_SECRET, session.csrfSecret) };
 }
 
+/** Cliente (cookie + token CSRF) para una cookie de sesión ya existente, por ejemplo la que devuelve una rotación. */
+export async function clientForCookie(services: Services, cookie: string): Promise<AuthedClient> {
+  const session = await services.sessions.validate(cookie.split("=")[1] ?? "");
+  if (!session) throw new Error("La cookie de sesión no es válida.");
+  return { cookie, csrf: sessionCsrfToken(CSRF_SECRET, session.csrfSecret) };
+}
+
 export function postForm(
   app: FastifyInstance,
   url: string,
