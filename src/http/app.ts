@@ -1,16 +1,24 @@
 import type { Writable } from "node:stream";
 import cookie from "@fastify/cookie";
+import formbody from "@fastify/formbody";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { html } from "../lib/html.js";
+import type { SessionService } from "../modules/auth/sessions.js";
+import { installCsrf } from "./csrf.js";
 import { AppError, NotFoundError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
+import { installSession } from "./session-plugin.js";
 
 export interface AppOptions {
   appEnv: "development" | "production";
   /** Verdadero cuando la app corre detrás del proxy del hosting (para leer la IP real). */
   trustProxy?: boolean;
+  /** Servicio de sesiones. Si se entrega junto con `csrfSecret`, se activan sesión y CSRF. */
+  sessions?: SessionService;
+  /** Secreto para derivar los tokens CSRF (`SESSION_SECRET`). */
+  csrfSecret?: string;
   /** Solo para pruebas: destino alternativo de los registros. */
   logStream?: Writable;
 }
@@ -54,7 +62,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   await app.register(helmet);
   await app.register(cookie);
+  await app.register(formbody);
   await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute" });
+
+  if (options.sessions && options.csrfSecret) {
+    installSession(app, options.sessions);
+    installCsrf(app, options.csrfSecret);
+  }
 
   app.addHook("onSend", async (request, reply) => {
     void reply.header("x-request-id", request.id);

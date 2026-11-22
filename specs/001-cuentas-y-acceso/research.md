@@ -171,6 +171,7 @@ Regla del proyecto: no instalar dependencias nuevas sin explicar por qué. Nada 
 |---------|----------|------------------------------------|
 | `fastify` | Servidor HTTP | Node `http` no trae validación, enrutado ni gancho de ciclo de vida |
 | `@fastify/cookie`, `@fastify/helmet`, `@fastify/rate-limit`, `@fastify/multipart` | Cookies, cabeceras, límites, archivos | Reescribirlo es más riesgoso que usar plugins oficiales mantenidos |
+| `@fastify/formbody` | Leer formularios HTML (`application/x-www-form-urlencoded`) | Fastify solo trae JSON; la interfaz son formularios del servidor |
 | `zod` | Validación en runtime | Exigido por CLAUDE.md |
 | `mysql2` | Cliente de MariaDB | Sin controlador no hay base; soporta consultas parametrizadas |
 | `argon2` (+ `bcryptjs` como respaldo) | Hash de contraseñas | Exigido por la guía de seguridad; `crypto` no trae argon2id/bcrypt |
