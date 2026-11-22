@@ -84,9 +84,9 @@ description: "Lista de tareas de la feature 001-cuentas-y-acceso"
 - [x] T039 Implementar `src/modules/legal/legal-service.ts` (publicar, última versión por tipo, `recordAcceptance`, `hasAcceptedLatest`) y `src/modules/legal/seed-provisional.ts` con textos provisionales marcados `is_provisional` para los 5 tipos (T038 debe pasar).
 - [x] T040 [P] Crear `src/lib/tenant.ts` con el tipo `TenantContext` (`{ doctorId, actor }`) y un constructor que solo se puede invocar tras comprobar la relación; documentar que ninguna función de lectura de pacientes existe sin este tipo (principio II).
 - [x] T041 [P] Crear `src/http/views/layout.ts` y `src/http/views/forms.ts`: plantilla base en español con pie que enlaza `/legal` y `/derechos`, y ayudantes de formulario que incluyen el token CSRF y las casillas de aceptación sin marcar de antemano, usando `src/lib/html.ts`.
-- [ ] T042 [P] Escribir `tests/contract/login.test.ts`: login correcto redirige al panel del rol; correo inexistente y contraseña incorrecta devuelven el mismo mensaje y tiempos comparables; logout revoca la sesión; la cuenta con `status = disabled` no entra.
-- [ ] T043 Implementar `src/modules/auth/routes.ts` y vistas (`GET/POST /login`, `POST /logout`): hash ficticio ante correo inexistente, mensaje uniforme, sesión nueva con rotación de token (T042 debe pasar). Sin límite de intentos todavía (llega en US3) ni segundo factor (US6).
-- [ ] T044 Reescribir `src/index.ts` para arrancar el servidor (leer configuración, abrir el pool, registrar módulos, escuchar); conservar o actualizar `src/index.test.ts` para que `npm run test` siga en verde (si `saludar` se elimina, retirar también su prueba).
+- [x] T042 [P] Escribir `tests/contract/login.test.ts`: login correcto redirige al panel del rol; correo inexistente y contraseña incorrecta devuelven el mismo mensaje y tiempos comparables; logout revoca la sesión; la cuenta con `status = disabled` no entra.
+- [x] T043 Implementar `src/modules/auth/routes.ts` y vistas (`GET/POST /login`, `POST /logout`): hash ficticio ante correo inexistente, mensaje uniforme, sesión nueva con rotación de token (T042 debe pasar). Sin límite de intentos todavía (llega en US3) ni segundo factor (US6).
+- [x] T044 Reescribir `src/index.ts` para arrancar el servidor (leer configuración, abrir el pool, registrar módulos, escuchar); conservar o actualizar `src/index.test.ts` para que `npm run test` siga en verde (si `saludar` se elimina, retirar también su prueba).
 
 **Checkpoint**: la base está lista; las historias pueden empezar.
 

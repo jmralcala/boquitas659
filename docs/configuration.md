@@ -10,6 +10,7 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 |----------|-------------|-----------|---------|
 | `APP_ENV` | sí | `development` o `production`. En `production` los avisos legales provisionales bloquean altas | `development` |
 | `PUBLIC_BASE_URL` | sí | URL base para construir enlaces de correo | `http://localhost:3000` |
+| `TRUST_PROXY` | no (`false`) | `true` si la app corre detrás del proxy del hosting (para leer la IP real del cliente en los límites de peticiones) | `false` |
 | `PORT` | no (3000) | Puerto HTTP | `3000` |
 | `DATABASE_URL` | sí | Conexión a MariaDB | `mysql://app:cambia-esto@localhost:3306/boquitas` |
 | `TEST_DATABASE_URL` | solo pruebas | Base de pruebas (se recrea en cada ejecución); sin ella se omiten las pruebas de integración | `mysql://root:cambia-esto@localhost:3306/boquitas_test` |

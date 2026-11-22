@@ -6,6 +6,10 @@ const schema = z
   .object({
     APP_ENV: z.enum(["development", "production"]),
     PUBLIC_BASE_URL: z.url(),
+    TRUST_PROXY: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: z.string().min(1),
     SESSION_SECRET: z.string().min(32),

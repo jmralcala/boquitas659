@@ -19,6 +19,8 @@ describe("loadEnv", () => {
     expect(env.SUPPORT_EMAIL).toBe("soporte@innvend.com");
     expect(env.RIGHTS_CONTACT_EMAIL).toBe("soporte@innvend.com");
     expect(env.RIGHTS_RESPONSE_DAYS).toBe(20);
+    expect(env.TRUST_PROXY).toBe(false);
+    expect(loadEnv({ ...base, TRUST_PROXY: "true" }).TRUST_PROXY).toBe(true);
   });
 
   it("devuelve un objeto inmutable", () => {
