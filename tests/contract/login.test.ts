@@ -4,6 +4,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/http/app.js";
 import { SESSION_COOKIE } from "../../src/http/session-plugin.js";
 import { createPasswordHasher, type PasswordHasher } from "../../src/modules/auth/password-hasher.js";
+import { createDeviceService } from "../../src/modules/auth/devices.js";
+import { createLoginThrottle } from "../../src/modules/auth/login-throttle.js";
 import { registerAuthRoutes } from "../../src/modules/auth/routes.js";
 import { createSessionService } from "../../src/modules/auth/sessions.js";
 import { clearTables, createTestPool, createUser, resetDatabase } from "../integration/helpers/db.js";
@@ -32,7 +34,13 @@ let app: FastifyInstance;
 beforeAll(async () => {
   await resetDatabase(pool);
   app = await buildApp({ appEnv: "development", sessions, csrfSecret });
-  registerAuthRoutes(app, { db: pool, sessions, hasher: countingHasher });
+  registerAuthRoutes(app, {
+    db: pool,
+    sessions,
+    hasher: countingHasher,
+    throttle: createLoginThrottle(pool, undefined, csrfSecret),
+    devices: createDeviceService(pool, undefined, csrfSecret),
+  });
   await app.ready();
 });
 

@@ -38,3 +38,25 @@ export class NotFoundError extends AppError {
     this.name = "NotFoundError";
   }
 }
+
+/** Demasiados intentos: el cliente debe esperar `retryAfterMs` antes de volver a intentar. */
+export class TooManyAttemptsError extends AppError {
+  constructor(readonly retryAfterMs: number) {
+    super(
+      429,
+      "rate_limited",
+      `Demasiados intentos. Espera ${Math.max(1, Math.ceil(retryAfterMs / 1000))} segundos e inténtalo de nuevo.`,
+    );
+    this.name = "TooManyAttemptsError";
+  }
+}
+
+/** La contraseña actual escrita para confirmar un cambio sensible no es correcta. */
+export class WrongPasswordError extends AppError {
+  constructor() {
+    super(403, "wrong_password", "La contraseña actual no es correcta.", {
+      currentPassword: ["La contraseña actual no es correcta."],
+    });
+    this.name = "WrongPasswordError";
+  }
+}

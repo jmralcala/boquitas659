@@ -8,7 +8,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { html } from "../lib/html.js";
 import type { SessionService } from "../modules/auth/sessions.js";
 import { installCsrf } from "./csrf.js";
-import { AppError, NotFoundError } from "./errors.js";
+import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
 import { wantsJson } from "./negotiation.js";
 import { installSession } from "./session-plugin.js";
@@ -94,6 +94,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, request, reply) => {
     if (error instanceof AppError) {
+      if (error instanceof TooManyAttemptsError) {
+        void reply.header("retry-after", String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
+      }
       return sendError(request, reply, error.status, error.code, error.publicMessage, error.fields);
     }
     const status = typeof error.statusCode === "number" ? error.statusCode : 500;

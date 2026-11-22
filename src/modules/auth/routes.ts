@@ -6,14 +6,22 @@ import { clearSessionCookie, isFullyAuthenticated, setSessionCookie } from "../.
 import { errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
 import { html } from "../../lib/html.js";
+import { systemClock, type Clock } from "../../lib/clock.js";
 import { normalizeEmail } from "../../lib/normalize.js";
+import { enqueueEmail } from "../../mail/outbox.js";
+import { DEVICE_COOKIE, setDeviceCookie, type DeviceService } from "./devices.js";
+import type { LoginThrottle } from "./login-throttle.js";
 import type { PasswordHasher } from "./password-hasher.js";
+import { recordSecurityEvent } from "./security-events.js";
 import type { SessionService, UserRole } from "./sessions.js";
 
 export interface AuthRoutesDeps {
   db: Db;
   sessions: SessionService;
   hasher: PasswordHasher;
+  throttle: LoginThrottle;
+  devices: DeviceService;
+  clock?: Clock;
 }
 
 /** Página de inicio de cada rol tras iniciar sesión. */
@@ -56,6 +64,8 @@ ${form({
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): void {
+  const clock = deps.clock ?? systemClock;
+
   app.get("/login", async (request, reply) => {
     if (isFullyAuthenticated(request.auth)) {
       return reply.redirect(HOME_BY_ROLE[request.auth.role], 303);
@@ -76,24 +86,45 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
       }
       const { password } = parsed.data;
       const email = normalizeEmail(parsed.data.email);
+      const accountKey = deps.throttle.accountKey(parsed.data.email);
+
+      // Espera creciente por cuenta e IP. Se aplica igual exista o no el correo, así no revela cuáles existen.
+      const gate = await deps.throttle.check(accountKey, request.ip);
+      if (!gate.allowed) {
+        const seconds = Math.max(1, Math.ceil(gate.retryAfterMs / 1000));
+        return reply
+          .code(429)
+          .header("retry-after", String(seconds))
+          .type("text/html; charset=utf-8")
+          .send(
+            renderLogin(app, request, reply, {
+              email: parsed.data.email.slice(0, 254),
+              error: `Demasiados intentos. Espera ${seconds} segundos e inténtalo de nuevo.`,
+            }),
+          );
+      }
 
       let user: RowDataPacket | undefined;
       if (email !== null) {
         const [rows] = await deps.db.execute<RowDataPacket[]>(
-          "SELECT id, role, password_hash, status, mfa_enabled FROM `user` WHERE email_normalized = ?",
+          "SELECT id, email, role, password_hash, status, mfa_enabled FROM `user` WHERE email_normalized = ?",
           [email],
         );
         user = rows[0];
       }
 
       // Se hace siempre el mismo trabajo de hash, exista o no la cuenta, para no revelar cuáles correos existen.
-      const passwordOk = user ? await deps.hasher.verify(String(user.password_hash), password) : await deps.hasher.dummyVerify(password);
+      const passwordOk = user
+        ? await deps.hasher.verify(String(user.password_hash), password)
+        : await deps.hasher.dummyVerify(password);
       if (!user || !passwordOk || user.status !== "active") {
+        await deps.throttle.recordFailure(accountKey, request.ip);
         return reply
           .code(401)
           .type("text/html; charset=utf-8")
           .send(renderLogin(app, request, reply, { email: parsed.data.email.slice(0, 254), error: LOGIN_ERROR }));
       }
+      await deps.throttle.recordSuccess(accountKey);
 
       if (deps.hasher.needsRehash(String(user.password_hash))) {
         await deps.db.execute("UPDATE `user` SET password_hash = ? WHERE id = ?", [
@@ -102,10 +133,23 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
         ]);
       }
 
+      // Dispositivo nuevo: se registra y se avisa por correo (el aviso no incluye datos más allá de la hora).
+      const userId = Number(user.id);
+      const device = await deps.devices.check(userId, request.cookies[DEVICE_COOKIE]);
+      setDeviceCookie(reply, device.deviceId);
+      if (device.isNew) {
+        await recordSecurityEvent(deps.db, clock, userId, "new_device");
+        await enqueueEmail(
+          deps.db,
+          { template: "new_device_login", to: String(user.email), payload: { userId, at: clock.now().toISOString() } },
+          clock,
+        );
+      }
+
       // Sesión nueva en cada inicio: se descarta la anterior (evita fijación de sesión).
       if (request.sessionToken) await deps.sessions.revoke(request.sessionToken);
       const mfaEnabled = user.mfa_enabled === 1;
-      const { token } = await deps.sessions.create(Number(user.id), { mfaVerified: false });
+      const { token } = await deps.sessions.create(userId, { mfaVerified: false });
       setSessionCookie(reply, token);
       return reply.redirect(mfaEnabled ? "/login/mfa" : HOME_BY_ROLE[user.role as UserRole], 303);
     },
@@ -117,4 +161,3 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
     return reply.redirect("/login", 303);
   });
 }
-

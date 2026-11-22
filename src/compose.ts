@@ -4,6 +4,12 @@ import { createPool, type Db } from "./db/pool.js";
 import { buildApp } from "./http/app.js";
 import { systemClock, type Clock } from "./lib/clock.js";
 import { defaultTemplates } from "./mail/templates.js";
+import { createDeviceService, type DeviceService } from "./modules/auth/devices.js";
+import { createLoginThrottle, type LoginThrottle } from "./modules/auth/login-throttle.js";
+import { createReauth, type Reauth } from "./modules/auth/reauth.js";
+import { registerAccountRoutes } from "./modules/auth/account-routes.js";
+import { registerRecoveryRoutes } from "./modules/auth/recovery-routes.js";
+import { registerDoctorAccountRoutes } from "./modules/doctors/account-routes.js";
 import { createOneTimeTokenService, type OneTimeTokenService } from "./modules/auth/one-time-tokens.js";
 import { createPasswordHasher, type PasswordHasher } from "./modules/auth/password-hasher.js";
 import { registerAuthRoutes } from "./modules/auth/routes.js";
@@ -36,6 +42,9 @@ export interface Services {
   support: SupportService;
   patients: PatientRegistration;
   dependents: DependentsService;
+  throttle: LoginThrottle;
+  devices: DeviceService;
+  reauth: Reauth;
 }
 
 export interface ComposeOptions {
@@ -56,6 +65,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   const hasher = options.hasher ?? createPasswordHasher(env.PASSWORD_HASHER);
   const legal = createLegalService(db, clock);
   const cedulaStorage = createCedulaStorage(env.CEDULA_STORAGE_DIR);
+  const throttle = createLoginThrottle(db, clock, env.SESSION_SECRET);
   const services: Services = {
     env,
     db,
@@ -71,6 +81,9 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     support: createSupportService(db, clock),
     patients: createPatientRegistration({ db, hasher, legal, clock }),
     dependents: createDependentsService({ db, legal, clock }),
+    throttle,
+    devices: createDeviceService(db, clock, env.SESSION_SECRET),
+    reauth: createReauth(db, hasher, throttle),
   };
 
   // Garantiza que existan los textos legales (provisionales); en producción bloquean las altas hasta revisarse.
@@ -84,6 +97,9 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   });
 
   registerAuthRoutes(app, services);
+  registerRecoveryRoutes(app, services);
+  registerAccountRoutes(app, services);
+  registerDoctorAccountRoutes(app, services);
   registerDoctorRegistrationRoutes(app, services);
   registerDoctorStatusRoutes(app, services);
   registerPatientRoutes(app, services);
