@@ -19,12 +19,19 @@ export interface SmtpConfig {
   from: string;
 }
 
-/** Transporte SMTP real (nodemailer). Puerto 465 usa TLS directo; los demás negocian STARTTLS. */
+/**
+ * Transporte SMTP real (nodemailer). El puerto 465 usa TLS directo; en los demás se EXIGE STARTTLS
+ * (`requireTLS`), de modo que un atacante en la red no pueda degradar la conexión a texto plano y
+ * capturar las credenciales. Se verifica el certificado del servidor y se exige TLS 1.2 o superior.
+ */
 export function createSmtpTransport(config: SmtpConfig): MailTransport {
+  const implicitTls = config.port === 465;
   const transporter = nodemailer.createTransport({
     host: config.host,
     port: config.port,
-    secure: config.port === 465,
+    secure: implicitTls,
+    requireTLS: !implicitTls,
+    tls: { rejectUnauthorized: true, minVersion: "TLSv1.2" },
     auth: { user: config.user, pass: config.pass },
   });
   return {
