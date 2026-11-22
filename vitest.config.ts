@@ -1,4 +1,11 @@
+import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
+
+// Carga `.env` local (ignorado por git) para que `TEST_DATABASE_URL` no tenga que exportarse a mano.
+// Las variables ya definidas en el entorno tienen prioridad.
+if (existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 // Las pruebas de integración y de contrato necesitan una MariaDB real (TEST_DATABASE_URL).
 // Sin esa variable se omiten con un aviso, para que `npm run test` siga útil en cualquier máquina.
