@@ -41,6 +41,18 @@ const TABLES = [
     },
     updateSql: "UPDATE patient_access_log SET outcome = 'denied'",
   },
+  {
+    table: "calendar_action_log",
+    triggers: ["calendar_action_log_no_delete", "calendar_action_log_no_update"],
+    seed: async (): Promise<void> => {
+      const doctor = await createDoctor(pool);
+      await pool.execute(
+        "INSERT INTO calendar_action_log (doctor_id, actor_user_id, actor_role, action, outcome, occurred_at) VALUES (?, ?, 'doctor', 'settings_updated', 'ok', UTC_TIMESTAMP(3))",
+        [doctor.doctorId, doctor.user.id],
+      );
+    },
+    updateSql: "UPDATE calendar_action_log SET outcome = 'rejected'",
+  },
 ] as const;
 
 describe.each(TABLES)("$table es de solo anexar", ({ table, triggers, seed, updateSql }) => {
@@ -80,9 +92,13 @@ describe("el código de la aplicación nunca actualiza ni borra esas tablas", ()
     };
     walk("src");
 
-    const offenders = files.filter((file) =>
-      /(UPDATE|DELETE\s+FROM)\s+`?(consent_acceptance|patient_access_log)`?/i.test(readFileSync(file, "utf8")),
-    );
+    // Única excepción: la limpieza periódica borra el registro de acciones de la agenda de más de 90 días (retención).
+    // Los disparadores de la migración 0010 impiden borrar cualquier fila más reciente.
+    const isRetention = (file: string): boolean => file.replace(/\\/g, "/").endsWith("src/jobs/cleanup-service.ts");
+    const offenders = files.filter((file) => {
+      const tables = isRetention(file) ? "consent_acceptance|patient_access_log" : "consent_acceptance|patient_access_log|calendar_action_log";
+      return new RegExp(`(UPDATE|DELETE\\s+FROM)\\s+\`?(${tables})\`?`, "i").test(readFileSync(file, "utf8"));
+    });
     expect(offenders).toEqual([]);
   });
 });

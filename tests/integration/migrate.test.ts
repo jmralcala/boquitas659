@@ -88,6 +88,8 @@ describe("runMigrations", () => {
       "SELECT trigger_name AS name FROM information_schema.triggers WHERE trigger_schema = DATABASE() ORDER BY trigger_name",
     );
     expect(rows.map((row) => row.name)).toEqual([
+      "calendar_action_log_no_delete",
+      "calendar_action_log_no_update",
       "consent_acceptance_no_delete",
       "consent_acceptance_no_update",
       "patient_access_log_no_delete",

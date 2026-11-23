@@ -12,7 +12,8 @@ import { processOutbox, type OutboxResult } from "../../../src/mail/outbox.js";
 import { createMemoryTransport, type MemoryTransport } from "../../../src/mail/transport.js";
 import { createPasswordHasher } from "../../../src/modules/auth/password-hasher.js";
 import { generate } from "otplib";
-import { createUser, testDatabaseUrl, type CreatedUser } from "./db.js";
+import { localToUtc } from "../../../src/lib/zoned-time.js";
+import { createDoctor, createMembership, createUser, testDatabaseUrl, type CreatedDoctor, type CreatedUser } from "./db.js";
 
 export const CSRF_SECRET = "s".repeat(40);
 
@@ -218,3 +219,43 @@ export async function createSupportWithMfa(t: TestApp, db: Db): Promise<CreatedU
 export const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(128, 7)]);
 export const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(128, 8)]);
 export const PDF = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(128, 9)]);
+
+// --- Agenda (feature 2) ---------------------------------------------------------------------------------------------
+
+export interface AgendaClient {
+  doctor: CreatedDoctor;
+  /** Persona que actúa: el propio médico o la persona de recepción con vínculo vigente. */
+  user: CreatedUser;
+  client: AuthedClient;
+  role: "doctor" | "reception";
+}
+
+/**
+ * Cliente con sesión para operar la agenda de un médico: el propio médico, o una persona de recepción vinculada a él
+ * (con ese médico como activo). Si no se pasa médico, se crea uno aprobado.
+ */
+export async function agendaClientFor(
+  t: TestApp,
+  db: Db,
+  role: "doctor" | "reception",
+  options: { doctor?: CreatedDoctor } = {},
+): Promise<AgendaClient> {
+  const doctor = options.doctor ?? (await createDoctor(db));
+  if (role === "doctor") {
+    return { doctor, user: doctor.user, client: await sessionFor(t.services, doctor.user), role };
+  }
+  const person = await createUser(db, { role: "reception" });
+  await createMembership(db, doctor.doctorId, person.id);
+  const client = await sessionFor(t.services, person);
+  const session = await t.services.sessions.validate(client.cookie.split("=")[1] ?? "");
+  await t.services.sessions.setActiveDoctor(session?.sessionId ?? 0, doctor.doctorId);
+  return { doctor, user: person, client, role };
+}
+
+/** Instante UTC de una fecha y hora locales del consultorio ("AAAA-MM-DD", "HH:MM"). Falla si la hora local no existe. */
+export function localAt(zone: string, date: string, time: string): Date {
+  const [hours, minutes] = time.split(":").map(Number);
+  const instant = localToUtc(zone, date, (hours ?? 0) * 60 + (minutes ?? 0));
+  if (!instant) throw new Error(`La hora local ${date} ${time} no existe en ${zone}.`);
+  return instant;
+}

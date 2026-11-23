@@ -132,3 +132,55 @@ export async function findTutorForMinor(ctx: TenantContext, executor: Executor, 
       }
     : null;
 }
+
+/**
+ * Nombres de pacientes por id, SOLO de los vinculados con este médico (los demás no aparecen en el resultado). Lo usa la
+ * agenda para mostrar el nombre junto a cada cita sin leer nada más del paciente.
+ */
+export async function listPatientNamesForDoctor(
+  ctx: TenantContext,
+  executor: Executor,
+  patientIds: readonly number[],
+): Promise<Map<number, string>> {
+  const ids = [...new Set(patientIds)];
+  const names = new Map<number, string>();
+  // Se consulta por tandas para no armar una lista de parámetros enorme.
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const chunk = ids.slice(offset, offset + 500);
+    const placeholders = chunk.map(() => "?").join(", ");
+    const [rows] = await executor.execute<RowDataPacket[]>(
+      `SELECT p.id, p.full_name
+         FROM patient p JOIN doctor_patient dp ON dp.patient_id = p.id
+        WHERE dp.doctor_id = ? AND p.id IN (${placeholders})`,
+      [ctx.doctorId, ...chunk],
+    );
+    for (const row of rows) names.set(Number(row.id), String(row.full_name));
+  }
+  return names;
+}
+
+/**
+ * Correo de la cuenta del paciente (el del tutor, si el paciente es un menor), solo si el paciente está vinculado con
+ * este médico. `null` si no hay nadie a quien avisar.
+ */
+export async function findNotificationEmailForDoctor(ctx: TenantContext, executor: Executor, patientId: number): Promise<string | null> {
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT u.email
+       FROM patient p
+       JOIN doctor_patient dp ON dp.patient_id = p.id AND dp.doctor_id = ?
+       JOIN patient_account pa ON pa.id = p.account_id
+       JOIN \`user\` u ON u.id = pa.user_id
+      WHERE p.id = ?`,
+    [ctx.doctorId, patientId],
+  );
+  return rows[0] ? String(rows[0].email) : null;
+}
+
+/**
+ * Nombre de un paciente para un aviso del sistema. El outbox procesa los correos sin contexto de médico: el id viene
+ * del `payload` que se guardó dentro de una transacción ya validada contra el médico. No uses esta función en rutas.
+ */
+export async function findPatientNameForNotice(executor: Executor, patientId: number): Promise<string | null> {
+  const [rows] = await executor.execute<RowDataPacket[]>("SELECT p.full_name FROM patient p WHERE p.id = ?", [patientId]);
+  return rows[0] ? String(rows[0].full_name) : null;
+}

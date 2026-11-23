@@ -3,6 +3,7 @@ import type { TokenPurpose } from "../modules/auth/one-time-tokens.js";
 import { authTemplates } from "../modules/auth/email-templates.js";
 import { receptionTemplates } from "../modules/reception/email-templates.js";
 import { doctorTemplates } from "../modules/doctors/email-templates.js";
+import { calendarTemplates } from "../modules/calendar/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
 export type EmailPayload = Readonly<Record<string, string | number | null>>;
@@ -50,4 +51,5 @@ export const defaultTemplates: Record<string, EmailTemplate> = {
   ...authTemplates,
   ...doctorTemplates,
   ...receptionTemplates,
+  ...calendarTemplates,
 };

@@ -108,8 +108,8 @@ describe("runCleanup", () => {
     await session("b", ago(3 * DAY), ahead(3600_000), null);
     await email("sent", ago(41 * DAY), ago(40 * DAY));
     const first = await runCleanup(pool, clock);
-    expect(first).toEqual({ tokens: 1, sessions: 1, emails: 1, throttle: 0 });
-    expect(await runCleanup(pool, clock)).toEqual({ tokens: 0, sessions: 0, emails: 0, throttle: 0 });
+    expect(first).toEqual({ tokens: 1, sessions: 1, emails: 1, throttle: 0, calendarLog: 0 });
+    expect(await runCleanup(pool, clock)).toEqual({ tokens: 0, sessions: 0, emails: 0, throttle: 0, calendarLog: 0 });
   });
 
   it("no toca los registros de solo anexar ni los dispositivos conocidos", async () => {

@@ -35,6 +35,7 @@ import { createTenantResolver, type TenantResolver } from "./modules/reception/t
 import { registerPatientDetailRoutes } from "./modules/patients/detail-routes.js";
 import { registerLegalRoutes } from "./modules/legal/routes.js";
 import { registerSupportRoutes } from "./modules/support/support-routes.js";
+import { registerCalendarRoutes } from "./modules/calendar/routes.js";
 
 export interface Services {
   env: Env;
@@ -140,6 +141,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   registerLegalRoutes(app, services);
   // Soporte aprueba cuentas y ve cédulas: exige sesión de soporte con doble factor verificado (ver support-mfa.ts).
   registerSupportRoutes(app, services);
+  registerCalendarRoutes(app, services);
 
   return { app, services };
 }

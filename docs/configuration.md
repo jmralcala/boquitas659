@@ -67,3 +67,24 @@ Todo esto queda **pendiente hasta desplegar**; ninguno de estos puntos se ha pod
 | 8 | Directorio de cédulas | Confirmar que `CEDULA_STORAGE_DIR` está **fuera de la raíz pública** y con permisos restringidos | pendiente |
 | 9 | Proxy inverso | Definir `TRUST_PROXY` con el número de saltos del proxy del hosting (nunca `true`) y comprobar que la IP del cliente se lee bien | pendiente |
 | 10 | Variables de entorno | Todas las de la tabla de arriba definidas en el panel del hosting, `APP_ENV=production` y SMTP completo | pendiente |
+
+## Agenda del médico (feature 002)
+
+La agenda no añade variables de entorno. Se usa `SESSION_SECRET` para firmar los boletos del selector de pacientes (con el prefijo de propósito `calendar-patient:`); rotar ese secreto invalida los boletos en curso (duran 15 minutos).
+
+- **Migración**: `migrations/0009_calendar.sql` (cinco tablas y los disparadores de solo anexar de `calendar_action_log`). Como los de la feature 1, requieren `log_bin_trust_function_creators = 1` en el servidor local si el registro binario está activo.
+- **Valores por defecto de un médico sin configuración**: 45 min de duración, 15 min de pausa, Ciudad de México, anticipación mínima de 2 horas y máxima de 60 días, sin horario de atención (no hay espacios hasta que guarde su horario).
+- **Límites** (los repiten el formulario, zod y los CHECK de la base): duración 15–180 en pasos de 5; pausa 0–60 en pasos de 5; mínima 0 h–7 días y máxima 1–365 días con mínima menor que máxima; hasta 4 franjas por día sin solaparse.
+- **Zonas permitidas**: America/Mexico_City, Cancun, Merida, Monterrey, Chihuahua, Ciudad_Juarez, Hermosillo, Mazatlan, Tijuana, Matamoros, Bahia_Banderas y Ojinaga. Requiere un Node con ICU completo (los oficiales lo traen; verificar en Hostinger con `node -e "console.log(Intl.supportedValuesOf('timeZone').includes('America/Tijuana'))"`).
+- **Topes**: el personal consulta y agenda hasta 730 días adelante (y consulta hasta 365 atrás); un bloqueo dura como máximo 366 días.
+- **Búsqueda de pacientes por correo**: 30 por hora por persona (con todos sus médicos) y 60 por hora por médico (se cuentan en `calendar_action_log`); se devuelve 429 con `Retry-After`.
+- **Crear y cancelar citas**: 60 acciones por hora por persona (con todos sus médicos) y 5 citas creadas por hora por persona para un mismo paciente; 429 con `Retry-After`.
+- **Retención del registro de acciones**: 90 días. La migración `0010_calendar_log_retention.sql` permite borrar solo filas de más de 90 días y `npm run jobs:cleanup` (cron, por ejemplo cada hora) las borra, hasta 10 000 por corrida.
+- **Correos nuevos**: `appointment_created` y `appointment_cancelled` por el mismo outbox y cron de la feature 1 (sin tareas programadas nuevas).
+
+### Humo de despliegue de la agenda (pendiente)
+- [ ] `npm run migrate` aplica `0009_calendar.sql` en MariaDB (columna generada indexada y disparadores).
+- [ ] Repetir contra MariaDB las pruebas de concurrencia de reservas, de cancelación y de bloqueos.
+- [ ] Configurar el horario de un médico de prueba, agendar, cancelar y bloquear con conflicto, y ver llegar los dos correos con SMTP real.
+- [ ] Comprobar que `Intl` conoce las zonas de la lista en el Node del hosting.
+- [ ] Comprobar en MariaDB que el disparador de `0010` (IF … END IF en una sola sentencia) se crea y que `npm run jobs:cleanup` borra filas de más de 90 días y no las recientes.

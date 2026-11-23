@@ -1,6 +1,7 @@
 import type { ResultSetHeader } from "mysql2/promise";
 import type { Db } from "../db/pool.js";
 import { systemClock, type Clock } from "../lib/clock.js";
+import { ACTION_LOG_RETENTION_DAYS } from "../modules/calendar/action-log.js";
 
 const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
@@ -10,6 +11,7 @@ export interface CleanupResult {
   sessions: number;
   emails: number;
   throttle: number;
+  calendarLog: number;
 }
 
 /**
@@ -19,7 +21,9 @@ export interface CleanupResult {
  * - sesiones: revocadas o vencidas (tope absoluto) hace más de 1 día, o sin actividad desde hace más de 2 días;
  * - correos: entregados y fallidos hace más de 30 días (la misma retención, para que el informe de entrega no se
  *   sesgue) y cancelados hace más de 7;
- * - control de intentos: sin fallos desde hace más de 1 día.
+ * - control de intentos: sin fallos desde hace más de 1 día;
+ * - registro de acciones de la agenda: más de 90 días (hasta 10 000 por corrida; la migración 0010 deja que los
+ *   disparadores de solo anexar permitan borrar únicamente filas de esa antigüedad).
  */
 export async function runCleanup(db: Db, clock: Clock = systemClock): Promise<CleanupResult> {
   const now = clock.now().getTime();
@@ -38,11 +42,16 @@ export async function runCleanup(db: Db, clock: Clock = systemClock): Promise<Cl
     [ago(30 * DAY), ago(30 * DAY), ago(7 * DAY)],
   );
   const [throttle] = await db.execute<ResultSetHeader>("DELETE FROM login_throttle WHERE updated_at < ?", [ago(DAY)]);
+  const [calendarLog] = await db.execute<ResultSetHeader>(
+    "DELETE FROM calendar_action_log WHERE occurred_at < ? ORDER BY occurred_at LIMIT 10000",
+    [ago(ACTION_LOG_RETENTION_DAYS * DAY)],
+  );
 
   return {
     tokens: tokens.affectedRows,
     sessions: sessions.affectedRows,
     emails: emails.affectedRows,
     throttle: throttle.affectedRows,
+    calendarLog: calendarLog.affectedRows,
   };
 }

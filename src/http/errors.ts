@@ -80,3 +80,11 @@ export class LegalReviewPendingError extends AppError {
     this.name = "LegalReviewPendingError";
   }
 }
+
+/** La petición es válida pero choca con el estado actual (por ejemplo, un espacio que ya no está libre). */
+export class ConflictError extends AppError {
+  constructor(message: string, code = "conflict") {
+    super(409, code, message);
+    this.name = "ConflictError";
+  }
+}

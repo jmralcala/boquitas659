@@ -235,3 +235,111 @@ export async function createInvitation(
   );
   return result.insertId;
 }
+
+// --- Calendario (feature 2) ----------------------------------------------------------------------------------------
+
+export interface CalendarSettingsOverrides {
+  slotMinutes?: number;
+  gapMinutes?: number;
+  timezone?: string;
+  minNoticeMinutes?: number;
+  maxAdvanceDays?: number;
+}
+
+/** Configuración del calendario de un médico (valores por defecto salvo lo indicado). */
+export async function createCalendarSettings(pool: Db, doctorId: number, overrides: CalendarSettingsOverrides = {}): Promise<void> {
+  await pool.execute(
+    `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+    [
+      doctorId,
+      overrides.slotMinutes ?? 45,
+      overrides.gapMinutes ?? 15,
+      overrides.timezone ?? "America/Mexico_City",
+      overrides.minNoticeMinutes ?? 120,
+      overrides.maxAdvanceDays ?? 60,
+    ],
+  );
+}
+
+/** Franjas del horario semanal (1 = lunes … 7 = domingo; minutos desde las 00:00 locales). */
+export async function createCalendarHours(
+  pool: Db,
+  doctorId: number,
+  ranges: readonly { weekday: number; startMinute: number; endMinute: number }[],
+): Promise<void> {
+  for (const range of ranges) {
+    await pool.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute) VALUES (?, ?, ?, ?)", [
+      doctorId,
+      range.weekday,
+      range.startMinute,
+      range.endMinute,
+    ]);
+  }
+}
+
+/** Lunes a viernes de 9:00 a 14:00 y de 16:00 a 19:00 (el horario de los ejemplos de la spec). */
+export const WEEKDAY_HOURS = [1, 2, 3, 4, 5].flatMap((weekday) => [
+  { weekday, startMinute: 9 * 60, endMinute: 14 * 60 },
+  { weekday, startMinute: 16 * 60, endMinute: 19 * 60 },
+]);
+
+/** Cita de fábrica; crea el vínculo médico-paciente si falta. `endUtc` por defecto es inicio + 45 min. */
+export async function createAppointment(
+  pool: Db,
+  options: {
+    doctorId: number;
+    patientId: number;
+    startUtc: Date;
+    endUtc?: Date;
+    status?: "booked" | "cancelled";
+    createdByUserId?: number;
+    createdByRole?: "doctor" | "reception";
+  },
+): Promise<number> {
+  await pool.execute("INSERT INTO doctor_patient (doctor_id, patient_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE doctor_id = doctor_id", [
+    options.doctorId,
+    options.patientId,
+  ]);
+  let createdBy = options.createdByUserId;
+  if (createdBy === undefined) {
+    const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>("SELECT user_id FROM doctor WHERE id = ?", [options.doctorId]);
+    createdBy = Number(rows[0]?.user_id);
+  }
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    `INSERT INTO appointment (doctor_id, patient_id, start_utc, end_utc, status, created_by_user_id, created_by_role, created_at,
+                              cancelled_by_user_id, cancelled_by_role, cancelled_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, ?)`,
+    [
+      options.doctorId,
+      options.patientId,
+      options.startUtc,
+      options.endUtc ?? new Date(options.startUtc.getTime() + 45 * 60_000),
+      options.status ?? "booked",
+      createdBy,
+      options.createdByRole ?? "doctor",
+      options.status === "cancelled" ? createdBy : null,
+      options.status === "cancelled" ? (options.createdByRole ?? "doctor") : null,
+      options.status === "cancelled" ? new Date() : null,
+    ],
+  );
+  return result.insertId;
+}
+
+/** Bloqueo de fábrica. */
+export async function createBlock(
+  pool: Db,
+  options: { doctorId: number; startUtc: Date; endUtc: Date; reason?: string; createdByUserId?: number; createdByRole?: "doctor" | "reception" },
+): Promise<number> {
+  let createdBy = options.createdByUserId;
+  if (createdBy === undefined) {
+    const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>("SELECT user_id FROM doctor WHERE id = ?", [options.doctorId]);
+    createdBy = Number(rows[0]?.user_id);
+  }
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    `INSERT INTO calendar_block (doctor_id, start_utc, end_utc, reason, created_by_user_id, created_by_role, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+    [options.doctorId, options.startUtc, options.endUtc, options.reason ?? null, createdBy, options.createdByRole ?? "doctor"],
+  );
+  return result.insertId;
+}

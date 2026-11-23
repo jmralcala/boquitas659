@@ -31,13 +31,21 @@ afterAll(async () => {
 const normalize = (url: string): string => url.replace(/:[A-Za-z]+/g, ":p");
 const concrete = (url: string): string => url.replace(/:token/g, "a".repeat(43)).replace(/:[A-Za-z]+/g, "1");
 
+/** Contratos de rutas de cada feature (la 002 es la agenda del médico). */
+const CONTRACT_FILES = [
+  "specs/001-cuentas-y-acceso/contracts/http-routes.md",
+  "specs/002-calendario-del-medico/contracts/http-routes.md",
+];
+
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
 function contractRoutes(): { method: string; url: string }[] {
-  const text = readFileSync("specs/001-cuentas-y-acceso/contracts/http-routes.md", "utf8");
   const routes: { method: string; url: string }[] = [];
-  for (const match of text.matchAll(/`(GET\/POST|GET|POST)\s+(\/[^`\s]*)`/g)) {
-    const methods = match[1] === "GET/POST" ? ["GET", "POST"] : [match[1] as string];
-    for (const method of methods) routes.push({ method, url: match[2] as string });
+  for (const file of CONTRACT_FILES) {
+    const text = readFileSync(file, "utf8");
+    for (const match of text.matchAll(/`(GET\/POST|GET|POST)\s+(\/[^`\s]*)`/g)) {
+      const methods = match[1] === "GET/POST" ? ["GET", "POST"] : [match[1] as string];
+      for (const method of methods) routes.push({ method, url: match[2] as string });
+    }
   }
   return routes;
 }
@@ -151,5 +159,59 @@ describe("datos de pacientes: siempre con el contexto de médico", () => {
     const source = readFileSync("src/modules/patients/patient-repository.ts", "utf8");
     const scoped = source.split("export async function").filter((chunk) => /ForDoctor|ForMinor/.test(chunk.split("(")[0] ?? ""));
     for (const chunk of scoped) expect(chunk).toContain("ctx.doctorId");
+  });
+});
+
+describe("agenda: siempre con el contexto de médico", () => {
+  const calendarFiles = [
+    "appointment-repository.ts",
+    "block-repository.ts",
+    "settings-repository.ts",
+    "agenda-service.ts",
+    "appointment-service.ts",
+    "block-service.ts",
+    "action-log.ts",
+    "calendar-lock.ts",
+  ].map((name) => `src/modules/calendar/${name}`);
+
+  // Funciones puras (sin base de datos ni datos de ningún médico): no reciben contexto.
+  const PURE = new Set(["parseLocalStart"]);
+
+  it("toda función exportada de los repositorios y servicios de agenda recibe el TenantContext como primer parámetro", () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const file of calendarFiles) {
+      const source = readFileSync(file, "utf8");
+      for (const match of source.matchAll(/export (?:async )?function (\w+)(?:<[^>]*>)?\(\s*([^)]*)\)/g)) {
+        if (PURE.has(match[1] as string)) continue;
+        checked += 1;
+        if (!/^ctx: TenantContext\b/.test((match[2] ?? "").trim())) offenders.push(`${file}: ${match[1]}`);
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(20);
+    expect(offenders).toEqual([]);
+  });
+
+  it("toda función de los repositorios de citas y bloqueos filtra por el médico del contexto (ctx.doctorId)", () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const file of ["appointment-repository.ts", "block-repository.ts"].map((name) => `src/modules/calendar/${name}`)) {
+      const chunks = readFileSync(file, "utf8").split("export async function").slice(1);
+      for (const chunk of chunks) {
+        checked += 1;
+        if (!chunk.includes("ctx.doctorId")) offenders.push(`${file}: ${chunk.split("(")[0]?.trim()}`);
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(10);
+    expect(offenders).toEqual([]);
+  });
+
+  it("las rutas de agenda obtienen el médico del contexto, nunca de la petición", () => {
+    const source = readFileSync("src/modules/calendar/routes.ts", "utf8");
+    expect(source).not.toMatch(/doctorId\s*[:=]\s*(?:request|body|params|query)/);
+    expect(source).not.toMatch(/request\.(?:body|params|query)[^;]*doctorId/);
+    // Cada manejador resuelve el contexto con el resolutor de la feature 1 como primera acción.
+    const handlers = [...source.matchAll(/app\.(?:get|post)\("[^"]+",\s*async \(request, reply\) => \{\s*\n(?:\s*\/\/[^\n]*\n)*\s*const tenant = await ([\w.]+)\(/g)];
+    expect(handlers.length).toBeGreaterThanOrEqual(14);
   });
 });
