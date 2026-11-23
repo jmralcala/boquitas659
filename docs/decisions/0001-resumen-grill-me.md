@@ -1,14 +1,16 @@
 # 0001 · Resumen de decisiones del grill-me
 
-Estado: confirmado por el usuario. Fecha: 2026-11-20.
+Estado: confirmado por el usuario. Fecha: 2026-11-20. Actualizado el 2026-11-22 (bloqueo de horarios y anticipación máxima por médico).
 Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-specify`.
 
 ## Decisiones tomadas
 
 ### Producto y usuarios
 - La plataforma es para médicos o consultorios dentales, que pagan la suscripción. El paciente reserva sin intermediarios. Las citas las crean el médico, la recepción o el paciente.
-- Cada médico tiene un solo calendario, con ubicación y mapa de Google, teléfono del consultorio, logo opcional y bloqueo de espacios sueltos o rangos.
-- Espacios de duración configurable (45 min por defecto) con intervalo configurable (15 min por defecto). Un paciente por espacio, sin doble reserva, y el espacio se libera al cancelar. Zona horaria del consultorio. Anticipación mínima y máxima configurables.
+- Cada médico tiene un solo calendario, con ubicación y mapa de Google, teléfono del consultorio, logo opcional y bloqueo de horarios (espacios sueltos o rangos).
+- **Bloquear horarios solo es posible sobre horarios sin cita.** El médico no puede bloquear una cita existente: si el espacio o el rango incluye citas, el bloqueo se rechaza (indicando cuáles son) y el médico debe cancelar primero esas citas, con el aviso al paciente de siempre (ver «El médico cancela…»), y después bloquear. Esto vale para el médico y para su recepción.
+- Espacios de duración configurable (45 min por defecto) con intervalo configurable (15 min por defecto). Un paciente por espacio, sin doble reserva, y el espacio se libera al cancelar. Zona horaria del consultorio.
+- **Anticipación de reserva configurable por médico:** la anticipación mínima y la máxima (cuántos días hacia adelante puede reservar un paciente) las define cada médico para su propio calendario, y el servidor las comprueba en cada reserva. El valor por defecto y los límites permitidos se definen en la spec del calendario (supuesto abierto 12).
 - El paciente cancela hasta 24 h antes (configurable). No hay reprogramación: cancela y reserva de nuevo. El médico cancela cuando quiera y se avisa al paciente por correo y, si lo tiene activo, por WhatsApp.
 
 ### Micrositio y acceso del paciente
@@ -56,7 +58,7 @@ Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-speci
 
 ### Técnica
 - Node.js y TypeScript. Despliegue en Hostinger Business Web Hosting, en `agendadental.innvend.com`. Base de datos MariaDB (InnoDB). Correo por SMTP de Hostinger: todo sale de la plataforma, con el médico como `Reply-To`, y SPF, DKIM y DMARC configurados. Proveedor transaccional como respaldo. Google Maps para la ubicación, con tope de gasto.
-- "Sin doble reserva" se garantiza con una transacción que bloquea la fila del médico, revisa el solape e inserta, con un índice único (médico, hora de inicio) como respaldo y una prueba automática de reservas simultáneas. Horas guardadas en UTC.
+- "Sin doble reserva" se garantiza con una transacción que bloquea la fila del médico, revisa el solape e inserta, con un índice único (médico, hora de inicio) como respaldo y una prueba automática de reservas simultáneas. Horas guardadas en UTC. El bloqueo de horarios usa la misma transacción (bloquea la fila del médico, comprueba que no haya citas ni solapes y luego inserta), para que una reserva simultánea no pueda colarse en un horario que se está bloqueando; también lleva su prueba de concurrencia.
 - Tareas programadas por cron cada minuto (recordatorios, cola de mensajes con reintentos, fin de prueba, plazo de 72 h, borrado de la cola).
 - Validación de toda entrada externa en runtime con zod.
 
@@ -97,3 +99,4 @@ Origen: entrevista `grill-me` previa a `/speckit-constitution` y `/speckit-speci
 9. El límite de 2 invitaciones de recepción por médico: falta confirmar si cuentan las pendientes.
 10. Criterio de la cédula en disputa: hace falta una herramienta de administración para liberar una cédula registrada por error o por otra persona.
 11. Reglas de triaje por categoría (ventanas de tiempo y alertas de "dificultad para tragar o respirar" o "hinchazón cerca del ojo"): la pregunta extra del flujo no está definida.
+12. Anticipación de reserva por médico (definir en la spec del calendario): valor por defecto y límites permitidos de la anticipación mínima y máxima; si el médico reduce la máxima, qué ocurre con las citas ya agendadas más allá del nuevo límite (propuesta: se conservan, el límite solo afecta a reservas nuevas); y cómo se informa al médico de las citas en conflicto cuando intenta bloquear un horario con citas.

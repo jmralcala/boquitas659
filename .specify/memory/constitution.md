@@ -30,9 +30,13 @@ hizo. Se MUST probar de forma automática que un médico no accede a pacientes d
 "Sin doble reserva" es una invariante, no una intención. Reservar MUST ocurrir en una transacción que
 bloquea la fila del médico, revisa el solape e inserta, con un índice único (médico, hora de inicio)
 como respaldo. Debe existir una prueba automática de reservas simultáneas. Las horas se guardan en UTC
-y se muestran en la zona horaria del consultorio. Cancelar libera el espacio. Abrir un enlace de
-correo MUST NOT cambiar el estado de una cita: el cambio ocurre al pulsar un botón, con token firmado,
-de un solo uso, con caducidad y protección CSRF.
+y se muestran en la zona horaria del consultorio. Cancelar libera el espacio. Bloquear horarios MUST
+rechazarse si el espacio o el rango incluye citas (el médico debe cancelarlas antes) y MUST ejecutarse
+en la misma transacción que las reservas, de modo que una reserva simultánea no pueda colarse en un
+horario que se está bloqueando; también lleva su prueba de concurrencia. La anticipación mínima y
+máxima de reserva es configurable por médico y el servidor la comprueba en cada reserva. Abrir un
+enlace de correo MUST NOT cambiar el estado de una cita: el cambio ocurre al pulsar un botón, con
+token firmado, de un solo uso, con caducidad y protección CSRF.
 
 ### IV. Seguridad y validación en runtime por defecto
 - Toda entrada externa (body, query, params, headers, webhooks, archivos) MUST validarse con zod u otro
@@ -100,4 +104,4 @@ añadir un principio o sección, o ampliar materialmente la guía; PATCH por acl
 Revisión de cumplimiento: cada spec y plan comprueba esta constitución antes de avanzar, y cada PR la
 revisa. Orientación operativa: `CLAUDE.md` y `.claude/claude-security-guidance.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-21 | **Last Amended**: 2026-11-21
+**Version**: 1.1.0 | **Ratified**: 2026-11-21 | **Last Amended**: 2026-11-22
