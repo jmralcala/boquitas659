@@ -88,7 +88,8 @@ describe.each(["doctor", "reception"] as const)("flujo de nueva cita (%s)", (rol
     expect(created.headers.location).toBe(`/agenda/dia/${TUESDAY}`);
     expect(await rows("SELECT patient_id, status FROM appointment")).toEqual([{ patient_id: other.patientId, status: "booked" }]);
     expect(await rows("SELECT patient_id FROM doctor_patient WHERE patient_id = " + other.patientId)).toHaveLength(1);
-    expect(await rows("SELECT template FROM email_outbox")).toEqual([{ template: "appointment_created" }]);
+    // Feature 3: como el vínculo es nuevo, la cuenta también recibe el aviso de que el consultorio ya ve sus datos.
+    expect((await rows("SELECT template FROM email_outbox ORDER BY id")).map((row) => row.template)).toEqual(["appointment_created", "patient_linked_by_office"]);
   });
 
   it("agendar a un paciente ya vinculado no necesita boleto", async () => {

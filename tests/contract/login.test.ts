@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../src/http/app.js";
 import { SESSION_COOKIE } from "../../src/http/session-plugin.js";
 import { createPasswordHasher, type PasswordHasher } from "../../src/modules/auth/password-hasher.js";
+import { createLoginService } from "../../src/modules/auth/login-service.js";
 import { createDeviceService } from "../../src/modules/auth/devices.js";
 import { createLoginThrottle } from "../../src/modules/auth/login-throttle.js";
 import { registerAuthRoutes } from "../../src/modules/auth/routes.js";
@@ -34,12 +35,15 @@ let app: FastifyInstance;
 beforeAll(async () => {
   await resetDatabase(pool);
   app = await buildApp({ appEnv: "development", sessions, csrfSecret });
+  const throttle = createLoginThrottle(pool, undefined, csrfSecret);
+  const devices = createDeviceService(pool, undefined, csrfSecret);
   registerAuthRoutes(app, {
     db: pool,
     sessions,
     hasher: countingHasher,
-    throttle: createLoginThrottle(pool, undefined, csrfSecret),
-    devices: createDeviceService(pool, undefined, csrfSecret),
+    throttle,
+    devices,
+    login: createLoginService({ db: pool, sessions, hasher: countingHasher, throttle, devices }),
   });
   await app.ready();
 });

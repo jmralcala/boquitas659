@@ -40,7 +40,7 @@ describe("validatePatientBookingWindow", () => {
 });
 
 describe("listFreeSlots", () => {
-  const settings = { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 24 * 60, maxAdvanceDays: 3 };
+  const settings = { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 24 * 60, maxAdvanceDays: 3, cancelNoticeHours: 24 };
   const hours = [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({ weekday, startMinute: 9 * 60, endMinute: 11 * 60 })); // 9:00 y 10:00
   const now = new Date("2026-06-15T15:00:00.000Z"); // lunes 9:00 locales
   const base = { settings, hours, appointments: [], blocks: [], fromDate: "2026-06-15", toDate: "2026-06-20", now };

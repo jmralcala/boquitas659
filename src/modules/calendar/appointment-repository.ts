@@ -1,5 +1,5 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 import { listPatientNamesForDoctor } from "../patients/patient-repository.js";
 
 type Executor = Pick<Pool, "execute"> | Pick<PoolConnection, "execute">;
@@ -12,9 +12,9 @@ export interface AppointmentRecord {
   startUtc: Date;
   endUtc: Date;
   status: "booked" | "cancelled";
-  createdByRole: "doctor" | "reception";
+  createdByRole: "doctor" | "reception" | "patient";
   createdAt: Date;
-  cancelledByRole: "doctor" | "reception" | null;
+  cancelledByRole: "doctor" | "reception" | "patient" | null;
   cancelledAt: Date | null;
 }
 
@@ -34,15 +34,16 @@ function toRecord(row: RowDataPacket, names: ReadonlyMap<number, string>): Appoi
     startUtc: row.start_utc as Date,
     endUtc: row.end_utc as Date,
     status: row.status === "cancelled" ? "cancelled" : "booked",
-    createdByRole: row.created_by_role === "reception" ? "reception" : "doctor",
+    createdByRole: row.created_by_role === "reception" ? "reception" : row.created_by_role === "patient" ? "patient" : "doctor",
     createdAt: row.created_at as Date,
-    cancelledByRole: row.cancelled_by_role === null ? null : row.cancelled_by_role === "reception" ? "reception" : "doctor",
+    cancelledByRole:
+      row.cancelled_by_role === null ? null : row.cancelled_by_role === "reception" ? "reception" : row.cancelled_by_role === "patient" ? "patient" : "doctor",
     cancelledAt: row.cancelled_at === null ? null : (row.cancelled_at as Date),
   };
 }
 
 /** Citas vigentes del médico que se solapan con el rango UTC [desde, hasta), ordenadas por inicio. */
-export async function listBookedInRange(ctx: TenantContext, executor: Executor, fromUtc: Date, toUtc: Date): Promise<AppointmentRecord[]> {
+export async function listBookedInRange(ctx: StaffContext, executor: Executor, fromUtc: Date, toUtc: Date): Promise<AppointmentRecord[]> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `${SELECT_APPOINTMENT}
       WHERE a.doctor_id = ? AND a.status = 'booked' AND a.start_utc < ? AND a.end_utc > ?
@@ -53,8 +54,27 @@ export async function listBookedInRange(ctx: TenantContext, executor: Executor, 
   return rows.map((row) => toRecord(row, names));
 }
 
+/**
+ * Espacios ocupados por citas vigentes en [desde, hasta): SOLO identificador e intervalo, nunca datos de pacientes.
+ * Es lo único que ve el calendario público del paciente (acepta cualquier contexto, también el de paciente).
+ */
+export async function listBookedSpansInRange(
+  ctx: TenantContext,
+  executor: Executor,
+  fromUtc: Date,
+  toUtc: Date,
+): Promise<{ id: number; startUtc: Date; endUtc: Date }[]> {
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT id, start_utc, end_utc FROM appointment
+      WHERE doctor_id = ? AND status = 'booked' AND start_utc < ? AND end_utc > ?
+      ORDER BY start_utc, id`,
+    [ctx.doctorId, toUtc, fromUtc],
+  );
+  return rows.map((row) => ({ id: Number(row.id), startUtc: row.start_utc as Date, endUtc: row.end_utc as Date }));
+}
+
 /** Una cita del médico (vigente o cancelada); `null` si no existe o es de otro médico. */
-export async function findAppointment(ctx: TenantContext, executor: Executor, id: number): Promise<AppointmentRecord | null> {
+export async function findAppointment(ctx: StaffContext, executor: Executor, id: number): Promise<AppointmentRecord | null> {
   const [rows] = await executor.execute<RowDataPacket[]>(`${SELECT_APPOINTMENT} WHERE a.doctor_id = ? AND a.id = ?`, [ctx.doctorId, id]);
   const row = rows[0];
   if (!row) return null;

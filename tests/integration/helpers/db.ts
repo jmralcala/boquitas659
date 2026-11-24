@@ -244,13 +244,14 @@ export interface CalendarSettingsOverrides {
   timezone?: string;
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
+  cancelNoticeHours?: number;
 }
 
 /** Configuración del calendario de un médico (valores por defecto salvo lo indicado). */
 export async function createCalendarSettings(pool: Db, doctorId: number, overrides: CalendarSettingsOverrides = {}): Promise<void> {
   await pool.execute(
-    `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+    `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
     [
       doctorId,
       overrides.slotMinutes ?? 45,
@@ -258,6 +259,7 @@ export async function createCalendarSettings(pool: Db, doctorId: number, overrid
       overrides.timezone ?? "America/Mexico_City",
       overrides.minNoticeMinutes ?? 120,
       overrides.maxAdvanceDays ?? 60,
+      overrides.cancelNoticeHours ?? 24,
     ],
   );
 }
@@ -294,7 +296,8 @@ export async function createAppointment(
     endUtc?: Date;
     status?: "booked" | "cancelled";
     createdByUserId?: number;
-    createdByRole?: "doctor" | "reception";
+    createdByRole?: "doctor" | "reception" | "patient";
+    createdAt?: Date;
   },
 ): Promise<number> {
   await pool.execute("INSERT INTO doctor_patient (doctor_id, patient_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE doctor_id = doctor_id", [
@@ -309,7 +312,7 @@ export async function createAppointment(
   const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
     `INSERT INTO appointment (doctor_id, patient_id, start_utc, end_utc, status, created_by_user_id, created_by_role, created_at,
                               cancelled_by_user_id, cancelled_by_role, cancelled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       options.doctorId,
       options.patientId,
@@ -318,6 +321,7 @@ export async function createAppointment(
       options.status ?? "booked",
       createdBy,
       options.createdByRole ?? "doctor",
+      options.createdAt ?? new Date(),
       options.status === "cancelled" ? createdBy : null,
       options.status === "cancelled" ? (options.createdByRole ?? "doctor") : null,
       options.status === "cancelled" ? new Date() : null,
@@ -342,4 +346,78 @@ export async function createBlock(
     [options.doctorId, options.startUtc, options.endUtc, options.reason ?? null, createdBy, options.createdByRole ?? "doctor"],
   );
   return result.insertId;
+}
+
+// --- Micrositio y reserva del paciente (feature 3) ----------------------------------------------------------------------
+
+/** Fila de `doctor_site` (por defecto en borrador, con un nombre derivado del médico). */
+export async function createDoctorSite(
+  pool: Db,
+  doctorId: number,
+  options: { slug?: string; address?: string | null; status?: "draft" | "published" | "unpublished"; firstPublishedAt?: Date | null; logoFile?: string | null } = {},
+): Promise<string> {
+  const slug = options.slug ?? `dr-prueba-${doctorId}`;
+  const status = options.status ?? "draft";
+  const firstPublishedAt = options.firstPublishedAt === undefined ? (status === "draft" ? null : new Date()) : options.firstPublishedAt;
+  await pool.execute(
+    `INSERT INTO doctor_site (doctor_id, slug, address, logo_file, status, first_published_at, published_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+    [doctorId, slug, options.address === undefined ? null : options.address, options.logoFile ?? null, status, firstPublishedAt, status === "published" ? firstPublishedAt : null],
+  );
+  return slug;
+}
+
+/**
+ * Micrositio listo para recibir reservas: teléfono del consultorio, dirección, configuración con el horario de los
+ * ejemplos (lunes a viernes de 9 a 14 y de 16 a 19) y estado publicado.
+ */
+export async function createPublishedSite(
+  pool: Db,
+  doctor: CreatedDoctor,
+  options: { slug?: string; settings?: CalendarSettingsOverrides; hours?: readonly { weekday: number; startMinute: number; endMinute: number }[] } = {},
+): Promise<{ slug: string }> {
+  await pool.execute("UPDATE doctor SET office_phone = '5598765432' WHERE id = ?", [doctor.doctorId]);
+  await createCalendarSettings(pool, doctor.doctorId, options.settings);
+  await createCalendarHours(pool, doctor.doctorId, options.hours ?? WEEKDAY_HOURS);
+  const slug = await createDoctorSite(pool, doctor.doctorId, { slug: options.slug, address: "Calle Falsa 123, Centro", status: "published" });
+  return { slug };
+}
+
+/** Paciente adicional (menor) bajo una cuenta. */
+export async function createDependent(pool: Db, accountId: number, fullName = "Menor de Prueba"): Promise<number> {
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO patient (account_id, full_name, birth_date, is_minor_dependent) VALUES (?, ?, '2018-03-01', 1)",
+    [accountId, fullName],
+  );
+  return result.insertId;
+}
+
+/** Autorización de datos de una cuenta con un consultorio (con el aviso de privacidad vigente). */
+export async function createDataAuthorization(
+  pool: Db,
+  options: { accountId: number; doctorId: number; userId: number; at?: Date },
+): Promise<number> {
+  const [docs] = await pool.query<RowDataPacket[]>("SELECT id FROM legal_document WHERE type = 'patient_privacy' ORDER BY version DESC LIMIT 1");
+  let documentId = Number(docs[0]?.id);
+  if (!documentId) {
+    const [created] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+      "INSERT INTO legal_document (type, version, title, body, is_provisional, published_at) VALUES ('patient_privacy', 1, 't', 'b', 0, UTC_TIMESTAMP(3))",
+    );
+    documentId = created.insertId;
+  }
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO data_authorization (account_id, doctor_id, given_by_user_id, legal_document_id, accepted_at) VALUES (?, ?, ?, ?, ?)",
+    [options.accountId, options.doctorId, options.userId, documentId, options.at ?? new Date()],
+  );
+  return result.insertId;
+}
+
+/** Aviso de privacidad de pacientes vigente (lo crea si no existe) y su id. */
+export async function ensurePrivacyDocument(pool: Db): Promise<number> {
+  const [docs] = await pool.query<RowDataPacket[]>("SELECT id FROM legal_document WHERE type = 'patient_privacy' ORDER BY version DESC LIMIT 1");
+  if (docs[0]) return Number(docs[0].id);
+  const [created] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    "INSERT INTO legal_document (type, version, title, body, is_provisional, published_at) VALUES ('patient_privacy', 1, 'Aviso', 'Texto', 0, UTC_TIMESTAMP(3))",
+  );
+  return created.insertId;
 }

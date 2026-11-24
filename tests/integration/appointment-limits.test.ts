@@ -2,7 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { TooManyAttemptsError } from "../../src/http/errors.js";
 import { createFixedClock } from "../../src/lib/clock.js";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { ACTION_LIMITS, logCalendarAction } from "../../src/modules/calendar/action-log.js";
 import { cancelAppointment, createAppointment } from "../../src/modules/calendar/appointment-service.js";
 import {
@@ -42,7 +42,7 @@ afterAll(async () => {
 
 interface Practice {
   doctorId: number;
-  ctx: TenantContext;
+  ctx: StaffContext;
   patientIds: number[];
 }
 
@@ -71,7 +71,7 @@ async function rows(sql: string, params: unknown[] = []): Promise<RowDataPacket[
 }
 
 /** Simula N acciones previas de la persona en la última hora sin pasar por el servicio. */
-async function priorActions(ctx: TenantContext, count: number, action: "appointment_created" | "appointment_cancelled" = "appointment_created"): Promise<void> {
+async function priorActions(ctx: StaffContext, count: number, action: "appointment_created" | "appointment_cancelled" = "appointment_created"): Promise<void> {
   for (let index = 0; index < count; index += 1) {
     await logCalendarAction(ctx, pool, { action, outcome: "ok", at: new Date(clock.now().getTime() - 30 * 60_000 + index) });
   }

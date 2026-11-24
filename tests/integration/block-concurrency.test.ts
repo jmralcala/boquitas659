@@ -2,7 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError } from "../../src/http/errors.js";
 import { createFixedClock } from "../../src/lib/clock.js";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { addLocalDays } from "../../src/lib/zoned-time.js";
 import { cancelAppointment, createAppointment } from "../../src/modules/calendar/appointment-service.js";
 import { BlockConflictError, createBlock } from "../../src/modules/calendar/block-service.js";
@@ -38,7 +38,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-async function setup(): Promise<{ ctx: TenantContext; doctorId: number; patientId: number }> {
+async function setup(): Promise<{ ctx: StaffContext; doctorId: number; patientId: number }> {
   const doctor = await createDoctor(pool);
   await createCalendarSettings(pool, doctor.doctorId);
   await createCalendarHours(pool, doctor.doctorId, WEEKDAY_HOURS);

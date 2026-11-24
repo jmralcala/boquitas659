@@ -8,6 +8,8 @@ export interface CalendarSettings {
   timezone: string;
   minNoticeMinutes: number;
   maxAdvanceDays: number;
+  /** Horas antes de la cita hasta las que el paciente puede cancelar (por defecto 24). */
+  cancelNoticeHours: number;
 }
 
 /** Franja del horario semanal en hora local: 1 = lunes … 7 = domingo; minutos desde las 00:00. */

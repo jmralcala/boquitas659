@@ -31,6 +31,16 @@ describe("createSmtpTransport", () => {
     }
   });
 
+  it("pasa el Reply-To al enviar y no lo añade cuando no hay", async () => {
+    const sendMail = vi.fn();
+    createTransport.mockReturnValueOnce({ sendMail });
+    const transport = createSmtpTransport({ ...base, port: 587 });
+    await transport.send({ to: "paciente@example.com", subject: "Hola", text: "Cuerpo", replyTo: "medico@example.com" });
+    await transport.send({ to: "paciente@example.com", subject: "Hola", text: "Cuerpo" });
+    expect(sendMail).toHaveBeenNthCalledWith(1, expect.objectContaining({ from: "no-responder@example.com", replyTo: "medico@example.com" }));
+    expect(sendMail.mock.calls[1]?.[0]).not.toHaveProperty("replyTo");
+  });
+
   it("verifica el certificado y exige TLS 1.2 o superior", () => {
     createSmtpTransport({ ...base, port: 587 });
     expect(createTransport).toHaveBeenCalledWith(

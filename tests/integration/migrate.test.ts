@@ -92,6 +92,8 @@ describe("runMigrations", () => {
       "calendar_action_log_no_update",
       "consent_acceptance_no_delete",
       "consent_acceptance_no_update",
+      "data_authorization_no_delete",
+      "data_authorization_no_update",
       "patient_access_log_no_delete",
       "patient_access_log_no_update",
     ]);

@@ -75,7 +75,7 @@ function minutesText(total: number): string {
 
 /** Valores del formulario (mismos nombres que el cuerpo del `POST`) a partir de la configuración guardada. */
 export function configFormValues(config: {
-  settings: { slotMinutes: number; gapMinutes: number; timezone: string; minNoticeMinutes: number; maxAdvanceDays: number };
+  settings: { slotMinutes: number; gapMinutes: number; timezone: string; minNoticeMinutes: number; maxAdvanceDays: number; cancelNoticeHours: number };
   hours: readonly { weekday: number; startMinute: number; endMinute: number }[];
 }): Record<string, string> {
   const values: Record<string, string> = {
@@ -84,6 +84,7 @@ export function configFormValues(config: {
     timezone: config.settings.timezone,
     minNoticeHours: String(Math.floor(config.settings.minNoticeMinutes / 60)),
     maxAdvanceDays: String(config.settings.maxAdvanceDays),
+    cancelNoticeHours: String(config.settings.cancelNoticeHours),
   };
   const used = new Map<number, number>();
   for (const range of config.hours) {
@@ -149,6 +150,7 @@ ${numberField("gapMinutes", "Pausa entre citas (minutos)", values, errors, "De 0
 <h2>Reservas de pacientes</h2>
 ${numberField("minNoticeHours", "Anticipación mínima (horas)", values, errors, "De 0 a 168 horas (7 días).")}
 ${numberField("maxAdvanceDays", "Anticipación máxima (días)", values, errors, "De 1 a 365 días hacia adelante.")}
+${numberField("cancelNoticeHours", "Límite para que el paciente cancele (horas antes de la cita)", values, errors, "De 0 a 168 horas; 24 por defecto. Pasado el límite, el paciente debe llamar al consultorio.")}
 <h2>Horario de atención</h2>
 <p>Hasta 4 franjas por día en formato 24 horas (HH:MM, minutos de 5 en 5). Deja vacío un día sin atención.</p>
 <ul>${dayRows}</ul>
@@ -335,13 +337,13 @@ export function appointmentDetailPage(options: {
   startUtc: Date;
   endUtc: Date;
   status: "booked" | "cancelled";
-  createdByRole: "doctor" | "reception";
-  cancelledByRole: "doctor" | "reception" | null;
+  createdByRole: "doctor" | "reception" | "patient";
+  cancelledByRole: "doctor" | "reception" | "patient" | null;
   cancelledAt: Date | null;
   cancelable: boolean;
   canConfigure: boolean;
 }): string {
-  const roleLabel = (role: "doctor" | "reception"): string => (role === "doctor" ? "el médico" : "recepción");
+  const roleLabel = (role: "doctor" | "reception" | "patient"): string => (role === "doctor" ? "el médico" : role === "reception" ? "recepción" : "el paciente");
   const content = html`<h1>Cita</h1>
 <dl>
   <dt>Paciente</dt><dd>${options.patientName} · <a href="/agenda/pacientes/${options.patientId}">Ver datos de contacto</a></dd>

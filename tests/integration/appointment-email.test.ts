@@ -1,6 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { createAppointment } from "../../src/modules/calendar/appointment-service.js";
 import {
   clearTables,
@@ -38,7 +38,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-async function scenario(options: { timezone?: string; officePhone?: string } = {}): Promise<{ ctx: TenantContext; patientId: number; accountEmail: string; doctorName: string }> {
+async function scenario(options: { timezone?: string; officePhone?: string } = {}): Promise<{ ctx: StaffContext; patientId: number; accountEmail: string; doctorName: string }> {
   const doctor = await createDoctor(pool, { fullName: "Dra. Elena Ríos" });
   if (options.officePhone) await pool.execute("UPDATE doctor SET office_phone = ? WHERE id = ?", [options.officePhone, doctor.doctorId]);
   await createCalendarSettings(pool, doctor.doctorId, { timezone: options.timezone ?? "America/Mexico_City" });
@@ -48,7 +48,7 @@ async function scenario(options: { timezone?: string; officePhone?: string } = {
   return { ctx: createTenantContext(doctor.doctorId, { kind: "doctor", userId: doctor.user.id }), patientId: patient.patientId, accountEmail: patient.user.email, doctorName: "Dra. Elena Ríos" };
 }
 
-const book = (s: { ctx: TenantContext; patientId: number }, time = "10:00") =>
+const book = (s: { ctx: StaffContext; patientId: number }, time = "10:00") =>
   createAppointment(s.ctx, { db: pool, clock: t.clock, ticketSecret: SECRET }, { startLocal: `${TUESDAY}T${time}`, patientId: s.patientId });
 
 async function rows(sql: string, params: unknown[] = []): Promise<RowDataPacket[]> {
@@ -93,11 +93,16 @@ describe("appointment_created", () => {
     expect(t.transport.sent[0]?.text).not.toContain("17:00");
   });
 
-  it("no lleva enlaces de acción ni datos clínicos", async () => {
+  it("lleva el enlace para ver o cancelar la cita, la dirección y el Reply-To del médico (feature 3), sin datos clínicos", async () => {
     const s = await scenario();
+    await pool.execute("INSERT INTO doctor_site (doctor_id, slug, address, status, created_at, updated_at) VALUES (?, 'consultorio-prueba', 'Calle Falsa 123, Centro', 'draft', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))", [s.ctx.doctorId]);
     await book(s);
     await t.runOutbox();
-    expect(t.transport.sent[0]?.text).not.toMatch(/https?:\/\//);
+    const message = t.transport.sent[0];
+    expect(message?.text).toMatch(/https?:\/\/\S+\/citas\/enlace\/\S+/);
+    expect(message?.text).toContain("Calle Falsa 123, Centro");
+    const [doctor] = await rows("SELECT u.email FROM doctor d JOIN `user` u ON u.id = d.user_id WHERE d.id = ?", [s.ctx.doctorId]);
+    expect(message?.replyTo).toBe(String(doctor?.email));
   });
 
   it("el outbox solo guarda el id de la cita", async () => {

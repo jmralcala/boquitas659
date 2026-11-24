@@ -2,7 +2,7 @@ import type { FastifyRequest } from "fastify";
 import type { Db } from "../../db/pool.js";
 import { ForbiddenError } from "../../http/errors.js";
 import { requireAuth } from "../../http/session-plugin.js";
-import { createTenantContext, type TenantContext } from "../../lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../lib/tenant.js";
 import { findDoctorByUserId } from "../doctors/doctor-repository.js";
 import { hasActiveMembership } from "./reception-repository.js";
 
@@ -13,7 +13,7 @@ export interface TenantResolver {
    * - recepción: debe tener un médico activo y el vínculo con él debe seguir vigente EN ESTE MOMENTO
    *   (se revalida en cada petición, sin confiar en lo que la sesión recordaba).
    */
-  resolve(request: FastifyRequest): Promise<TenantContext>;
+  resolve(request: FastifyRequest): Promise<StaffContext>;
 }
 
 export function createTenantResolver(db: Db): TenantResolver {

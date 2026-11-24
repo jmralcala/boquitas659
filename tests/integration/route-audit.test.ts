@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createTestApp, uniqueIp, type TestApp } from "./helpers/app.js";
-import { createTestPool, resetDatabase } from "./helpers/db.js";
+import { createPatientContext } from "../../src/lib/tenant.js";
+import { reserveAsPatient } from "../../src/modules/site/booking-service.js";
+import { createTestApp, linkTokenSentTo, sessionFor, uniqueIp, type TestApp } from "./helpers/app.js";
+import { createAppointment, createDoctor, createPatient, createPublishedSite, createTestPool, ensurePrivacyDocument, resetDatabase } from "./helpers/db.js";
 
 /**
  * Auditoría de rutas (T120): contrasta lo REGISTRADO con `contracts/http-routes.md` y comprueba, para todas las
@@ -35,6 +37,7 @@ const concrete = (url: string): string => url.replace(/:token/g, "a".repeat(43))
 const CONTRACT_FILES = [
   "specs/001-cuentas-y-acceso/contracts/http-routes.md",
   "specs/002-calendario-del-medico/contracts/http-routes.md",
+  "specs/003-micrositio-y-reserva-del-paciente/contracts/http-routes.md",
 ];
 
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
@@ -64,6 +67,14 @@ const PUBLIC_GET = new Set([
   "/legal/:type",
   "/legal/:type/v/:version",
   "/derechos",
+  // Feature 3: el micrositio y la entrada del paciente son públicos; reservar y el paciente adicional redirigen (303) sin sesión.
+  "/c/:slug",
+  "/c/:slug/logo",
+  "/c/:slug/entrar",
+  "/c/:slug/primera-cita",
+  "/c/:slug/reservar",
+  "/c/:slug/paciente-adicional",
+  "/citas/enlace/:token",
 ]);
 
 describe("las rutas registradas coinciden con el contrato", () => {
@@ -151,7 +162,7 @@ describe("datos de pacientes: siempre con el contexto de médico", () => {
     );
     expect(forDoctor.length).toBeGreaterThanOrEqual(3);
     for (const match of forDoctor) {
-      expect(match[2], `${match[1]} debe recibir ctx: TenantContext`).toMatch(/^\s*ctx: TenantContext\b/);
+      expect(match[2], `${match[1]} debe recibir ctx: StaffContext o TenantContext`).toMatch(/^\s*ctx: (?:Staff|Tenant)Context\b/);
     }
   });
 
@@ -185,7 +196,7 @@ describe("agenda: siempre con el contexto de médico", () => {
       for (const match of source.matchAll(/export (?:async )?function (\w+)(?:<[^>]*>)?\(\s*([^)]*)\)/g)) {
         if (PURE.has(match[1] as string)) continue;
         checked += 1;
-        if (!/^ctx: TenantContext\b/.test((match[2] ?? "").trim())) offenders.push(`${file}: ${match[1]}`);
+        if (!/^ctx: (?:Staff|Tenant)Context\b/.test((match[2] ?? "").trim())) offenders.push(`${file}: ${match[1]}`);
       }
     }
     expect(checked).toBeGreaterThanOrEqual(20);
@@ -213,5 +224,39 @@ describe("agenda: siempre con el contexto de médico", () => {
     // Cada manejador resuelve el contexto con el resolutor de la feature 1 como primera acción.
     const handlers = [...source.matchAll(/app\.(?:get|post)\("[^"]+",\s*async \(request, reply\) => \{\s*\n(?:\s*\/\/[^\n]*\n)*\s*const tenant = await ([\w.]+)\(/g)];
     expect(handlers.length).toBeGreaterThanOrEqual(14);
+  });
+});
+
+describe("feature 3: ningún GET de /c/ ni de /citas/ cambia estado", () => {
+  const TABLES = ["appointment", "one_time_token", "doctor_patient", "data_authorization", "email_outbox", "calendar_action_log", "doctor_site", "patient"];
+
+  async function snapshot(): Promise<string> {
+    const parts: unknown[] = [];
+    for (const table of TABLES) parts.push((await pool.query(`SELECT * FROM \`${table}\` ORDER BY 1`))[0]);
+    return JSON.stringify(parts);
+  }
+
+  it("recorrerlos (sin sesión, con la sesión del paciente y con un token real) deja la base idéntica", async () => {
+    await ensurePrivacyDocument(pool);
+    t.clock.set(new Date("2026-06-15T14:00:00.000Z"));
+    const doctor = await createDoctor(pool);
+    await createPublishedSite(pool, doctor, { slug: "clinica-rios" });
+    const patient = await createPatient(pool, { email: "auditoria@example.com" });
+    await reserveAsPatient(createPatientContext(doctor.doctorId, patient.user.id), { db: pool, clock: t.clock }, { startLocal: "2026-06-17T10:00", patientId: patient.patientId, authorize: true });
+    await createAppointment(pool, { doctorId: doctor.doctorId, patientId: patient.patientId, startUtc: new Date("2026-06-20T16:00:00.000Z") });
+    const token = await linkTokenSentTo(t, "auditoria@example.com", "/citas/enlace");
+    const client = await sessionFor(t.services, patient.user);
+
+    const before = await snapshot();
+    const urls = registered
+      .filter((r) => r.method === "GET" && (r.url.startsWith("/c/") || r.url.startsWith("/citas/") || r.url.startsWith("/pacientes/")))
+      .map((r) => r.url.replace(":slug", "clinica-rios").replace(":token", token).replace(/:[A-Za-z]+/g, "1"));
+    expect(urls.length).toBeGreaterThanOrEqual(10);
+    for (const url of urls) {
+      for (const cookie of [undefined, client.cookie]) {
+        await t.app.inject({ method: "GET", url, remoteAddress: uniqueIp(), headers: { accept: "text/html", ...(cookie ? { cookie } : {}) } });
+      }
+    }
+    expect(await snapshot()).toBe(before);
   });
 });

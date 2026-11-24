@@ -29,7 +29,7 @@ function fieldsOf(body: Record<string, unknown>): Record<string, readonly string
 describe("parseCalendarForm: valores válidos", () => {
   it("acepta los valores por defecto y convierte horas a minutos", () => {
     const result = parseCalendarForm(validBody());
-    expect(result.settings).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60 });
+    expect(result.settings).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24 });
     expect(result.hours).toEqual([{ weekday: 1, startMinute: 540, endMinute: 840 }]);
   });
 
@@ -87,6 +87,17 @@ describe("parseCalendarForm: valores inválidos (un mensaje por campo)", () => {
 
   it("acepta espacios alrededor de un número válido", () => {
     expect(parseCalendarForm(validBody({ slotMinutes: " 45 " })).settings.slotMinutes).toBe(45);
+  });
+
+  it("el límite de cancelación vale 24 horas si el formulario no lo manda y acepta de 0 a 168", () => {
+    expect(parseCalendarForm(validBody()).settings.cancelNoticeHours).toBe(24);
+    expect(parseCalendarForm(validBody({ cancelNoticeHours: "0" })).settings.cancelNoticeHours).toBe(0);
+    expect(parseCalendarForm(validBody({ cancelNoticeHours: "168" })).settings.cancelNoticeHours).toBe(168);
+    expect(parseCalendarForm(validBody({ cancelNoticeHours: " 48 " })).settings.cancelNoticeHours).toBe(48);
+  });
+
+  it.each([["169"], ["-1"], ["abc"], ["1.5"], ["1e1"], [""]])("rechaza el límite de cancelación %j con un mensaje por campo", (value) => {
+    expect(fieldsOf(validBody({ cancelNoticeHours: value })).cancelNoticeHours?.length).toBeGreaterThan(0);
   });
 
   it("rechaza una zona fuera de la lista o inexistente", () => {

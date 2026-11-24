@@ -17,6 +17,7 @@
     "jobs:outbox": "node dist/src/jobs/outbox.js",
     "jobs:cleanup": "node dist/src/jobs/cleanup.js",
     "support:create": "node dist/scripts/create-support-user.js",
+    "support:change-slug": "node dist/scripts/change-site-slug.js",
     "report:email": "node dist/scripts/email-delivery-report.js",
     "legal:publish": "node dist/scripts/publish-legal-document.js",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.ts\""

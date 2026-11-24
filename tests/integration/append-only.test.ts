@@ -53,6 +53,20 @@ const TABLES = [
     },
     updateSql: "UPDATE calendar_action_log SET outcome = 'rejected'",
   },
+  {
+    table: "data_authorization",
+    triggers: ["data_authorization_no_delete", "data_authorization_no_update"],
+    seed: async (): Promise<void> => {
+      const doctor = await createDoctor(pool);
+      const patient = await createPatient(pool);
+      const legal = await pool.execute("INSERT INTO legal_document (type, version, title, body, is_provisional, published_at) VALUES ('patient_privacy', 1, 't', 'b', 0, UTC_TIMESTAMP(3))");
+      await pool.execute(
+        "INSERT INTO data_authorization (account_id, doctor_id, given_by_user_id, legal_document_id, accepted_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3))",
+        [patient.accountId, doctor.doctorId, patient.user.id, (legal[0] as { insertId: number }).insertId],
+      );
+    },
+    updateSql: "UPDATE data_authorization SET accepted_at = UTC_TIMESTAMP(3)",
+  },
 ] as const;
 
 describe.each(TABLES)("$table es de solo anexar", ({ table, triggers, seed, updateSql }) => {
@@ -96,7 +110,9 @@ describe("el código de la aplicación nunca actualiza ni borra esas tablas", ()
     // Los disparadores de la migración 0010 impiden borrar cualquier fila más reciente.
     const isRetention = (file: string): boolean => file.replace(/\\/g, "/").endsWith("src/jobs/cleanup-service.ts");
     const offenders = files.filter((file) => {
-      const tables = isRetention(file) ? "consent_acceptance|patient_access_log" : "consent_acceptance|patient_access_log|calendar_action_log";
+      const tables = isRetention(file)
+        ? "consent_acceptance|patient_access_log|data_authorization"
+        : "consent_acceptance|patient_access_log|calendar_action_log|data_authorization";
       return new RegExp(`(UPDATE|DELETE\\s+FROM)\\s+\`?(${tables})\`?`, "i").test(readFileSync(file, "utf8"));
     });
     expect(offenders).toEqual([]);

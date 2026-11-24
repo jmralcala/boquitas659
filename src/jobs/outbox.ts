@@ -1,6 +1,8 @@
 import { loadDotenvIfPresent } from "../config/dotenv.js";
 import { loadEnv } from "../config/env.js";
 import { createPool } from "../db/pool.js";
+import { systemClock } from "../lib/clock.js";
+import { enqueueDueReminders } from "./reminders-service.js";
 import { processOutbox } from "../mail/outbox.js";
 import { defaultTemplates } from "../mail/templates.js";
 import { createMemoryTransport, createSmtpTransport, type MailTransport } from "../mail/transport.js";
@@ -27,6 +29,9 @@ if (env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASS && env.SMTP
 }
 
 try {
+  // Primero se encolan los recordatorios que ya tocan; el envío los toma en esta misma ejecución.
+  const reminders = await enqueueDueReminders(db, systemClock);
+  if (reminders > 0) process.stdout.write(`Recordatorios encolados: ${reminders}.\n`);
   const result = await processOutbox({
     db,
     transport,

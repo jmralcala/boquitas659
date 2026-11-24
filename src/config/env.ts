@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { join } from "node:path";
 import { z } from "zod";
 
 function isIpOrCidr(value: string): boolean {
@@ -48,6 +49,10 @@ const schema = z
     SMTP_FROM: z.string().min(3).optional(),
     SUPPORT_EMAIL: z.email().default("soporte@innvend.com"),
     CEDULA_STORAGE_DIR: z.string().min(1),
+    /** Logos de los micrositios (fuera de la raíz pública). Por defecto, `logos` dentro del directorio de cédulas. */
+    LOGO_STORAGE_DIR: z.string().min(1).optional(),
+    /** Clave de Google Maps Embed. Sin ella el micrositio muestra la dirección en texto en lugar del mapa. */
+    GOOGLE_MAPS_EMBED_KEY: z.string().min(10).optional(),
     RIGHTS_CONTACT_EMAIL: z.email().default("soporte@innvend.com"),
     RIGHTS_RESPONSE_DAYS: z.coerce.number().int().min(1).max(60).default(20),
   })
@@ -58,7 +63,8 @@ const schema = z
         ctx.addIssue({ code: "custom", path: [key], message: "obligatoria en producción" });
       }
     }
-  });
+  })
+  .transform((value) => ({ ...value, LOGO_STORAGE_DIR: value.LOGO_STORAGE_DIR ?? join(value.CEDULA_STORAGE_DIR, "logos") }));
 
 export type Env = Readonly<z.infer<typeof schema>>;
 

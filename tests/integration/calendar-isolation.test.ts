@@ -1,7 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { NotFoundError } from "../../src/http/errors.js";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { getDay, getWeek } from "../../src/modules/calendar/agenda-service.js";
 import { cancelAppointment, createAppointment, describeFreeSlot } from "../../src/modules/calendar/appointment-service.js";
 import { findAppointment, listBookedInRange } from "../../src/modules/calendar/appointment-repository.js";
@@ -51,7 +51,7 @@ const deps = () => ({ db: pool, clock: t.clock, ticketSecret: "s".repeat(40) });
 interface Practice {
   doctorId: number;
   userId: number;
-  ctx: TenantContext;
+  ctx: StaffContext;
   patientId: number;
   patientName: string;
   appointmentId: number;

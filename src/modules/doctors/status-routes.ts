@@ -107,6 +107,6 @@ export function registerDoctorStatusRoutes(app: FastifyInstance, services: Servi
   app.get("/medicos/panel", { preHandler: requireApprovedDoctor }, async (_request, reply) => {
     return reply
       .type("text/html; charset=utf-8")
-      .send(page({ title: "Mi panel", content: html`<h1>Mi panel</h1><p>Tu cuenta está aprobada. Aquí aparecerán tu agenda y tus pacientes.</p>` }));
+      .send(page({ title: "Mi panel", content: html`<h1>Mi panel</h1><p>Tu cuenta está aprobada.</p><ul><li><a href="/agenda">Mi agenda</a></li><li><a href="/medicos/micrositio">Mi micrositio</a></li><li><a href="/medicos/recepcion">Mi recepción</a></li></ul>` }));
   });
 }

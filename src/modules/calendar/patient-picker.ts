@@ -4,7 +4,7 @@ import type { Db } from "../../db/pool.js";
 import { TooManyAttemptsError } from "../../http/errors.js";
 import type { Clock } from "../../lib/clock.js";
 import { normalizeEmail } from "../../lib/normalize.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext } from "../../lib/tenant.js";
 import { listPatientsByAccount, listPatientsForDoctor } from "../patients/patient-repository.js";
 import { countRecentLookups, logCalendarAction, oldestLookupSince } from "./action-log.js";
 import { withCalendarLock } from "./calendar-lock.js";
@@ -34,12 +34,12 @@ export interface LookupResult {
 }
 
 /** Pacientes ya vinculados con el médico (id y nombre; nada más). */
-export async function listLinkedPatients(ctx: TenantContext, db: Db): Promise<LinkedPatient[]> {
+export async function listLinkedPatients(ctx: StaffContext, db: Db): Promise<LinkedPatient[]> {
   const patients = await listPatientsForDoctor(ctx, db);
   return patients.map((patient) => ({ patientId: patient.id, fullName: patient.fullName }));
 }
 
-function macFor(secret: string, ctx: TenantContext, patientId: number, expiresMs: number): string {
+function macFor(secret: string, ctx: StaffContext, patientId: number, expiresMs: number): string {
   return createHmac("sha256", secret)
     .update(`calendar-patient:${ctx.doctorId}:${ctx.actor.userId}:${patientId}:${expiresMs}`)
     .digest("base64url");
@@ -49,12 +49,12 @@ function macFor(secret: string, ctx: TenantContext, patientId: number, expiresMs
  * Boleto firmado que autoriza a UNA persona a agendar a UN paciente aún no vinculado con ESTE médico. Se obtiene solo
  * al encontrar la cuenta por su correo exacto: sin él, recorrer identificadores numéricos permitiría vincular pacientes.
  */
-export function issueTicket(secret: string, ctx: TenantContext, patientId: number, now: Date): string {
+export function issueTicket(secret: string, ctx: StaffContext, patientId: number, now: Date): string {
   const expiresMs = now.getTime() + LOOKUP_LIMITS.ticketTtlMs;
   return `${expiresMs}.${macFor(secret, ctx, patientId, expiresMs)}`;
 }
 
-export function verifyTicket(secret: string, ctx: TenantContext, patientId: number, ticket: string, now: Date): boolean {
+export function verifyTicket(secret: string, ctx: StaffContext, patientId: number, ticket: string, now: Date): boolean {
   const parts = ticket.split(".");
   if (parts.length !== 2) return false;
   const [expiresText, mac] = parts;
@@ -74,7 +74,7 @@ export function verifyTicket(secret: string, ctx: TenantContext, patientId: numb
  * pasar el límite (se serializan y cada una ve las anteriores ya registradas).
  * Riesgo aceptado: revela nombres y que la cuenta existe, igual que el alta de pacientes de la feature 1.
  */
-export async function lookupPatientsByEmail(ctx: TenantContext, deps: PickerDeps, email: string): Promise<LookupResult> {
+export async function lookupPatientsByEmail(ctx: StaffContext, deps: PickerDeps, email: string): Promise<LookupResult> {
   return withCalendarLock(ctx, deps.db, async (connection) => {
     const now = deps.clock.now();
     const since = new Date(now.getTime() - LOOKUP_LIMITS.windowMs);

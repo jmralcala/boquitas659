@@ -60,7 +60,7 @@ describe("GET /agenda/configuracion", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       isDefault: true,
-      settings: { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeHours: 2, maxAdvanceDays: 60 },
+      settings: { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeHours: 2, maxAdvanceDays: 60, cancelNoticeHours: 24 },
       hours: [],
     });
   });
@@ -93,7 +93,7 @@ describe("POST /agenda/configuracion", () => {
 
     expect((await get(client)).json()).toEqual({
       isDefault: false,
-      settings: { slotMinutes: 30, gapMinutes: 10, timezone: "America/Tijuana", minNoticeHours: 3, maxAdvanceDays: 45 },
+      settings: { slotMinutes: 30, gapMinutes: 10, timezone: "America/Tijuana", minNoticeHours: 3, maxAdvanceDays: 45, cancelNoticeHours: 24 },
       hours: [
         { weekday: 1, start: "09:00", end: "14:00" },
         { weekday: 1, start: "16:00", end: "19:00" },
@@ -126,6 +126,23 @@ describe("POST /agenda/configuracion", () => {
     expect(response.statusCode).toBe(400);
     expect(response.body).toContain('value="17"');
     expect(response.body).toContain('class="errors"');
+  });
+
+  it("el límite de cancelación se guarda con cancelNoticeHours y se rechaza fuera de 0–168", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    expect((await post(client, { ...VALID, cancelNoticeHours: "48" })).statusCode).toBe(303);
+    expect((await get(client)).json()).toMatchObject({ settings: { cancelNoticeHours: 48 } });
+    const bad = await post(client, { ...VALID, cancelNoticeHours: "169" });
+    expect(bad.statusCode).toBe(400);
+    expect(Object.keys((bad.json() as { fields: Record<string, string[]> }).fields)).toEqual(["cancelNoticeHours"]);
+    expect((await get(client)).json()).toMatchObject({ settings: { cancelNoticeHours: 48 } });
+  });
+
+  it("el formulario en HTML incluye el límite de cancelación", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    const response = await get(client, "text/html");
+    expect(response.body).toContain('name="cancelNoticeHours"');
+    expect(response.body).toContain('value="24"');
   });
 
   it("un guardado posterior reemplaza las franjas anteriores", async () => {

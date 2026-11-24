@@ -2,7 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError, NotFoundError, ValidationError } from "../../src/http/errors.js";
 import { createFixedClock } from "../../src/lib/clock.js";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { createAppointment } from "../../src/modules/calendar/appointment-service.js";
 import { issueTicket } from "../../src/modules/calendar/patient-picker.js";
 import {
@@ -45,7 +45,7 @@ afterAll(async () => {
 
 interface Scenario {
   doctor: CreatedDoctor;
-  ctx: TenantContext;
+  ctx: StaffContext;
   patientId: number;
   accountEmail: string;
 }

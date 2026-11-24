@@ -13,7 +13,7 @@ import { createMemoryTransport, type MemoryTransport } from "../../../src/mail/t
 import { createPasswordHasher } from "../../../src/modules/auth/password-hasher.js";
 import { generate } from "otplib";
 import { localToUtc } from "../../../src/lib/zoned-time.js";
-import { createDoctor, createMembership, createUser, testDatabaseUrl, type CreatedDoctor, type CreatedUser } from "./db.js";
+import { createDoctor, createMembership, createPatient, createUser, testDatabaseUrl, type CreatedDoctor, type CreatedPatient, type CreatedUser } from "./db.js";
 
 export const CSRF_SECRET = "s".repeat(40);
 
@@ -258,4 +258,21 @@ export function localAt(zone: string, date: string, time: string): Date {
   const instant = localToUtc(zone, date, (hours ?? 0) * 60 + (minutes ?? 0));
   if (!instant) throw new Error(`La hora local ${date} ${time} no existe en ${zone}.`);
   return instant;
+}
+
+// --- Paciente con sesión (feature 3) ------------------------------------------------------------------------------------
+
+export interface PatientClient {
+  patient: CreatedPatient;
+  client: AuthedClient;
+}
+
+/** Cuenta de paciente de fábrica con sesión y token CSRF listos para usar. */
+export async function patientClientFor(
+  t: TestApp,
+  db: Db,
+  options: { email?: string; fullName?: string } = {},
+): Promise<PatientClient> {
+  const patient = await createPatient(db, options);
+  return { patient, client: await sessionFor(t.services, patient.user) };
 }

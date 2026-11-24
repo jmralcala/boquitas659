@@ -34,7 +34,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-const SETTINGS: CalendarSettings = { slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90 };
+const SETTINGS: CalendarSettings = { slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90, cancelNoticeHours: 12 };
 const HOURS: HoursRange[] = [
   { weekday: 1, startMinute: 540, endMinute: 840 },
   { weekday: 2, startMinute: 600, endMinute: 720 },
@@ -139,7 +139,7 @@ describe("saveSettings", () => {
         ctx,
         pool,
         {
-          settings: { slotMinutes: 20, gapMinutes: 5, timezone: "America/Cancun", minNoticeMinutes: 0, maxAdvanceDays: 5 },
+          settings: { slotMinutes: 20, gapMinutes: 5, timezone: "America/Cancun", minNoticeMinutes: 0, maxAdvanceDays: 5, cancelNoticeHours: 72 },
           hours: [{ weekday: 6, startMinute: 0, endMinute: 60 }],
         },
         clock,
@@ -163,6 +163,14 @@ describe("saveSettings", () => {
       expect((row?.end_utc as Date).toISOString()).toBe("2026-07-06T15:45:00.000Z");
       expect(row?.status).toBe("booked");
     });
+  });
+
+  it("el límite de cancelación se guarda, se lee de vuelta y por defecto vale 24", async () => {
+    const { ctx } = await doctorCtx();
+    await saveSettings(ctx, pool, { settings: { ...SETTINGS, cancelNoticeHours: 72 }, hours: HOURS }, clock);
+    expect((await loadSettings(ctx, pool)).settings.cancelNoticeHours).toBe(72);
+    const other = await doctorCtx();
+    expect((await loadSettings(other.ctx, pool)).settings.cancelNoticeHours).toBe(24);
   });
 
   it("la anticipación guardada queda disponible para la comprobación de reserva", async () => {

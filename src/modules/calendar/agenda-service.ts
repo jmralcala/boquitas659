@@ -8,7 +8,7 @@ import {
   type HoursRange,
   type Slot,
 } from "../../lib/calendar-slots.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext } from "../../lib/tenant.js";
 import { addLocalDays, daysBetweenLocalDates, isValidLocalDate, localDayRangeUtc, utcToLocal, weekdayOfLocalDate } from "../../lib/zoned-time.js";
 import { listBookedInRange, type AppointmentRecord } from "./appointment-repository.js";
 import { listBlocksInRange, type BlockRecord } from "./block-repository.js";
@@ -103,7 +103,7 @@ function buildDay(
 }
 
 /** Agenda de un día local del consultorio: espacios con su estado, citas (nombre del paciente) y bloqueos. */
-export async function getDay(ctx: TenantContext, db: Db, localDate: string, now: Date): Promise<AgendaDay> {
+export async function getDay(ctx: StaffContext, db: Db, localDate: string, now: Date): Promise<AgendaDay> {
   const { settings, hours } = await loadSettings(ctx, db);
   assertConsultable(localDate, utcToLocal(settings.timezone, now).date);
   const { start, end } = localDayRangeUtc(settings.timezone, localDate);
@@ -112,7 +112,7 @@ export async function getDay(ctx: TenantContext, db: Db, localDate: string, now:
 }
 
 /** Agenda de la semana (lunes a domingo) que contiene `localDate`, con una sola consulta de citas y de bloqueos. */
-export async function getWeek(ctx: TenantContext, db: Db, localDate: string, now: Date): Promise<AgendaWeek> {
+export async function getWeek(ctx: StaffContext, db: Db, localDate: string, now: Date): Promise<AgendaWeek> {
   const { settings, hours } = await loadSettings(ctx, db);
   assertConsultable(localDate, utcToLocal(settings.timezone, now).date);
   const monday = addLocalDays(localDate, -(weekdayOfLocalDate(localDate) - 1));

@@ -18,6 +18,9 @@ const templates: TemplateRegistry = {
   simple: {
     render: () => ({ subject: "Asunto de prueba", text: "Cuerpo de prueba con datos privados" }),
   },
+  with_reply_to: {
+    render: () => ({ subject: "Con respuesta", text: "Cuerpo", replyTo: "medico@example.com" }),
+  },
   with_link: {
     token: {
       purpose: "password_reset",
@@ -148,7 +151,7 @@ describe("plantillas con enlace de un solo uso", () => {
     const link = transport.sent[0]?.text.replace("Enlace: ", "") ?? "";
     expect(link).toMatch(/^https:\/\/agenda\.example\.com\/recuperar\/[A-Za-z0-9_-]{43}$/);
     const token = link.split("/").pop() ?? "";
-    expect(await tokens.peek(token, "password_reset")).toEqual({ userId: user.id, invitationId: null });
+    expect(await tokens.peek(token, "password_reset")).toEqual({ userId: user.id, invitationId: null, appointmentId: null });
 
     const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM one_time_token");
     expect(JSON.stringify(rows)).not.toContain(token);
@@ -228,5 +231,19 @@ describe("registro de errores y cancelación", () => {
     };
     await enqueueEmail(pool, { template: "permitido", to: "ana@example.com" }, clock);
     expect((await processOutbox(deps)).sent).toBe(1);
+  });
+
+  it("pasa el Reply-To de la plantilla al transporte y no lo guarda en el outbox", async () => {
+    await enqueueEmail(pool, { template: "with_reply_to", to: "paciente@example.com" }, clock);
+    await processOutbox(deps);
+    expect(transport.sent).toMatchObject([{ to: "paciente@example.com", replyTo: "medico@example.com" }]);
+    const [rows] = await pool.query<RowDataPacket[]>("SELECT payload_ref FROM email_outbox");
+    expect(JSON.stringify(rows)).not.toContain("medico@example.com");
+  });
+
+  it("un correo sin Reply-To no lo lleva", async () => {
+    await enqueueEmail(pool, { template: "simple", to: "paciente@example.com" }, clock);
+    await processOutbox(deps);
+    expect(transport.sent[0]).not.toHaveProperty("replyTo");
   });
 });

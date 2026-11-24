@@ -57,3 +57,9 @@ Dos revisiones de solo lectura (código y seguridad) sobre el diff de la feature
 - **Lecturas de agenda no atómicas** (baja): configuración, citas y bloqueos se leen en consultas separadas; durante el instante de una confirmación una lectura puede ver el estado anterior. Las escrituras no se ven afectadas.
 - **Espacios que cruzan un cambio de hora** (baja, solo zonas fronterizas, 2 días al año): la franja se mide en minutos locales y la duración en tiempo real; no hay solapes.
 - **Tiempo de respuesta de la búsqueda por correo** distingue cuenta existente de inexistente (oráculo débil ya aceptado).
+
+## Actualización (feature 003, 2026-11-23)
+
+- **Riesgo del boleto de recepción, resuelto.** El vínculo médico-paciente creado por el personal con un boleto ya no es silencioso ni irrevocable: guarda `origin = 'office'` y quién lo creó, la cuenta recibe `patient_linked_by_office` y puede revocarlo desde «Mis consultorios» (cancela sus citas futuras con ese consultorio y retira el acceso al contacto). Tras revocar, el personal no puede agendar a esa cuenta (404) hasta que el propio paciente vuelva a reservar con una nueva autorización. Ver `0004-micrositio.md`.
+- **Disponibilidad.** La reserva del paciente llama a `validatePatientBookingWindow` y `listFreeSlots` (`forPatient`) y lleva su prueba de concurrencia (`booking-concurrency.test.ts`).
+- **Correos.** `appointment_created` ahora lleva dirección, enlace y `Reply-To`; la regla «sin enlaces» de este documento ya no aplica.

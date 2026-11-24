@@ -3,7 +3,7 @@ import type { Db } from "../../db/pool.js";
 import { ForbiddenError } from "../../http/errors.js";
 import type { HoursRange } from "../../lib/calendar-slots.js";
 import type { Clock } from "../../lib/clock.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 import { logCalendarAction } from "./action-log.js";
 import { withCalendarLock } from "./calendar-lock.js";
 import { DEFAULT_SETTINGS, type CalendarConfig, type CalendarInput } from "./settings.js";
@@ -13,7 +13,7 @@ type Executor = Pick<Pool, "execute"> | Pick<PoolConnection, "execute">;
 /** Configuración y franjas del médico del contexto; si no ha guardado nada, los valores por defecto y sin franjas. */
 export async function loadSettings(ctx: TenantContext, executor: Executor): Promise<CalendarConfig> {
   const [settingsRows] = await executor.execute<RowDataPacket[]>(
-    `SELECT slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days
+    `SELECT slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours
        FROM calendar_settings WHERE doctor_id = ?`,
     [ctx.doctorId],
   );
@@ -35,6 +35,7 @@ export async function loadSettings(ctx: TenantContext, executor: Executor): Prom
       timezone: String(row.timezone),
       minNoticeMinutes: Number(row.min_notice_minutes),
       maxAdvanceDays: Number(row.max_advance_days),
+      cancelNoticeHours: Number(row.cancel_notice_hours),
     },
     hours,
     isDefault: false,
@@ -46,17 +47,18 @@ export async function loadSettings(ctx: TenantContext, executor: Executor): Prom
  * falla no cambia nada). Solo el médico configura; recepción recibe 403. NUNCA toca citas ni bloqueos existentes: los
  * espacios se calculan al leer, así que el cambio solo afecta a los espacios y a las reservas nuevas.
  */
-export async function saveSettings(ctx: TenantContext, db: Db, input: CalendarInput, clock: Clock): Promise<void> {
+export async function saveSettings(ctx: StaffContext, db: Db, input: CalendarInput, clock: Clock): Promise<void> {
   if (ctx.actor.kind !== "doctor") throw new ForbiddenError();
   await withCalendarLock(ctx, db, async (connection) => {
     const now = clock.now();
     const { settings } = input;
     await connection.execute(
-      `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE slot_minutes = VALUES(slot_minutes), gap_minutes = VALUES(gap_minutes), timezone = VALUES(timezone),
-         min_notice_minutes = VALUES(min_notice_minutes), max_advance_days = VALUES(max_advance_days), updated_at = VALUES(updated_at)`,
-      [ctx.doctorId, settings.slotMinutes, settings.gapMinutes, settings.timezone, settings.minNoticeMinutes, settings.maxAdvanceDays, now],
+         min_notice_minutes = VALUES(min_notice_minutes), max_advance_days = VALUES(max_advance_days),
+         cancel_notice_hours = VALUES(cancel_notice_hours), updated_at = VALUES(updated_at)`,
+      [ctx.doctorId, settings.slotMinutes, settings.gapMinutes, settings.timezone, settings.minNoticeMinutes, settings.maxAdvanceDays, settings.cancelNoticeHours, now],
     );
     await connection.execute("DELETE FROM calendar_hours WHERE doctor_id = ?", [ctx.doctorId]);
     for (const range of input.hours) {

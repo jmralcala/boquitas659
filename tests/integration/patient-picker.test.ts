@@ -2,7 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { TooManyAttemptsError } from "../../src/http/errors.js";
 import { createFixedClock } from "../../src/lib/clock.js";
-import { createTenantContext, type TenantContext } from "../../src/lib/tenant.js";
+import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { issueTicket, listLinkedPatients, lookupPatientsByEmail, verifyTicket } from "../../src/modules/calendar/patient-picker.js";
 import { clearTables, createDoctor, createMembership, createPatient, createTestPool, createUser, linkPatientToDoctor, resetDatabase } from "./helpers/db.js";
 
@@ -24,7 +24,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-async function doctorCtx(): Promise<{ ctx: TenantContext; doctorId: number; userId: number }> {
+async function doctorCtx(): Promise<{ ctx: StaffContext; doctorId: number; userId: number }> {
   const doctor = await createDoctor(pool);
   return { ctx: createTenantContext(doctor.doctorId, { kind: "doctor", userId: doctor.user.id }), doctorId: doctor.doctorId, userId: doctor.user.id };
 }
@@ -124,7 +124,7 @@ describe("lookupPatientsByEmail", () => {
 
     it("la búsqueda 61 del mismo médico se rechaza aunque la hagan personas distintas", async () => {
       const { ctx, doctorId, userId } = await doctorCtx();
-      const people: TenantContext[] = [ctx];
+      const people: StaffContext[] = [ctx];
       for (let index = 0; index < 2; index += 1) {
         const person = await createUser(pool, { role: "reception" });
         await createMembership(pool, doctorId, person.id);

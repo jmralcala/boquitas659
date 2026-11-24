@@ -5,6 +5,8 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  /** Dirección a la que llegan las respuestas (los correos del consultorio al paciente usan la del médico). */
+  replyTo?: string;
 }
 
 export interface MailTransport {

@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import { parseInput } from "../../http/validate.js";
 import { ALLOWED_TIMEZONES, formatLocalInstant, isValidLocalDate, utcToLocal } from "../../lib/zoned-time.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext } from "../../lib/tenant.js";
 import { getDay, getWeek, type AgendaDay } from "./agenda-service.js";
 import { cancelAppointment, createAppointment, describeFreeSlot, parseLocalStart } from "./appointment-service.js";
 import { findAppointment } from "./appointment-repository.js";
@@ -86,7 +86,7 @@ function dayJson(day: AgendaDay): Record<string, unknown> {
  */
 export function registerCalendarRoutes(app: FastifyInstance, services: Services): void {
   /** Solo el médico configura: recepción recibe 403 también en la lectura. */
-  async function resolveDoctorOnly(request: FastifyRequest): Promise<TenantContext> {
+  async function resolveDoctorOnly(request: FastifyRequest): Promise<StaffContext> {
     const tenant = await services.tenants.resolve(request);
     if (tenant.actor.kind !== "doctor") throw new ForbiddenError();
     return tenant;
@@ -137,7 +137,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
   async function renderNewAppointment(
     request: FastifyRequest,
     reply: FastifyReply,
-    tenant: TenantContext,
+    tenant: StaffContext,
     inicio: string,
     lookup: { email: string; patients: { patientId: number; fullName: string; ticket: string }[] } | null,
   ): Promise<FastifyReply> {
@@ -237,7 +237,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
   async function replyBlockConflict(
     request: FastifyRequest,
     reply: FastifyReply,
-    tenant: TenantContext,
+    tenant: StaffContext,
     error: BlockConflictError,
   ): Promise<FastifyReply> {
     const { settings } = await loadSettings(tenant, services.db);
@@ -262,7 +262,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
   async function renderBlocks(
     request: FastifyRequest,
     reply: FastifyReply,
-    tenant: TenantContext,
+    tenant: StaffContext,
     page: { status?: number; values?: Record<string, string>; errors?: Readonly<Record<string, readonly string[]>> } = {},
   ): Promise<FastifyReply> {
     const { settings } = await loadSettings(tenant, services.db);
@@ -371,6 +371,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
           timezone: config.settings.timezone,
           minNoticeHours: Math.floor(config.settings.minNoticeMinutes / 60),
           maxAdvanceDays: config.settings.maxAdvanceDays,
+          cancelNoticeHours: config.settings.cancelNoticeHours,
         },
         hours: config.hours.map((range) => ({ weekday: range.weekday, start: minutesText(range.startMinute), end: minutesText(range.endMinute) })),
       });

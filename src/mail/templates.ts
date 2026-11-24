@@ -4,6 +4,7 @@ import { authTemplates } from "../modules/auth/email-templates.js";
 import { receptionTemplates } from "../modules/reception/email-templates.js";
 import { doctorTemplates } from "../modules/doctors/email-templates.js";
 import { calendarTemplates } from "../modules/calendar/email-templates.js";
+import { siteTemplates } from "../modules/site/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
 export type EmailPayload = Readonly<Record<string, string | number | null>>;
@@ -22,6 +23,8 @@ export interface RenderedEmail {
   subject: string;
   text: string;
   html?: string;
+  /** `Reply-To` del correo. No se guarda en el outbox: se calcula al enviar. */
+  replyTo?: string;
 }
 
 export interface EmailTemplate {
@@ -30,7 +33,7 @@ export interface EmailTemplate {
     purpose: TokenPurpose;
     ttlMs: number;
     linkPath: (token: string) => string;
-    subject: (payload: EmailPayload) => { userId?: number; invitationId?: number };
+    subject: (payload: EmailPayload) => { userId?: number; invitationId?: number; appointmentId?: number };
   };
   /**
    * Si devuelve `false` el correo se cancela sin enviarse (ya no tiene sentido). Se evalúa DENTRO de la transacción
@@ -52,4 +55,5 @@ export const defaultTemplates: Record<string, EmailTemplate> = {
   ...doctorTemplates,
   ...receptionTemplates,
   ...calendarTemplates,
+  ...siteTemplates,
 };

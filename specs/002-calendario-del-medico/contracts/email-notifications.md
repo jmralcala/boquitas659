@@ -21,3 +21,10 @@ datos clínicos. Se encolan en la **misma transacción** que la mutación.
   cita no se deshace (queda en el informe de entregas de la feature 1).
 - `Reply-To`: el correo del médico no se usa en esta feature (se añade con el micrositio y los mensajes del médico,
   feature 3).
+
+## Cambios de la feature 3 (micrositio y reserva del paciente)
+
+- `appointment_created` ahora incluye la **dirección** del consultorio y un **enlace** `/citas/enlace/<token>` (propósito `appointment_confirmation`) para ver o cancelar la cita, y sale con el médico como `Reply-To`. Se retira la regla «sin enlaces de acción». Aplica también a las citas que crea el personal.
+- `appointment_cancelled` sale con el médico como `Reply-To`.
+- Cuando el personal vincula a un paciente nuevo con boleto, la cuenta recibe además `patient_linked_by_office` (qué datos ve el consultorio y cómo revocar).
+- Ver `specs/003-micrositio-y-reserva-del-paciente/contracts/email-notifications.md`.

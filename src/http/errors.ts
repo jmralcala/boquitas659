@@ -88,3 +88,11 @@ export class ConflictError extends AppError {
     this.name = "ConflictError";
   }
 }
+
+/** El micrositio no está aceptando reservas (despublicado, o el médico ya no está aprobado). */
+export class SiteUnavailableError extends AppError {
+  constructor() {
+    super(403, "site_unavailable", "Este consultorio no está recibiendo reservas en línea. Confirma directamente con el consultorio por teléfono.");
+    this.name = "SiteUnavailableError";
+  }
+}

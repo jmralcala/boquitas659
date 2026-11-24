@@ -1,5 +1,5 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 import { listPatientNamesForDoctor } from "../patients/patient-repository.js";
 
 type Executor = Pick<Pool, "execute"> | Pick<PoolConnection, "execute">;
@@ -24,7 +24,7 @@ function toRecord(row: RowDataPacket): BlockRecord {
 }
 
 /** Bloqueos del médico que se solapan con el rango UTC [desde, hasta), ordenados por inicio. */
-export async function listBlocksInRange(ctx: TenantContext, executor: Executor, fromUtc: Date, toUtc: Date): Promise<BlockRecord[]> {
+export async function listBlocksInRange(ctx: StaffContext, executor: Executor, fromUtc: Date, toUtc: Date): Promise<BlockRecord[]> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT id, start_utc, end_utc, reason, created_by_role FROM calendar_block
       WHERE doctor_id = ? AND start_utc < ? AND end_utc > ?
@@ -34,8 +34,24 @@ export async function listBlocksInRange(ctx: TenantContext, executor: Executor, 
   return rows.map(toRecord);
 }
 
+/** Intervalos bloqueados en [desde, hasta): SOLO el intervalo, sin motivo (lo que ve el calendario del paciente). */
+export async function listBlockSpansInRange(
+  ctx: TenantContext,
+  executor: Executor,
+  fromUtc: Date,
+  toUtc: Date,
+): Promise<{ startUtc: Date; endUtc: Date }[]> {
+  const [rows] = await executor.execute<RowDataPacket[]>(
+    `SELECT start_utc, end_utc FROM calendar_block
+      WHERE doctor_id = ? AND start_utc < ? AND end_utc > ?
+      ORDER BY start_utc, id`,
+    [ctx.doctorId, toUtc, fromUtc],
+  );
+  return rows.map((row) => ({ startUtc: row.start_utc as Date, endUtc: row.end_utc as Date }));
+}
+
 /** Bloqueos vigentes o futuros (su fin es posterior a `now`), ordenados por inicio. */
-export async function listUpcomingBlocks(ctx: TenantContext, executor: Executor, now: Date): Promise<BlockRecord[]> {
+export async function listUpcomingBlocks(ctx: StaffContext, executor: Executor, now: Date): Promise<BlockRecord[]> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT id, start_utc, end_utc, reason, created_by_role FROM calendar_block
       WHERE doctor_id = ? AND end_utc > ?
@@ -70,7 +86,7 @@ export const MAX_LISTED_CONFLICTS = 50;
  * ya pasada no cuenta). Devuelve hasta 50 (por inicio) y el total. Se usa dentro de `withCalendarLock`.
  */
 export async function findConflictingAppointments(
-  ctx: TenantContext,
+  ctx: StaffContext,
   connection: Executor,
   fromUtc: Date,
   toUtc: Date,
@@ -100,7 +116,7 @@ export async function findConflictingAppointments(
 }
 
 export async function insertBlock(
-  ctx: TenantContext,
+  ctx: StaffContext,
   connection: Executor,
   input: { startUtc: Date; endUtc: Date; reason: string | null; now: Date },
 ): Promise<number> {
@@ -113,7 +129,7 @@ export async function insertBlock(
 }
 
 /** Borra un bloqueo del médico; `false` si no existe o es de otro médico. */
-export async function deleteBlock(ctx: TenantContext, connection: Executor, id: number): Promise<boolean> {
+export async function deleteBlock(ctx: StaffContext, connection: Executor, id: number): Promise<boolean> {
   const [result] = await connection.execute<import("mysql2/promise").ResultSetHeader>(
     "DELETE FROM calendar_block WHERE id = ? AND doctor_id = ?",
     [id, ctx.doctorId],

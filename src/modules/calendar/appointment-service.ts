@@ -1,8 +1,9 @@
+import type { PoolConnection } from "mysql2/promise";
 import type { Db } from "../../db/pool.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../http/errors.js";
 import { classifySlots, generateSlotsForDay, type SlotTime } from "../../lib/calendar-slots.js";
 import type { Clock } from "../../lib/clock.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 import { daysBetweenLocalDates, isValidLocalDate, localToUtc, utcToLocal } from "../../lib/zoned-time.js";
 import { enqueueEmail } from "../../mail/outbox.js";
 import { findNotificationEmailForDoctor, findPatientForDoctor } from "../patients/patient-repository.js";
@@ -82,7 +83,7 @@ export async function resolveSlot(
  * (no existe en el horario, ya pasó, está ocupado o bloqueado). Un formato inválido lanza `ValidationError` (400).
  */
 export async function describeFreeSlot(
-  ctx: TenantContext,
+  ctx: StaffContext,
   db: Db,
   startLocal: string,
   now: Date,
@@ -105,6 +106,30 @@ export async function describeFreeSlot(
 }
 
 /**
+ * Validación común a TODO camino que agenda (personal o paciente): el inicio es un espacio de la configuración vigente,
+ * futuro, sin cita vigente solapada y sin bloqueo solapado. Se llama dentro de `withCalendarLock` con su conexión.
+ * Lanza `ValidationError` (400) si el espacio no existe y `ConflictError` `slot_unavailable` (409) si ya pasó,
+ * está ocupado o bloqueado.
+ */
+export async function assertSlotBookable(
+  ctx: TenantContext,
+  connection: PoolConnection,
+  startLocal: string,
+  now: Date,
+): Promise<{ slot: SlotTime; timezone: string }> {
+  const resolved = await resolveSlot(ctx, connection, startLocal, now);
+  const { slot } = resolved;
+  if (slot.startUtc.getTime() <= now.getTime()) throw new ConflictError("Ese espacio ya pasó.", "slot_unavailable");
+  if (await findOverlappingBooked(ctx, connection, slot.startUtc, slot.endUtc)) {
+    throw new ConflictError("Ese espacio ya está ocupado.", "slot_unavailable");
+  }
+  if (await hasOverlappingBlock(ctx, connection, slot.startUtc, slot.endUtc)) {
+    throw new ConflictError("Ese espacio está bloqueado.", "slot_unavailable");
+  }
+  return resolved;
+}
+
+/**
  * Crea una cita (médico o recepción). Todo ocurre en UNA transacción bajo el bloqueo de la fila del médico: valida que el
  * inicio sea un espacio de la configuración vigente, futuro, sin cita vigente solapada y sin bloqueo solapado; comprueba
  * que el paciente sea alcanzable (ya vinculado, o con un boleto firmado válido, en cuyo caso se crea el vínculo en la misma
@@ -114,7 +139,7 @@ export async function describeFreeSlot(
  * El personal NO pasa por las anticipaciones del paciente: solo por «espacio futuro y libre».
  */
 export async function createAppointment(
-  ctx: TenantContext,
+  ctx: StaffContext,
   deps: AppointmentDeps,
   input: CreateAppointmentInput,
 ): Promise<{ id: number; startUtc: Date; endUtc: Date }> {
@@ -122,21 +147,16 @@ export async function createAppointment(
     const now = deps.clock.now();
     // Límite por persona y por paciente (cada cita manda un correo): bajo el bloqueo, así que las ráfagas no lo eluden.
     await assertWithinAppointmentLimits(ctx, connection, now, input.patientId);
-    const { slot } = await resolveSlot(ctx, connection, input.startLocal, now);
-
-    if (slot.startUtc.getTime() <= now.getTime()) throw new ConflictError("Ese espacio ya pasó.", "slot_unavailable");
-    if (await findOverlappingBooked(ctx, connection, slot.startUtc, slot.endUtc)) {
-      throw new ConflictError("Ese espacio ya está ocupado.", "slot_unavailable");
-    }
-    if (await hasOverlappingBlock(ctx, connection, slot.startUtc, slot.endUtc)) {
-      throw new ConflictError("Ese espacio está bloqueado.", "slot_unavailable");
-    }
+    const { slot } = await assertSlotBookable(ctx, connection, input.startLocal, now);
 
     // Un paciente es alcanzable si ya está vinculado con ESTE médico o si trae un boleto firmado para este médico y actor.
+    let newlyLinked = false;
     const linked = await findPatientForDoctor(ctx, connection, input.patientId);
     if (!linked) {
       if (!input.ticket || !verifyTicket(deps.ticketSecret, ctx, input.patientId, input.ticket, now)) throw new NotFoundError();
-      await linkPatientToDoctor(connection, ctx.doctorId, input.patientId); // lanza NotFoundError si el paciente no existe
+      // Lanza NotFoundError si el paciente no existe o si su cuenta revocó el vínculo con este consultorio.
+      const link = await linkPatientToDoctor(ctx, connection, input.patientId, { origin: "office", createdByUserId: ctx.actor.userId });
+      newlyLinked = link.created;
     }
 
     let appointmentId: number;
@@ -150,6 +170,8 @@ export async function createAppointment(
 
     const to = await findNotificationEmailForDoctor(ctx, connection, input.patientId);
     if (to) await enqueueEmail(connection, { template: "appointment_created", to, payload: { appointmentId } }, deps.clock);
+    // La cuenta se entera de que este consultorio ya ve sus datos de contacto y de cómo revocarlo.
+    if (to && newlyLinked) await enqueueEmail(connection, { template: "patient_linked_by_office", to, payload: { appointmentId } }, deps.clock);
     await logCalendarAction(ctx, connection, { action: "appointment_created", outcome: "ok", appointmentId, at: now });
     return { id: appointmentId, startUtc: slot.startUtc, endUtc: slot.endUtc };
   });
@@ -160,7 +182,7 @@ export async function createAppointment(
  * inmediato, registra quién cancela y cuándo, encola el aviso al paciente y registra la acción. Una cita de otro
  * médico o inexistente es `NotFoundError`; una ya cancelada o cuya hora terminó es `ConflictError` y no repite avisos.
  */
-export async function cancelAppointment(ctx: TenantContext, deps: AppointmentDeps, id: number): Promise<void> {
+export async function cancelAppointment(ctx: StaffContext, deps: AppointmentDeps, id: number): Promise<void> {
   await withCalendarLock(ctx, deps.db, async (connection) => {
     const now = deps.clock.now();
     await assertWithinAppointmentLimits(ctx, connection, now, null);

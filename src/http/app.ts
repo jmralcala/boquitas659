@@ -41,7 +41,7 @@ function toFastifyTrustProxy(value: AppOptions["trustProxy"]): boolean | string[
 }
 
 /** Únicas rutas que reciben archivos (cédula del médico). En el resto, multipart se rechaza antes de leer el cuerpo. */
-const MULTIPART_ROUTES = new Set(["/medicos/registro", "/medicos/estado/reenviar"]);
+const MULTIPART_ROUTES = new Set(["/medicos/registro", "/medicos/estado/reenviar", "/medicos/micrositio/logo"]);
 
 function sendError(
   request: FastifyRequest,
@@ -103,6 +103,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   app.addHook("onSend", async (request, reply) => {
     void reply.header("x-request-id", request.id);
+  });
+
+  // El micrositio y las pantallas del paciente no se indexan (no hay directorio de consultorios): además de la meta de
+  // las páginas HTML, la cabecera cubre también las respuestas de error y las imágenes.
+  app.addHook("onSend", async (request, reply) => {
+    const path = request.url.split("?")[0] ?? "";
+    if (path.startsWith("/c/") || path.startsWith("/citas/") || path.startsWith("/pacientes/")) {
+      void reply.header("x-robots-tag", "noindex, nofollow");
+    }
   });
 
   // Las páginas pueden contener códigos de recuperación, secretos TOTP, enlaces con token o datos de pacientes:

@@ -1,6 +1,6 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import { TooManyAttemptsError } from "../../http/errors.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 
 type Executor = Pick<Pool, "execute"> | Pick<PoolConnection, "execute">;
 
@@ -11,7 +11,10 @@ export type CalendarAction =
   | "block_created"
   | "block_removed"
   | "block_rejected"
-  | "patient_lookup";
+  | "patient_lookup"
+  | "site_updated"
+  | "data_authorized"
+  | "link_revoked";
 
 export interface CalendarActionEntry {
   action: CalendarAction;
@@ -42,7 +45,7 @@ export async function logCalendarAction(ctx: TenantContext, executor: Executor, 
  * (una recepción con varios consultorios no multiplica su límite); `byDoctor` cuenta las del médico, de cualquier persona.
  */
 export async function countRecentLookups(
-  ctx: TenantContext,
+  ctx: StaffContext,
   executor: Executor,
   since: Date,
 ): Promise<{ byActor: number; byDoctor: number }> {
@@ -57,7 +60,7 @@ export async function countRecentLookups(
 
 /** Instante de la búsqueda más antigua dentro de la ventana (de la persona, o del médico); `null` si no hay ninguna. */
 export async function oldestLookupSince(
-  ctx: TenantContext,
+  ctx: StaffContext,
   executor: Executor,
   since: Date,
   scope: "actor" | "doctor",
@@ -90,7 +93,7 @@ export const ACTION_LIMITS = {
  * simultáneas se serializan y el límite es exacto.
  */
 export async function assertWithinAppointmentLimits(
-  ctx: TenantContext,
+  ctx: StaffContext,
   executor: Executor,
   now: Date,
   patientId: number | null,

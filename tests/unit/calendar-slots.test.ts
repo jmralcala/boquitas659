@@ -12,7 +12,7 @@ const MX = "America/Mexico_City";
 const TJ = "America/Tijuana";
 
 function settings(overrides: Partial<CalendarSettings> = {}): CalendarSettings {
-  return { slotMinutes: 45, gapMinutes: 15, timezone: MX, minNoticeMinutes: 120, maxAdvanceDays: 60, ...overrides };
+  return { slotMinutes: 45, gapMinutes: 15, timezone: MX, minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24, ...overrides };
 }
 
 const hm = (hours: number, minutes = 0): number => hours * 60 + minutes;

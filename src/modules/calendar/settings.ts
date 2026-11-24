@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: CalendarSettings = {
   timezone: DEFAULT_TIMEZONE,
   minNoticeMinutes: 120,
   maxAdvanceDays: 60,
+  cancelNoticeHours: 24,
 };
 
 /** Configuración vigente de un calendario: valores, franjas y si todavía rigen los valores por defecto. */
@@ -32,6 +33,7 @@ export const LIMITS = {
   gapMinutes: { min: 0, max: 60, step: 5 },
   minNoticeHours: { min: 0, max: 168 },
   maxAdvanceDays: { min: 1, max: 365 },
+  cancelNoticeHours: { min: 0, max: 168 },
   rangesPerDay: 4,
 } as const;
 
@@ -75,6 +77,7 @@ const formSchema = z.object({
   timezone: z.string().refine(isAllowedTimezone, "Elige una zona horaria de la lista."),
   minNoticeHours: integer("la anticipación mínima", LIMITS.minNoticeHours.min, LIMITS.minNoticeHours.max),
   maxAdvanceDays: integer("la anticipación máxima", LIMITS.maxAdvanceDays.min, LIMITS.maxAdvanceDays.max),
+  cancelNoticeHours: integer("el límite de cancelación", LIMITS.cancelNoticeHours.min, LIMITS.cancelNoticeHours.max),
 });
 
 /** Clave del campo de una franja en el formulario: `h<día>_<n>_start|end`; los errores de la franja usan `h<día>_<n>`. */
@@ -105,6 +108,8 @@ export function parseCalendarForm(body: Record<string, unknown>): CalendarInput 
     timezone: typeof body.timezone === "string" ? body.timezone.slice(0, 64) : "",
     minNoticeHours: typeof body.minNoticeHours === "string" ? body.minNoticeHours.slice(0, 10) : undefined,
     maxAdvanceDays: typeof body.maxAdvanceDays === "string" ? body.maxAdvanceDays.slice(0, 10) : undefined,
+    // Si el campo no viene (formularios anteriores a esta versión) rige el valor por defecto.
+    cancelNoticeHours: typeof body.cancelNoticeHours === "string" ? body.cancelNoticeHours.slice(0, 10) : String(DEFAULT_SETTINGS.cancelNoticeHours),
   });
   if (!parsed.success) {
     for (const issue of parsed.error.issues) add(String(issue.path[0] ?? "_"), issue.message);
@@ -164,6 +169,7 @@ export function parseCalendarForm(body: Record<string, unknown>): CalendarInput 
       timezone: parsed.data.timezone,
       minNoticeMinutes: parsed.data.minNoticeHours * 60,
       maxAdvanceDays: parsed.data.maxAdvanceDays,
+      cancelNoticeHours: parsed.data.cancelNoticeHours,
     },
     hours: ranges,
   };

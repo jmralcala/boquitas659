@@ -2,7 +2,7 @@ import type { PoolConnection } from "mysql2/promise";
 import type { Db } from "../../db/pool.js";
 import { AppError, NotFoundError, ValidationError } from "../../http/errors.js";
 import type { Clock } from "../../lib/clock.js";
-import type { TenantContext } from "../../lib/tenant.js";
+import type { StaffContext } from "../../lib/tenant.js";
 import { daysBetweenLocalDates, localToUtc, utcToLocal } from "../../lib/zoned-time.js";
 import { logCalendarAction } from "./action-log.js";
 import { MAX_DAYS_AHEAD, MAX_DAYS_BACK } from "./agenda-service.js";
@@ -49,7 +49,7 @@ type Outcome = { kind: "ok"; id: number } | { kind: "conflict"; appointments: Co
  * `block_rejected` (la transacción lo confirma) y la excepción con la lista se lanza después, ya confirmada la transacción.
  */
 async function blockWithin(
-  ctx: TenantContext,
+  ctx: StaffContext,
   deps: BlockDeps,
   reason: string | null,
   resolveRange: (connection: PoolConnection, now: Date) => Promise<{ fromUtc: Date; toUtc: Date }>,
@@ -82,7 +82,7 @@ function toUtcOrFail(zone: string, value: string, field: "desde" | "hasta"): Dat
 }
 
 /** Bloquea un rango de fecha y hora (también de varios días). Rechazo total si incluye citas vigentes. */
-export async function createBlock(ctx: TenantContext, deps: BlockDeps, input: CreateBlockInput): Promise<{ id: number }> {
+export async function createBlock(ctx: StaffContext, deps: BlockDeps, input: CreateBlockInput): Promise<{ id: number }> {
   const reason = input.reason && input.reason.trim() !== "" ? input.reason.trim() : null;
   return blockWithin(ctx, deps, reason, async (connection, now) => {
     const { settings } = await loadSettings(ctx, connection);
@@ -107,7 +107,7 @@ export async function createBlock(ctx: TenantContext, deps: BlockDeps, input: Cr
 }
 
 /** Atajo desde la agenda: bloquea exactamente el rango de un espacio. */
-export async function blockSlot(ctx: TenantContext, deps: BlockDeps, startLocal: string): Promise<{ id: number }> {
+export async function blockSlot(ctx: StaffContext, deps: BlockDeps, startLocal: string): Promise<{ id: number }> {
   return blockWithin(ctx, deps, null, async (connection, now) => {
     const { slot } = await resolveSlot(ctx, connection, startLocal, now);
     if (slot.endUtc.getTime() <= now.getTime()) throw new ValidationError({ inicio: ["Ese espacio ya terminó."] });
@@ -116,7 +116,7 @@ export async function blockSlot(ctx: TenantContext, deps: BlockDeps, startLocal:
 }
 
 /** Desbloquea: borra el bloqueo completo (la constancia queda en el registro de acciones). */
-export async function removeBlock(ctx: TenantContext, deps: BlockDeps, id: number): Promise<void> {
+export async function removeBlock(ctx: StaffContext, deps: BlockDeps, id: number): Promise<void> {
   await withCalendarLock(ctx, deps.db, async (connection) => {
     if (!(await deleteBlock(ctx, connection, id))) throw new NotFoundError();
     await logCalendarAction(ctx, connection, { action: "block_removed", outcome: "ok", blockId: id, at: deps.clock.now() });

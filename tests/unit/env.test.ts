@@ -22,6 +22,24 @@ describe("loadEnv", () => {
     expect(env.TRUST_PROXY).toBe(false);
   });
 
+  it("LOGO_STORAGE_DIR vale por defecto la carpeta logos dentro de la de cédulas y se puede cambiar", () => {
+    expect(loadEnv(base).LOGO_STORAGE_DIR.replace(/\\/g, "/")).toBe("storage/cedulas/logos");
+    expect(loadEnv({ ...base, LOGO_STORAGE_DIR: "/var/app/logos" }).LOGO_STORAGE_DIR).toBe("/var/app/logos");
+  });
+
+  it("GOOGLE_MAPS_EMBED_KEY es opcional; una clave demasiado corta se rechaza sin mostrar su valor", () => {
+    expect(loadEnv(base).GOOGLE_MAPS_EMBED_KEY).toBeUndefined();
+    expect(loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "k".repeat(20) }).GOOGLE_MAPS_EMBED_KEY).toBe("k".repeat(20));
+    expect(() => loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "corta" })).toThrow("GOOGLE_MAPS_EMBED_KEY");
+    let message = "";
+    try {
+      loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "corta" });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toContain("corta");
+  });
+
   it("TRUST_PROXY acepta false, un número de saltos o una lista de IP/CIDR, y nunca true", () => {
     expect(loadEnv({ ...base, TRUST_PROXY: "0" }).TRUST_PROXY).toBe(false);
     expect(loadEnv({ ...base, TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);

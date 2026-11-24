@@ -6,6 +6,7 @@ import { buildApp } from "./http/app.js";
 import { systemClock, type Clock } from "./lib/clock.js";
 import { defaultTemplates } from "./mail/templates.js";
 import { createDeviceService, type DeviceService } from "./modules/auth/devices.js";
+import { createLoginService, type LoginService } from "./modules/auth/login-service.js";
 import { createLoginThrottle, type LoginThrottle } from "./modules/auth/login-throttle.js";
 import { createMfaService, type MfaService } from "./modules/auth/totp.js";
 import { registerMfaRoutes } from "./modules/auth/mfa-routes.js";
@@ -36,6 +37,13 @@ import { registerPatientDetailRoutes } from "./modules/patients/detail-routes.js
 import { registerLegalRoutes } from "./modules/legal/routes.js";
 import { registerSupportRoutes } from "./modules/support/support-routes.js";
 import { registerCalendarRoutes } from "./modules/calendar/routes.js";
+import { registerSiteDoctorRoutes } from "./modules/site/doctor-routes.js";
+import { registerSitePatientRoutes } from "./modules/site/patient-routes.js";
+import { registerSitePublicRoutes } from "./modules/site/public-routes.js";
+import { createEntryService, type EntryService } from "./modules/site/entry-service.js";
+import { createLogoStorage, type LogoStorage } from "./modules/site/logo-storage.js";
+import { createAppointmentLinks, type AppointmentLinks } from "./modules/site/appointment-links.js";
+import { createSiteResolver, type SiteResolver } from "./modules/site/site-resolver.js";
 
 export interface Services {
   env: Env;
@@ -53,12 +61,19 @@ export interface Services {
   patients: PatientRegistration;
   dependents: DependentsService;
   throttle: LoginThrottle;
+  login: LoginService;
   devices: DeviceService;
   reauth: Reauth;
   mfa: MfaService;
   invitations: InvitationService;
   memberships: MembershipService;
   tenants: TenantResolver;
+  /** Micrositio: resuelve el médico desde el nombre del enlace (única vía al contexto de paciente). */
+  site: SiteResolver;
+  links: AppointmentLinks;
+  entry: EntryService;
+  /** Logos de los micrositios (directorio privado). */
+  logos: LogoStorage;
 }
 
 export interface ComposeOptions {
@@ -84,9 +99,12 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   const legal = createLegalService(db, clock);
   const cedulaStorage = createCedulaStorage(env.CEDULA_STORAGE_DIR);
   const throttle = createLoginThrottle(db, clock, env.SESSION_SECRET);
+  const devices = createDeviceService(db, clock, env.SESSION_SECRET);
   // En producción, los avisos provisionales (sin revisión legal) bloquean las altas.
   const blockProvisional = env.APP_ENV === "production";
   const tokens = createOneTimeTokenService(db, clock);
+  const login = createLoginService({ db, sessions, hasher, throttle, devices, clock });
+  const patients = createPatientRegistration({ db, hasher, legal, clock, blockProvisional });
   const services: Services = {
     env,
     db,
@@ -100,15 +118,20 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     doctors: createDoctorService({ db, hasher, legal, cedulaStorage, clock, supportEmail: env.SUPPORT_EMAIL, blockProvisional }),
     doctorGuards: createDoctorGuards(db),
     support: createSupportService(db, clock),
-    patients: createPatientRegistration({ db, hasher, legal, clock, blockProvisional }),
+    patients,
     dependents: createDependentsService({ db, legal, clock }),
     throttle,
-    devices: createDeviceService(db, clock, env.SESSION_SECRET),
+    devices,
+    login,
     reauth: createReauth(db, hasher, throttle),
     mfa: createMfaService(db, clock, env.MFA_ENCRYPTION_KEY),
     invitations: createInvitationService({ db, tokens, legal, hasher, clock, blockProvisional }),
     memberships: createMembershipService({ db, sessions, clock }),
     tenants: createTenantResolver(db),
+    site: createSiteResolver(db),
+    links: createAppointmentLinks({ db, tokens, clock }),
+    entry: createEntryService({ login, patients, sessions }),
+    logos: createLogoStorage(env.LOGO_STORAGE_DIR),
   };
 
   // Garantiza que existan los textos legales (provisionales); en producción bloquean las altas hasta revisarse.
@@ -142,6 +165,9 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   // Soporte aprueba cuentas y ve cédulas: exige sesión de soporte con doble factor verificado (ver support-mfa.ts).
   registerSupportRoutes(app, services);
   registerCalendarRoutes(app, services);
+  registerSitePublicRoutes(app, services);
+  registerSitePatientRoutes(app, services);
+  registerSiteDoctorRoutes(app, services);
 
   return { app, services };
 }

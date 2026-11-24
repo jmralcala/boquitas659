@@ -20,6 +20,8 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | sí en producción | Transporte de correo | `smtp.example.com` |
 | `SUPPORT_EMAIL` | no (`soporte@innvend.com`) | Destino del aviso de nuevas solicitudes de médicos | `soporte@innvend.com` |
 | `CEDULA_STORAGE_DIR` | sí | Directorio privado, **fuera de la raíz pública**, para los archivos de cédula | `./storage/cedulas` |
+| `LOGO_STORAGE_DIR` | no (`<CEDULA_STORAGE_DIR>/logos`) | Directorio privado, **fuera de la raíz pública**, para los logos de los micrositios | `./storage/logos` |
+| `GOOGLE_MAPS_EMBED_KEY` | no | Clave de Google Maps Embed para el mapa del micrositio. Sin ella se muestra solo la dirección en texto. Restringirla por referente (`PUBLIC_BASE_URL`) y fijar una cuota diaria en la consola del proveedor (tope de gasto) | (la entrega Google) |
 | `RIGHTS_CONTACT_EMAIL` | no (`soporte@innvend.com`) | Canal para derechos ARCO (provisional hasta revisión legal) | `soporte@innvend.com` |
 | `RIGHTS_RESPONSE_DAYS` | no (`20`) | Plazo de respuesta a derechos ARCO en días hábiles (provisional hasta revisión legal) | `20` |
 
@@ -88,3 +90,21 @@ La agenda no añade variables de entorno. Se usa `SESSION_SECRET` para firmar lo
 - [ ] Configurar el horario de un médico de prueba, agendar, cancelar y bloquear con conflicto, y ver llegar los dos correos con SMTP real.
 - [ ] Comprobar que `Intl` conoce las zonas de la lista en el Node del hosting.
 - [ ] Comprobar en MariaDB que el disparador de `0010` (IF … END IF en una sola sentencia) se crea y que `npm run jobs:cleanup` borra filas de más de 90 días y no las recientes.
+
+## Micrositio y reserva del paciente (feature 003)
+
+Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_EMBED_KEY`. Sin la clave del mapa el micrositio muestra solo la dirección en texto. Restringe la clave por referente (`PUBLIC_BASE_URL`) y fija una cuota diaria en la consola de Google (tope de gasto).
+
+- **Migraciones**: `0011_site.sql` (micrositio, autorización de datos, vínculo con origen y revocación, límite de cancelación, recordatorios) y `0012_site_support_actor.sql` (rol `support` en el registro de acciones). Como las anteriores, los disparadores requieren `log_bin_trust_function_creators = 1` en el servidor local si el registro binario está activo.
+- **Cron**: `npm run jobs:outbox` (cada minuto) ahora también encola los recordatorios (30 h antes con el límite de 24 h) antes de enviar los correos; no hay tareas nuevas.
+- **Límites**: ver `docs/decisions/0004-micrositio.md` (reservas, cancelaciones, IP, enlaces de correo).
+- **Cambiar el nombre de un enlace** (soporte): `npm run support:change-slug` pide el correo de soporte, el nombre actual y el nuevo, y exige confirmar. El enlace anterior deja de funcionar.
+- **Archivos**: los logos viven en `LOGO_STORAGE_DIR` (fuera de la raíz pública); respáldalo junto con las cédulas.
+
+### Humo de despliegue del micrositio (pendiente)
+- [ ] `npm run migrate` aplica `0011` y `0012` en MariaDB (disparadores, enumeraciones y llaves nuevas).
+- [ ] Repetir contra MariaDB las pruebas de concurrencia de reservas, cancelaciones y revocación.
+- [ ] Publicar un micrositio de prueba, entrar como paciente nuevo y existente, reservar, y ver llegar la confirmación (con enlace y `Reply-To`) y el aviso al médico con SMTP real.
+- [ ] Comprobar que el cron de `jobs:outbox` envía el recordatorio y que el mapa carga con la clave real y respeta la cuota.
+- [ ] Cancelar desde el enlace del correo y revocar un vínculo; comprobar los avisos.
+- [ ] Medir en el piloto: tiempo para reservar (SC-001), finalización (SC-002) y entrega de correos en 5 minutos (SC-005).
