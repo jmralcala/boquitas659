@@ -126,7 +126,7 @@ El paciente puede cancelar su cita de urgencia en cualquier momento antes de que
 
 ### User Story 7 - Micrositio sin servicio y contenido provisional (Priority: P2)
 
-Si el consultorio no acepta reservas en línea (micrositio despublicado, médico no aprobado o cuenta en solo lectura), no se ofrece el botón de urgencia y se muestra que confirme directamente por teléfono. Los textos del triaje (descripciones de las cinco opciones, indicaciones de primeros auxilios y aviso de acudir a un hospital) son **provisionales** hasta que un dentista los valide; en producción no se muestran a pacientes reales mientras sigan siendo provisionales.
+Si el consultorio no acepta reservas en línea (micrositio despublicado, médico no aprobado o cuenta en solo lectura), no se ofrece el botón de urgencia y se muestra que confirme directamente por teléfono. (La cuenta en solo lectura o suspendida la fija soporte desde el panel de la feature 5; la urgencia se rechaza igual que la reserva.) Los textos del triaje (descripciones de las cinco opciones, indicaciones de primeros auxilios y aviso de acudir a un hospital) son **provisionales** hasta que un dentista los valide; en producción no se muestran a pacientes reales mientras sigan siendo provisionales.
 
 **Why this priority**: Mantiene la coherencia con la feature 3 y cumple la constitución (el contenido médico lo valida un dentista antes de mostrarse a pacientes reales).
 

@@ -77,3 +77,5 @@ Cada ruta: sin sesión (401 o redirección a la entrada del micrositio), rol no 
 `POST` (403), validación (400). Además: micrositio nunca publicado (404 idéntico a ruta inexistente), despublicado (aviso
 con teléfono), reserva con micrositio despublicado (403), 409 por horario ocupado, 429 por límites, enlace abierto 100 veces
 sin cambios, enlace de otra cuenta (410 genérico).
+
+> Feature 5: soporte cambia el nombre del enlace desde el panel (`/soporte/micrositios/:doctorId/enlace`); el nombre anterior queda reservado 90 días para su dueño y un micrositio de un médico suspendido o en solo lectura no acepta reservas.

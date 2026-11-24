@@ -58,6 +58,20 @@ const BACKOFF_CAP_MINUTES = 60;
 /** Señal interna: la plantilla pidió cancelar el correo; se revierte la transacción y se marca como cancelado. */
 class CancelSignal extends Error {}
 
+/** Códigos cerrados del último fallo de envío (los ve soporte): nunca texto del servidor ni datos. */
+export type MailErrorCode = "smtp_unreachable" | "smtp_rejected" | "smtp_timeout" | "template_error" | "other";
+
+/** Clasifica un error de envío en un código cerrado a partir de su tipo y su código, sin leer su mensaje. */
+export function classifyMailError(error: unknown): MailErrorCode {
+  const info = error as { name?: string; code?: string; responseCode?: number };
+  const code = String(info.code ?? "");
+  if (code === "UNKNOWN_TEMPLATE" || info.name === "SyntaxError") return "template_error";
+  if (/^(ETIMEDOUT|ESOCKETTIMEDOUT|ETIME)$/.test(code)) return "smtp_timeout";
+  if (/^(ECONNECTION|ECONNREFUSED|ECONNRESET|ESOCKET|EDNS|ENOTFOUND|EHOSTUNREACH|ENETUNREACH)$/.test(code)) return "smtp_unreachable";
+  if (/^(EENVELOPE|EMESSAGE|EAUTH|EPROTOCOL)$/.test(code) || typeof info.responseCode === "number") return "smtp_rejected";
+  return "other";
+}
+
 /** Copia del payload sin las claves sensibles de la plantilla. */
 function scrubbed(payload: EmailPayload, keys: readonly string[] | undefined): EmailPayload {
   if (!keys || keys.length === 0) return payload;
@@ -134,7 +148,7 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
         await deps.transport.send({ to: String(row.to_email), ...rendered });
         // Las claves sensibles se eliminan en la MISMA transacción que marca el envío.
         await connection.execute(
-          "UPDATE email_outbox SET status = 'sent', sent_at = ?, attempts = ?, locked_until = NULL, payload_ref = ? WHERE id = ?",
+          "UPDATE email_outbox SET status = 'sent', sent_at = ?, attempts = ?, locked_until = NULL, last_error_code = NULL, payload_ref = ? WHERE id = ?",
           [clock.now(), attempts, JSON.stringify(scrubbed(payload, template.sensitiveKeys)), id],
         );
       });
@@ -159,8 +173,8 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
         const clean = scrubbed(payload, template?.sensitiveKeys);
         await withTransaction(deps.db, async (connection) => {
           await connection.execute(
-            "UPDATE email_outbox SET status = 'failed', attempts = ?, locked_until = NULL, payload_ref = ? WHERE id = ?",
-            [attempts, template?.sensitiveKeys?.length ? JSON.stringify(clean) : String(row.payload_ref), id],
+            "UPDATE email_outbox SET status = 'failed', attempts = ?, locked_until = NULL, last_error_code = ?, payload_ref = ? WHERE id = ?",
+            [attempts, classifyMailError(error), template?.sensitiveKeys?.length ? JSON.stringify(clean) : String(row.payload_ref), id],
           );
           if (template?.fallbackTemplate) {
             await enqueueEmail(connection, { template: template.fallbackTemplate, to: String(row.to_email), payload: clean }, clock);
@@ -171,8 +185,8 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
       } else {
         const minutes = Math.min(2 ** (attempts - 1), BACKOFF_CAP_MINUTES);
         await deps.db.execute(
-          "UPDATE email_outbox SET attempts = ?, next_attempt_at = ?, locked_until = NULL WHERE id = ?",
-          [attempts, new Date(clock.now().getTime() + minutes * 60_000), id],
+          "UPDATE email_outbox SET attempts = ?, next_attempt_at = ?, locked_until = NULL, last_error_code = ? WHERE id = ?",
+          [attempts, new Date(clock.now().getTime() + minutes * 60_000), classifyMailError(error), id],
         );
         result.retried += 1;
         deps.log?.({ event: "send_failed", ...base });

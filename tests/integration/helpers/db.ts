@@ -426,3 +426,57 @@ export async function ensurePrivacyDocument(pool: Db): Promise<number> {
   );
   return created.insertId;
 }
+
+// --- Panel de soporte (feature 5) -----------------------------------------------------------------------------------
+
+export type AccountState = "active" | "suspended" | "read_only";
+
+/** Fija el estado operativo de un médico directamente (sin pasar por el servicio de soporte). */
+export async function setAccountState(pool: Db, doctorId: number, state: AccountState): Promise<void> {
+  await pool.execute("UPDATE doctor SET account_state = ? WHERE id = ?", [state, doctorId]);
+}
+
+/** Correo de la cola de envío en el estado que se pida (para probar la vista de soporte). */
+export async function createEmail(
+  pool: Db,
+  options: {
+    template?: string;
+    status?: "queued" | "sent" | "failed" | "cancelled";
+    attempts?: number;
+    lastErrorCode?: string | null;
+    to?: string;
+    payload?: Record<string, unknown>;
+    createdAt?: Date;
+  } = {},
+): Promise<number> {
+  const createdAt = options.createdAt ?? new Date();
+  const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
+    `INSERT INTO email_outbox (template, to_email, payload_ref, status, attempts, next_attempt_at, last_error_code, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      options.template ?? "appointment_created",
+      options.to ?? "persona.destino@example.com",
+      JSON.stringify(options.payload ?? { appointmentId: 1 }),
+      options.status ?? "queued",
+      options.attempts ?? 0,
+      createdAt,
+      options.lastErrorCode ?? null,
+      createdAt,
+    ],
+  );
+  return result.insertId;
+}
+
+/** Fila de contadores diarios del piloto. */
+export async function createMetricRow(
+  pool: Db,
+  doctorId: number,
+  day: string,
+  values: { started?: number; completed?: number; durationSum?: number; durationCount?: number; underTarget?: number } = {},
+): Promise<void> {
+  await pool.execute(
+    `INSERT INTO pilot_metric_daily (day, doctor_id, started, completed, duration_sum_seconds, duration_count, under_target_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [day, doctorId, values.started ?? 0, values.completed ?? 0, values.durationSum ?? 0, values.durationCount ?? 0, values.underTarget ?? 0],
+  );
+}

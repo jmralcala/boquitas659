@@ -133,6 +133,9 @@ describe("las funciones de src/modules/site/ reciben el contexto o están justif
   // CUENTA que derivan el contexto ellas mismas de un registro verificado (nunca de un dato que mande el cliente).
   const EXEMPT: Readonly<Record<string, string>> = {
     changeSiteSlug: "procedimiento de soporte por script (sin sesión): cambia el nombre del enlace de un micrositio",
+    changeSlugAsSupport: "soporte no es un tenant: cambia el nombre del enlace de un micrositio (panel y script)",
+    recordBookingStarted: "contador diario agregado por médico del piloto: solo conteos, sin datos de pacientes",
+    recordBookingCompleted: "contador diario agregado por médico del piloto: solo conteos, sin datos de pacientes",
     createAppointmentLinks: "fábrica",
     createEntryService: "fábrica",
     createLogoStorage: "fábrica",

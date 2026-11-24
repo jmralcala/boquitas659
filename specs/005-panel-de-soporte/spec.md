@@ -122,7 +122,7 @@ Cuando una cédula está registrada por error o por otra persona, soporte la **l
 
 - **FR-001**: El panel MUST ser accesible solo al personal de soporte autenticado con doble factor ya verificado en la sesión; cualquier otro rol o una sesión sin segundo factor MUST recibir acceso denegado.
 - **FR-002**: Toda acción de soporte que cambie un estado, y toda consulta de un dato sensible (documento de cédula), MUST registrar quién, qué, sobre qué objetivo, cuándo y el motivo cuando aplique, en un historial de solo lectura que ningún rol pueda editar ni borrar.
-- **FR-003**: Toda acción que cambie un estado MUST exigir un motivo (texto obligatorio, longitud limitada) y una confirmación explícita antes de aplicarse; un envío sin ambos MUST NOT cambiar nada.
+- **FR-003**: Toda acción que cambie un estado MUST exigir un motivo (texto obligatorio, longitud limitada) y una confirmación explícita antes de aplicarse; un envío sin ambos MUST NOT cambiar nada. Excepción vigente desde la feature 1: **aprobar** no pide motivo ni casilla y **rechazar** pide motivo pero no casilla (decisión pendiente del responsable: alinearlas con esta regla cambiaría el flujo ya probado).
 - **FR-004**: Soporte MUST NOT poder iniciar sesión como un médico, recepción o paciente ni actuar en su nombre; no existe función de impersonación.
 - **FR-005**: Las rutas del panel MUST validar toda entrada, estar protegidas contra envíos entre sitios y tener límite de peticiones; las acciones de cambio MUST ser idempotentes ante doble envío.
 
@@ -184,7 +184,7 @@ Cuando una cédula está registrada por error o por otra persona, soporte la **l
 - **Términos**: en pantallas y correos se dice «solo lectura» y «suspendida»; en la base de datos y el código, `read_only` y `suspended`.
 - **Citas de una cuenta suspendida**: se conservan y no se cancelan en bloque; avisar o reubicar a los pacientes lo decide el médico o soporte caso por caso fuera de esta feature.
 - **Textos fijos al médico**: los correos de cambio de estado usan texto estándar y provisional hasta la revisión legal, y nunca incluyen el motivo interno.
-- **Metas del piloto**: las de las decisiones del proyecto (finalización > 70 %, tiempo para reservar < 2 minutos, correos entregados > 98 %, uso en la semana 4); los criterios de «reserva completada» y «tiempo para reservar» se definen en el plan con los eventos que ya existen, sin añadir seguimiento de personas.
+- **Metas del piloto**: las de las decisiones del proyecto (finalización > 70 %, tiempo para reservar < 2 minutos, correos entregados > 98 %, uso en la semana 4); los criterios de «reserva completada» y «tiempo para reservar» se definieron en el plan: se cuenta la entrada a la pantalla de reservar (una vez por visita) y la reserva confirmada, y el tiempo corre entre ambas, con contadores diarios por médico que no identifican a nadie.
 - **Entorno**: hosting compartido con cron por minuto; las métricas se calculan al abrir el tablero sobre datos ya guardados, sin procesos permanentes ni servicios externos.
 - **Datos de pacientes**: el panel no muestra ninguno (FR-022); puede ampliarse después del piloto con una decisión nueva.
 - **Dependencias**: la feature 4 debe estar cerrada (T050 a T053) porque esta feature lee la cola de correos y el estado de las urgencias.

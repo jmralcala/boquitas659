@@ -122,3 +122,15 @@ Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_E
 - [ ] Turnstile real: formulario, rechazo con token inválido y pantalla de «no disponible».
 - [ ] Aviso al médico con SMTP real: llega en menos de 3 min y la categoría desaparece de la cola.
 - [ ] Validación del contenido por un dentista y cambio de `reviewedByDentist`.
+
+### Panel de soporte (feature 5)
+- Migración `0014_support_panel.sql` (estado de cuenta del médico, historial de solo anexar, reserva de enlaces, contadores del piloto, código de fallo de correos). Sin variables de entorno nuevas ni cron nuevo.
+- El panel vive en `/soporte` y exige el doble factor de soporte. Las cuentas de soporte se siguen creando con `scripts/create-support-user.ts`.
+- `scripts/change-site-slug.ts` se conserva y usa el mismo servicio que el panel (con reserva del enlace anterior por 90 días).
+
+### Humo de despliegue del panel de soporte (pendiente)
+- [ ] `npm run migrate` aplica `0014` en MariaDB (disparadores de solo anexar incluidos).
+- [ ] Repetir contra MariaDB las pruebas de concurrencia de acciones de soporte con reservas entrantes.
+- [ ] Suspender, poner en solo lectura y reactivar una cuenta de prueba; ver llegar los tres avisos con SMTP real, sin el motivo.
+- [ ] Revisar la cola de correos y reintentar un fallido real; comprobar que no aparece contenido ni destinatario completo.
+- [ ] Comparar las métricas de la primera semana del piloto con un conteo manual.

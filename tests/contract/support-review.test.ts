@@ -106,7 +106,7 @@ describe("decisiones", () => {
 
   it("liberar la cédula pone NULL en cédula y móvil y permite registrarlos de nuevo", async () => {
     const doctor = await createDoctor(pool, { status: "pending" });
-    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/liberar-cedula`, { _csrf: support.csrf, reason: "Registrada por error" }, support.cookie);
+    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/liberar-cedula`, { _csrf: support.csrf, reason: "Registrada por error", confirm: "yes" }, support.cookie);
     expect(response.statusCode).toBe(303);
     const [rows] = await pool.query<RowDataPacket[]>("SELECT cedula_normalized, emergency_mobile FROM doctor WHERE id = ?", [doctor.doctorId]);
     expect(rows[0]).toEqual({ cedula_normalized: null, emergency_mobile: null });
@@ -143,5 +143,36 @@ describe("archivo de la cédula", () => {
 
     const falso = await createDoctor(pool, { status: "pending", cedulaFileName: "../../etc/passwd" });
     expect((await t.app.inject({ method: "GET", url: `/soporte/medicos/${falso.doctorId}/cedula`, headers: { cookie: support.cookie, accept: "application/json" } })).statusCode).toBe(404);
+  });
+});
+
+describe("historial de soporte", () => {
+  it("aprobar, rechazar y liberar la cédula dejan su entrada con autor y fecha en la misma operación", async () => {
+    const [users] = await pool.query<RowDataPacket[]>("SELECT id FROM `user` WHERE role = 'support' LIMIT 1");
+    const supportId = Number(users[0]?.id);
+    const approved = await createDoctor(pool, { status: "pending" });
+    const rejected = await createDoctor(pool, { status: "pending" });
+    const released = await createDoctor(pool, { status: "pending" });
+    await postForm(t.app, `/soporte/medicos/${approved.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
+    await postForm(t.app, `/soporte/medicos/${rejected.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible" }, support.cookie);
+    await postForm(t.app, `/soporte/medicos/${released.doctorId}/liberar-cedula`, { _csrf: support.csrf, reason: "Registrada por error", confirm: "yes" }, support.cookie);
+    const [rows] = await pool.query<RowDataPacket[]>("SELECT support_user_id, action, target_type, target_id, reason, occurred_at FROM support_action_log ORDER BY id");
+    expect(rows.map((row) => [row.action, row.target_id, row.reason])).toEqual([
+      ["approve", approved.doctorId, null],
+      ["reject", rejected.doctorId, "Cédula ilegible"],
+      ["release_cedula", released.doctorId, "Registrada por error"],
+    ]);
+    for (const row of rows) {
+      expect(row.support_user_id).toBe(supportId);
+      expect(row.target_type).toBe("doctor");
+      expect(row.occurred_at).toBeInstanceOf(Date);
+    }
+  });
+
+  it("una aprobación rechazada por estado (409) no deja entrada", async () => {
+    const doctor = await createDoctor(pool, { status: "approved" });
+    await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
+    const [rows] = await pool.query<RowDataPacket[]>("SELECT id FROM support_action_log");
+    expect(rows).toEqual([]);
   });
 });

@@ -222,13 +222,16 @@ export interface BookingPageOptions {
   needsAuthorization: boolean;
   /** La urgencia en línea está disponible (contenido médico validado y CAPTCHA configurado en producción). */
   urgentOffered: boolean;
+  /** Hora de entrada a la pantalla de reservar, firmada: viaja en los enlaces y en el formulario (solo para medir el tiempo). */
+  track?: string;
   errors: FieldErrors;
   /** Aviso al volver a mostrar la página (por ejemplo, el horario elegido ya no está disponible). */
   notice?: string;
 }
 
-function monthCalendar(slug: string, month: MonthView): SafeHtml {
+function monthCalendar(slug: string, month: MonthView, track?: string): SafeHtml {
   const base = `/c/${slug}/reservar`;
+  const trackParam = track ? `&a=${encodeURIComponent(track)}` : "";
   const first = month.days[0];
   const offset = first ? weekdayOfLocalDate(first.date) - 1 : 0;
   const cells: (SafeHtml | null)[] = Array.from({ length: offset }, () => null);
@@ -236,7 +239,7 @@ function monthCalendar(slug: string, month: MonthView): SafeHtml {
     const number = Number(entry.date.slice(8));
     cells.push(
       entry.enabled
-        ? html`<a href="${base}?fecha=${entry.date}" aria-label="${entry.date}, ${entry.freeCount} horarios libres">${number}</a>`
+        ? html`<a href="${base}?fecha=${entry.date}${trackParam}" aria-label="${entry.date}, ${entry.freeCount} horarios libres">${number}</a>`
         : html`<span aria-disabled="true">${number}</span>`,
     );
   }
@@ -245,8 +248,8 @@ function monthCalendar(slug: string, month: MonthView): SafeHtml {
   const label = monthNameFormatter.format(new Date(`${month.month}-01T00:00:00Z`));
   return html`<h2>${label}</h2>
 <p>
-  ${month.prevMonth ? html`<a href="${base}?mes=${month.prevMonth}">« Mes anterior</a>` : null}
-  ${month.nextMonth ? html`<a href="${base}?mes=${month.nextMonth}">Mes siguiente »</a>` : null}
+  ${month.prevMonth ? html`<a href="${base}?mes=${month.prevMonth}${trackParam}">« Mes anterior</a>` : null}
+  ${month.nextMonth ? html`<a href="${base}?mes=${month.nextMonth}${trackParam}">Mes siguiente »</a>` : null}
 </p>
 <table>
   <thead><tr>${WEEKDAY_HEADERS.map((name) => html`<th scope="col">${name}</th>`)}</tr></thead>
@@ -273,7 +276,7 @@ ${day.slots.length > 0
 ${day.slots.map(
   (slot) => html`<label><input type="radio" name="inicio" value="${slot.startLocal}"${options.selectedStart === slot.startLocal ? html` checked` : null} required> ${formatTime(day.timezone, slot.startUtc)}</label>`,
 )}</fieldset>`,
-        html`<label>Paciente
+        html`${options.track ? html`<input type="hidden" name="abierto" value="${options.track}">` : null}<label>Paciente
   <select name="patientId" required>
     ${options.patients.map((patient) => html`<option value="${patient.id}"${options.selectedPatientId === patient.id ? html` selected` : null}>${patient.name}</option>`)}
   </select></label>${errorList(errors.patientId)}
@@ -295,7 +298,7 @@ ${day.slots.map(
 <p>Agenda tu cita: elige un día y un horario.</p>
 ${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
 ${errorList(errors._)}
-${monthCalendar(options.slug, options.month)}
+${monthCalendar(options.slug, options.month, options.track)}
 ${dayContent}
 ${options.urgentOffered ? html`<p><a href="${base}/urgencia">Tengo una urgencia</a></p>` : null}
 <p><a href="/pacientes/citas">Mis citas</a></p>`;

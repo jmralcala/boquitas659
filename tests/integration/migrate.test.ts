@@ -96,6 +96,8 @@ describe("runMigrations", () => {
       "data_authorization_no_update",
       "patient_access_log_no_delete",
       "patient_access_log_no_update",
+      "support_action_log_no_delete",
+      "support_action_log_no_update",
     ]);
   });
 });

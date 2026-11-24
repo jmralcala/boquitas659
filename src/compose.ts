@@ -26,6 +26,10 @@ import { registerDoctorStatusRoutes } from "./modules/doctors/status-routes.js";
 import { createLegalService, type LegalService } from "./modules/legal/legal-service.js";
 import { seedProvisionalDocuments } from "./modules/legal/seed-provisional.js";
 import { createSupportService, type SupportService } from "./modules/support/support-service.js";
+import { createAccountStateService, type AccountStateService } from "./modules/support/account-state-service.js";
+import { createMailQueueService, type MailQueueService } from "./modules/support/mail-queue-service.js";
+import { createMetricsService, type MetricsService } from "./modules/support/metrics-service.js";
+import { createSiteAdminService, type SiteAdminService } from "./modules/support/site-admin-service.js";
 import { createDependentsService, type DependentsService } from "./modules/patients/dependents-service.js";
 import { createPatientRegistration, type PatientRegistration } from "./modules/patients/registration-service.js";
 import { registerPatientRoutes } from "./modules/patients/routes.js";
@@ -60,6 +64,10 @@ export interface Services {
   doctors: DoctorService;
   doctorGuards: DoctorGuards;
   support: SupportService;
+  accountState: AccountStateService;
+  mailQueue: MailQueueService;
+  siteAdmin: SiteAdminService;
+  metrics: MetricsService;
   patients: PatientRegistration;
   dependents: DependentsService;
   throttle: LoginThrottle;
@@ -136,6 +144,10 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     doctors: createDoctorService({ db, hasher, legal, cedulaStorage, clock, supportEmail: env.SUPPORT_EMAIL, blockProvisional }),
     doctorGuards: createDoctorGuards(db),
     support: createSupportService(db, clock),
+    accountState: createAccountStateService({ db, sessions, clock }),
+    mailQueue: createMailQueueService({ db, templates: defaultTemplates, clock }),
+    siteAdmin: createSiteAdminService({ db, clock }),
+    metrics: createMetricsService({ db, clock }),
     patients,
     dependents: createDependentsService({ db, legal, clock }),
     throttle,

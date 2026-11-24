@@ -101,3 +101,5 @@ Cualquier ruta autenticada responde 403 con redirección a `/legal/aceptar` si f
 - `npm run jobs:outbox`: procesa `email_outbox` con reintentos (cron cada minuto; idempotente).
 - `npm run jobs:cleanup`: borra tokens vencidos, sesiones vencidas y correos entregados antiguos.
 - `npm run support:create`: crea una cuenta de soporte (pide la contraseña por entrada estándar).
+
+> Feature 5: las rutas de médico y recepción rechazan una cuenta suspendida (403) y las escrituras de una cuenta en solo lectura; ver `specs/005-panel-de-soporte/contracts/http-routes.md`. La vista mínima de soporte (FR-007) quedó ampliada en el panel de la feature 5 y el supuesto abierto 10 (liberar una cédula en disputa) quedó resuelto allí.

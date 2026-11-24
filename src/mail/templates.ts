@@ -6,6 +6,7 @@ import { doctorTemplates } from "../modules/doctors/email-templates.js";
 import { calendarTemplates } from "../modules/calendar/email-templates.js";
 import { siteTemplates } from "../modules/site/email-templates.js";
 import { urgentTemplates } from "../modules/urgent/email-templates.js";
+import { supportTemplates } from "../modules/support/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
 export type EmailPayload = Readonly<Record<string, string | number | null>>;
@@ -68,4 +69,5 @@ export const defaultTemplates: Record<string, EmailTemplate> = {
   ...calendarTemplates,
   ...siteTemplates,
   ...urgentTemplates,
+  ...supportTemplates,
 };

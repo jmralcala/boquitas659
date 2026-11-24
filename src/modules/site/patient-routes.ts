@@ -15,6 +15,7 @@ import {
   patientAppointmentPage,
   revokeOfficePage,
 } from "../../http/views/site.js";
+import { signOpenedAt, verifyOpenedAt } from "../../lib/signed-timestamp.js";
 import type { TenantContext } from "../../lib/tenant.js";
 import { utcToLocal } from "../../lib/zoned-time.js";
 import { DEVICE_COOKIE, setDeviceCookie } from "../auth/devices.js";
@@ -24,6 +25,7 @@ import { getDayView, getMonthView, type DayView } from "./availability-view.js";
 import { urgentContentAvailable } from "../urgent/triage-content.js";
 import { hasActiveAuthorization } from "./authorization.js";
 import { reserveAsPatient } from "./booking-service.js";
+import { recordBookingCompleted, recordBookingStarted } from "./metrics-hooks.js";
 import { listOffices, previewRevocation, revoke } from "./offices-service.js";
 import { cancelAsPatient, getForAccount, listForAccount } from "./patient-appointments.js";
 import type { PublishedSite } from "./site-resolver.js";
@@ -37,6 +39,7 @@ const DEPENDENT_RATE_LIMIT = { config: { rateLimit: { max: 30, timeWindow: "1 ho
 const querySchema = z.object({
   mes: z.string().max(10).optional(),
   fecha: z.string().max(10).optional(),
+  a: z.string().max(80).optional(),
 });
 
 const bookingBodySchema = z.object({
@@ -62,11 +65,25 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
     return { ctx: resolved.ctx, site: resolved.site, userId: resolved.auth.userId };
   }
 
+  /** Secreto de la sesión con el que se firma la hora de entrada (el mismo de la protección CSRF de esa sesión). */
+  function requireAuthSecret(request: FastifyRequest): string {
+    return requireAuth(request).csrfSecret;
+  }
+
+  /** Mide sin poner en riesgo la reserva: un error del contador se registra (sin datos) y se sigue. */
+  async function measure(kind: "started" | "completed", action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      app.log.error({ event: "pilot_metric_failed", kind, errorName: (error as Error).name }, "No se pudo contar la métrica del piloto.");
+    }
+  }
+
   async function renderBooking(
     request: FastifyRequest,
     reply: FastifyReply,
     resolved: { ctx: TenantContext; site: PublishedSite; userId: number },
-    options: { fecha: string | null; mes: string | null; selectedPatientId?: number | null; selectedStart?: string | null; errors?: Readonly<Record<string, readonly string[]>>; notice?: string },
+    options: { fecha: string | null; mes: string | null; track?: string; selectedPatientId?: number | null; selectedStart?: string | null; errors?: Readonly<Record<string, readonly string[]>>; notice?: string },
   ): Promise<{ html: string; json: unknown }> {
     const now = services.clock.now();
     const { ctx, site, userId } = resolved;
@@ -100,6 +117,7 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
         selectedStart: options.selectedStart ?? null,
         needsAuthorization,
         urgentOffered: urgentContentAvailable(services.env.APP_ENV) && services.captchaConfigured,
+        ...(options.track ? { track: options.track } : {}),
         errors: options.errors ?? {},
         ...(options.notice !== undefined ? { notice: options.notice } : {}),
       }),
@@ -120,7 +138,13 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
     const resolved = await patientSite(request, slug);
     const parsed = querySchema.safeParse(request.query ?? {});
     if (!parsed.success) throw new ValidationError({ fecha: ["Elige una fecha válida."] });
-    const rendered = await renderBooking(request, reply, resolved, { fecha: parsed.data.fecha ?? null, mes: parsed.data.mes ?? null });
+    // Medición del piloto (agregada, sin identificar a nadie): entrar a la pantalla cuenta una vez; los enlaces del calendario
+    // llevan la hora de entrada firmada, así que navegar entre días y meses no vuelve a contar.
+    const secret = requireAuthSecret(request);
+    const opened = verifyOpenedAt(secret, parsed.data.a, services.clock.now());
+    const track = opened && parsed.data.a ? parsed.data.a : signOpenedAt(secret, services.clock.now());
+    if (!opened) await measure("started", () => recordBookingStarted(services.db, resolved.ctx.doctorId, services.clock.now()));
+    const rendered = await renderBooking(request, reply, resolved, { fecha: parsed.data.fecha ?? null, mes: parsed.data.mes ?? null, track });
     if (wantsJson(request)) return reply.send(rendered.json);
     return reply.type("text/html; charset=utf-8").send(rendered.html);
   });
@@ -135,6 +159,7 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
       const rendered = await renderBooking(request, reply, resolved, {
         fecha,
         mes: null,
+        track: typeof body.abierto === "string" && verifyOpenedAt(requireAuthSecret(request), body.abierto, services.clock.now()) ? body.abierto : signOpenedAt(requireAuthSecret(request), services.clock.now()),
         selectedPatientId: Number(body.patientId) || null,
         selectedStart: startLocal || null,
         ...extra,
@@ -159,6 +184,14 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
         patientId: parsed.data.patientId,
         authorize: parsed.data.autorizo === "yes",
       });
+      if (result.created) {
+        // Después de confirmar la reserva y fuera del bloqueo del calendario: una falla del contador nunca deshace ni impide una reserva.
+        const now = services.clock.now();
+        await measure("completed", () => {
+          const opened = verifyOpenedAt(requireAuthSecret(request), body.abierto, now);
+          return recordBookingCompleted(services.db, resolved.ctx.doctorId, now, opened ? (now.getTime() - opened.getTime()) / 1000 : null);
+        });
+      }
       return reply.redirect(`/pacientes/citas/${result.id}`, 303);
     } catch (error) {
       if (error instanceof ValidationError) return rerender(400, { errors: error.fields ?? {} });

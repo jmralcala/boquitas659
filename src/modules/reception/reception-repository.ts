@@ -115,24 +115,26 @@ export async function insertMembership(
   return result.insertId;
 }
 
-/** Vínculo vigente de una persona con un médico APROBADO. Es la comprobación que se repite en cada petición. */
+/** Vínculo vigente de una persona con un médico APROBADO y no suspendido. Es la comprobación que se repite en cada petición. */
 export async function hasActiveMembership(executor: Executor, receptionUserId: number, doctorId: number): Promise<boolean> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT 1 AS ok FROM reception_membership m JOIN doctor d ON d.id = m.doctor_id
-      WHERE m.reception_user_id = ? AND m.doctor_id = ? AND m.active_flag = 1 AND d.approval_status = 'approved' LIMIT 1`,
+      WHERE m.reception_user_id = ? AND m.doctor_id = ? AND m.active_flag = 1 AND d.approval_status = 'approved'
+        AND d.account_state <> 'suspended' LIMIT 1`,
     [receptionUserId, doctorId],
   );
   return rows.length > 0;
 }
 
-/** Médicos aprobados con los que la persona tiene vínculo vigente. */
+/** Médicos aprobados y no suspendidos con los que la persona tiene vínculo vigente. */
 export async function listDoctorsForReception(
   executor: Executor,
   receptionUserId: number,
 ): Promise<{ doctorId: number; fullName: string }[]> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT d.id, d.full_name FROM reception_membership m JOIN doctor d ON d.id = m.doctor_id
-      WHERE m.reception_user_id = ? AND m.active_flag = 1 AND d.approval_status = 'approved' ORDER BY d.full_name, d.id`,
+      WHERE m.reception_user_id = ? AND m.active_flag = 1 AND d.approval_status = 'approved' AND d.account_state <> 'suspended'
+      ORDER BY d.full_name, d.id`,
     [receptionUserId],
   );
   return rows.map((row) => ({ doctorId: Number(row.id), fullName: String(row.full_name) }));

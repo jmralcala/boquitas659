@@ -44,7 +44,7 @@ export interface SiteLookup extends SiteRecord {
 export async function findSiteBySlug(executor: Executor, slug: string): Promise<SiteLookup | null> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT s.doctor_id, s.slug, s.address, s.logo_file, s.status, s.first_published_at, s.published_at,
-            d.full_name AS doctor_name, d.office_phone, d.approval_status
+            d.full_name AS doctor_name, d.office_phone, d.approval_status, d.account_state
        FROM doctor_site s JOIN doctor d ON d.id = s.doctor_id
       WHERE s.slug = ?`,
     [slug],
@@ -55,7 +55,8 @@ export async function findSiteBySlug(executor: Executor, slug: string): Promise<
     ...toRecord(row),
     doctorName: String(row.doctor_name),
     officePhone: row.office_phone === null ? null : String(row.office_phone),
-    doctorApproved: row.approval_status === "approved",
+    // «Aprobado» aquí significa que el consultorio puede aceptar reservas: cédula aprobada y cuenta activa (ni suspendida ni en solo lectura).
+    doctorApproved: row.approval_status === "approved" && row.account_state === "active",
   };
 }
 
@@ -69,6 +70,12 @@ export async function findSiteForDoctor(ctx: StaffContext, executor: Executor): 
  * lo consigue y el otro recibe `slug_taken` (sin bloqueos sobre rangos vacíos).
  */
 export async function insertSiteName(ctx: StaffContext, executor: Executor, slug: string, now: Date): Promise<"ok" | "slug_taken"> {
+  // Un nombre que fue de otro consultorio queda reservado para él durante 90 días (cambio de enlace hecho por soporte).
+  const [reserved] = await executor.execute<RowDataPacket[]>(
+    "SELECT doctor_id FROM site_slug_reservation WHERE slug = ? AND reserved_until > ? AND doctor_id <> ?",
+    [slug, now, ctx.doctorId],
+  );
+  if (reserved.length > 0) return "slug_taken";
   try {
     await executor.execute("INSERT INTO doctor_site (doctor_id, slug, status, created_at, updated_at) VALUES (?, ?, 'draft', ?, ?)", [
       ctx.doctorId,
@@ -76,6 +83,13 @@ export async function insertSiteName(ctx: StaffContext, executor: Executor, slug
       now,
       now,
     ]);
+    // El INSERT puede haber esperado a que soporte confirmara un cambio de enlace que reservó este nombre: se relee con
+    // bloqueo (ve lo último confirmado) y, si quedó reservado para otro consultorio, la transacción del llamador se revierte.
+    const [late] = await executor.execute<RowDataPacket[]>(
+      "SELECT doctor_id FROM site_slug_reservation WHERE slug = ? AND reserved_until > ? AND doctor_id <> ? FOR UPDATE",
+      [slug, now, ctx.doctorId],
+    );
+    if (late.length > 0) return "slug_taken";
     return "ok";
   } catch (error) {
     const info = error as { errno?: number; sqlMessage?: string; message?: string };
@@ -108,13 +122,13 @@ export async function setStatus(ctx: StaffContext, executor: Executor, status: S
 }
 
 /**
- * ¿El consultorio acepta reservas en este momento? Micrositio publicado y médico aprobado (la misma condición con la
+ * ¿El consultorio acepta reservas en este momento? Micrositio publicado, médico aprobado y cuenta activa, sin suspender ni en solo lectura (la misma condición con la
  * que el micrositio público ofrece las opciones de reserva). Se comprueba dentro de la transacción de la reserva.
  */
 export async function isAcceptingBookings(ctx: TenantContext, executor: Executor): Promise<boolean> {
   const [rows] = await executor.execute<RowDataPacket[]>(
     `SELECT s.doctor_id FROM doctor_site s JOIN doctor d ON d.id = s.doctor_id
-      WHERE s.doctor_id = ? AND s.status = 'published' AND d.approval_status = 'approved'`,
+      WHERE s.doctor_id = ? AND s.status = 'published' AND d.approval_status = 'approved' AND d.account_state = 'active'`,
     [ctx.doctorId],
   );
   return rows.length > 0;

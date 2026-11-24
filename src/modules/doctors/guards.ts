@@ -2,6 +2,7 @@ import type { FastifyRequest, preHandlerHookHandler } from "fastify";
 import type { Db } from "../../db/pool.js";
 import { ForbiddenError } from "../../http/errors.js";
 import { requireAuth } from "../../http/session-plugin.js";
+import { assertAccountAllows } from "../reception/tenant-resolver.js";
 import { findDoctorByUserId, type Doctor } from "./doctor-repository.js";
 
 export interface DoctorGuards {
@@ -33,6 +34,7 @@ export function createDoctorGuards(db: Db): DoctorGuards {
       if (doctor.approvalStatus !== "approved") {
         throw new ForbiddenError("Tu cuenta aún no está aprobada.");
       }
+      assertAccountAllows(doctor.accountState, request.method);
     },
   };
 }

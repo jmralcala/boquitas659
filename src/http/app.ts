@@ -9,6 +9,7 @@ import { html } from "../lib/html.js";
 import type { SessionService } from "../modules/auth/sessions.js";
 import type { LegalService } from "../modules/legal/legal-service.js";
 import { installLegalGate } from "../modules/legal/legal-gate.js";
+import { accountStateOf } from "../modules/reception/tenant-resolver.js";
 import { installCsrf } from "./csrf.js";
 import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
@@ -109,9 +110,18 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   // las páginas HTML, la cabecera cubre también las respuestas de error y las imágenes.
   app.addHook("onSend", async (request, reply) => {
     const path = request.url.split("?")[0] ?? "";
-    if (path.startsWith("/c/") || path.startsWith("/citas/") || path.startsWith("/pacientes/")) {
+    if (path.startsWith("/c/") || path.startsWith("/citas/") || path.startsWith("/pacientes/") || path.startsWith("/soporte")) {
       void reply.header("x-robots-tag", "noindex, nofollow");
     }
+    // El panel de soporte nunca se cachea, ni en HTML ni en JSON.
+    if (path.startsWith("/soporte")) void reply.header("cache-control", "no-store");
+  });
+
+  // Cuenta en solo lectura (feature 5): las páginas del médico y de su recepción lo avisan arriba del contenido.
+  app.addHook("onSend", async (request, reply, payload) => {
+    if (accountStateOf(request) !== "read_only" || typeof payload !== "string") return payload;
+    if (!String(reply.getHeader("content-type") ?? "").startsWith("text/html")) return payload;
+    return payload.replace("<main>", `<main>\n<p role="status"><strong>Tu cuenta está en solo lectura:</strong> puedes consultar tu agenda, pero no modificarla.</p>`);
   });
 
   // Las páginas pueden contener códigos de recuperación, secretos TOTP, enlaces con token o datos de pacientes:

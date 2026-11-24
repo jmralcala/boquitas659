@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPatientContext } from "../../src/lib/tenant.js";
 import { reserveAsPatient } from "../../src/modules/site/booking-service.js";
 import { requestUrgent } from "../../src/modules/urgent/urgent-service.js";
-import { createTestApp, linkTokenSentTo, sessionFor, uniqueIp, type TestApp } from "./helpers/app.js";
-import { WEEKDAY_HOURS, createAppointment, createDependent, createDoctor, createPatient, createPublishedSite, createTestPool, ensurePrivacyDocument, resetDatabase } from "./helpers/db.js";
+import { createSupportWithMfa, createTestApp, linkTokenSentTo, postForm, sessionFor, uniqueIp, type TestApp } from "./helpers/app.js";
+import { WEEKDAY_HOURS, clearTables, createAppointment, createDependent, createDoctor, createEmail, createPatient, createPublishedSite, createTestPool, createUser, ensurePrivacyDocument, resetDatabase } from "./helpers/db.js";
 
 /**
  * Auditoría de rutas (T120): contrasta lo REGISTRADO con `contracts/http-routes.md` y comprueba, para todas las
@@ -40,6 +40,7 @@ const CONTRACT_FILES = [
   "specs/002-calendario-del-medico/contracts/http-routes.md",
   "specs/003-micrositio-y-reserva-del-paciente/contracts/http-routes.md",
   "specs/004-urgencias-y-triaje/contracts/http-routes.md",
+  "specs/005-panel-de-soporte/contracts/http-routes.md",
 ];
 
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
@@ -305,4 +306,71 @@ describe("urgencias: siempre con el contexto de médico", () => {
     expect(source).not.toMatch(/body\.doctorId/);
   });
 
+});
+
+describe("panel de soporte (feature 5)", () => {
+  const supportRoutes = () => registered.filter((route) => route.url.startsWith("/soporte"));
+
+  it("hay rutas de soporte y todas son GET o POST", () => {
+    expect(supportRoutes().length).toBeGreaterThanOrEqual(19);
+    expect(supportRoutes().filter((route) => !["GET", "POST"].includes(route.method))).toEqual([]);
+  });
+
+  it("ninguna ruta de soporte responde a otro rol: médico, recepción y paciente reciben 403 (GET y POST con CSRF válido)", async () => {
+    await clearTables(pool);
+    await ensurePrivacyDocument(pool);
+    const failures: string[] = [];
+    for (const role of ["doctor", "reception", "patient"] as const) {
+      const client = await sessionFor(t.services, await createUser(pool, { role }));
+      for (const route of supportRoutes()) {
+        const response =
+          route.method === "GET"
+            ? await t.app.inject({ method: "GET", url: concrete(route.url), remoteAddress: uniqueIp(), headers: { cookie: client.cookie, accept: "application/json" } })
+            : await postForm(t.app, concrete(route.url), { _csrf: client.csrf, reason: "x", confirm: "yes", from: "active", slug: "nuevo-nombre" }, client.cookie);
+        if (response.statusCode !== 403) failures.push(`${role} ${route.method} ${route.url} → ${response.statusCode}`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("los GET de /soporte no cambian estado (la única excepción es consultar la cédula, que se audita por diseño)", async () => {
+    await clearTables(pool);
+    await ensurePrivacyDocument(pool);
+    t.clock.set(new Date("2026-06-15T14:00:00.000Z"));
+    const support = await sessionFor(t.services, await createSupportWithMfa(t, pool));
+    const doctor = await createDoctor(pool);
+    await createPublishedSite(pool, doctor, { slug: "clinica-rios" });
+    const patient = await createPatient(pool);
+    await createAppointment(pool, { doctorId: doctor.doctorId, patientId: patient.patientId, startUtc: new Date("2026-06-20T16:00:00.000Z") });
+    await createEmail(pool, { status: "failed", lastErrorCode: "other" });
+    await createEmail(pool, { status: "queued" });
+    const tables = ["doctor", "user", "doctor_site", "site_slug_reservation", "pilot_metric_daily", "email_outbox", "support_action_log", "appointment", "session"];
+    const snapshot = async (): Promise<string> => {
+      const parts: unknown[] = [];
+      for (const table of tables) {
+        // El último uso de la sesión se renueva al validarla: no es un cambio de datos.
+        const sql = table === "session" ? "SELECT id, user_id, revoked_at FROM session ORDER BY 1" : `SELECT * FROM \`${table}\` ORDER BY 1`;
+        parts.push((await pool.query(sql))[0]);
+      }
+      return JSON.stringify(parts);
+    };
+    const before = await snapshot();
+    const urls = supportRoutes()
+      .filter((route) => route.method === "GET" && !route.url.endsWith("/cedula"))
+      .map((route) => concrete(route.url).replace(/\/1(?=\/|$)/g, `/${doctor.doctorId}`));
+    expect(urls.length).toBeGreaterThanOrEqual(9);
+    for (const url of urls) {
+      for (const accept of ["text/html", "application/json"]) {
+        const response = await t.app.inject({ method: "GET", url, remoteAddress: uniqueIp(), headers: { cookie: support.cookie, accept } });
+        expect(response.statusCode, url).toBeLessThan(500);
+      }
+    }
+    expect(await snapshot()).toBe(before);
+  });
+
+  it("las rutas de soporte no toman el médico ni el paciente de un cuerpo que no sea el de su propia acción", () => {
+    const source = readFileSync("src/modules/support/support-routes.ts", "utf8");
+    expect(source).not.toMatch(/body\.(?:doctorId|patientId)|request\.body[^;]*(?:doctorId|patientId)/);
+    expect(source).not.toMatch(/TenantContext|createTenantContext|createPatientContext/);
+  });
 });

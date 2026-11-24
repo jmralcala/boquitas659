@@ -63,8 +63,8 @@ Decisiones técnicas y alternativas. Las del producto están en [spec.md](spec.m
 | Urgencias agendadas frente a sin espacio | `calendar_action_log` (`urgent_requested`, `ok` / `rejected`) | conteo del periodo |
 | Citas por médico por semana | `appointment` | `COUNT` agrupado por médico y semana (solo conteos, sin pacientes) |
 | Médicos activos por semana | `calendar_action_log` con actor médico o recepción | médicos distintos con al menos una acción en la semana |
-| **Finalización de reserva** | `pilot_metric_daily` | `started` = el paciente abre el formulario de reserva con un espacio elegido; `completed` = la cita se crea |
-| **Tiempo para reservar** | `pilot_metric_daily` | el formulario lleva la hora de apertura firmada; al reservar se suma la duración y se cuenta si fue menor a 2 min |
+| **Finalización de reserva** | `pilot_metric_daily` | `started` = el paciente entra a la pantalla de reservar (una vez por visita: los enlaces del calendario llevan la hora de entrada firmada); `completed` = la cita se crea |
+| **Tiempo para reservar** | `pilot_metric_daily` | los enlaces y el formulario llevan la hora de entrada firmada; al reservar se suma la duración y se cuenta si fue menor a 2 min |
 
 - **Decisión**: contadores diarios por médico (`day`, `doctor_id`, `started`, `completed`, `duration_sum_seconds`,
   `duration_count`, `under_target_count`), actualizados con `INSERT … ON DUPLICATE KEY UPDATE` (atómico, sin lectura previa).

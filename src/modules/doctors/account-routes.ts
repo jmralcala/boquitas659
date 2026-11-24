@@ -11,6 +11,7 @@ import { html, type SafeHtml } from "../../lib/html.js";
 import { normalizeMxPhone } from "../../lib/normalize.js";
 import { enqueueEmail } from "../../mail/outbox.js";
 import { recordSecurityEvent } from "../auth/security-events.js";
+import { assertAccountAllows } from "../reception/tenant-resolver.js";
 import { findDoctorByUserId } from "./doctor-repository.js";
 
 type FieldErrors = Readonly<Record<string, readonly string[]>>;
@@ -58,6 +59,8 @@ ${form({
       if (mobile === null) throw new ValidationError({ emergencyMobile: ["Escribe un número de 10 dígitos."] });
       const doctor = await findDoctorByUserId(services.db, auth.userId);
       if (!doctor) throw new ForbiddenError();
+      // Una cuenta en solo lectura (o suspendida) no cambia el móvil que ven los pacientes en las pantallas de emergencia.
+      assertAccountAllows(doctor.accountState, request.method);
       if (doctor.emergencyMobile === mobile) {
         throw new ValidationError({ emergencyMobile: ["Ese ya es tu móvil de emergencias."] });
       }

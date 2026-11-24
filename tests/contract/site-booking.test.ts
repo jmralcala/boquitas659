@@ -79,7 +79,8 @@ describe("GET /c/:slug/reservar", () => {
     expect(response.body).toContain("Dra. Elena Ríos");
     expect(response.body).toContain("junio de 2026");
     expect(response.headers["x-robots-tag"]).toBe("noindex, nofollow");
-    expect(response.body).toContain('href="/c/clinica-rios/reservar?fecha=2026-06-16"');
+    // Los enlaces del calendario llevan la hora de entrada firmada (medición del piloto, feature 5).
+    expect(response.body).toContain('href="/c/clinica-rios/reservar?fecha=2026-06-16&amp;a=');
     expect(response.body).not.toContain("fecha=2026-06-14"); // pasado: no es un enlace
     expect(response.body).not.toContain("mes=2026-05"); // no se navega al pasado
     expect(response.body).toContain("mes=2026-07");

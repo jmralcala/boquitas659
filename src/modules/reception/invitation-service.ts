@@ -75,7 +75,7 @@ export function createInvitationService(deps: InvitationDeps): InvitationService
       if (email === null) throw new ValidationError({ email: ["Escribe un correo válido."] });
 
       const doctor = await findDoctorById(deps.db, doctorId);
-      if (!doctor || doctor.approvalStatus !== "approved") throw new ForbiddenError("Tu cuenta aún no está aprobada.");
+      if (!doctor || doctor.approvalStatus !== "approved" || doctor.accountState !== "active") throw new ForbiddenError("Tu cuenta aún no está aprobada.");
 
       const existing = await accountRoleOf(email);
       if (existing && existing.role !== "reception") throw new ValidationError({ email: [GENERIC_EMAIL] });
@@ -135,7 +135,7 @@ export function createInvitationService(deps: InvitationDeps): InvitationService
       const invitation = await findInvitation(deps.db, subject.invitationId);
       if (!invitation || invitation.status !== "pending" || invitation.expiresAt.getTime() <= clock.now().getTime()) return null;
       const doctor = await findDoctorById(deps.db, invitation.doctorId);
-      if (!doctor || doctor.approvalStatus !== "approved") return null;
+      if (!doctor || doctor.approvalStatus !== "approved" || doctor.accountState !== "active") return null;
       const account = await accountRoleOf(invitation.email);
       return {
         invitationId: invitation.id,
