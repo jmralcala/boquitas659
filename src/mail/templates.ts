@@ -5,6 +5,7 @@ import { receptionTemplates } from "../modules/reception/email-templates.js";
 import { doctorTemplates } from "../modules/doctors/email-templates.js";
 import { calendarTemplates } from "../modules/calendar/email-templates.js";
 import { siteTemplates } from "../modules/site/email-templates.js";
+import { urgentTemplates } from "../modules/urgent/email-templates.js";
 
 /** Identificadores que viajan en el outbox (nunca contenido ni datos personales). */
 export type EmailPayload = Readonly<Record<string, string | number | null>>;
@@ -40,6 +41,16 @@ export interface EmailTemplate {
    * de envío (`db` es la conexión de esa transacción): la consulta debe usar `SELECT … FOR UPDATE` sobre la fila de la
    * que depende, para que cualquier cambio concurrente quede serializado con la creación del token.
    */
+  /**
+   * Claves del `payload` que son datos sensibles (por ejemplo la categoría de una urgencia): solo viven en la cola de envío
+   * y `processOutbox` las elimina del `payload_ref` al llegar el correo a un estado final (enviado, cancelado o abandonado).
+   */
+  sensitiveKeys?: readonly string[];
+  /**
+   * Plantilla que se encola (para el mismo destinatario, con el payload ya sin las claves sensibles) cuando el correo se
+   * abandona tras agotar los reintentos. Pensada para avisar de forma genérica sin el dato sensible.
+   */
+  fallbackTemplate?: string;
   shouldSend?(context: { payload: EmailPayload; db: Pick<Db, "execute">; now: Date }): Promise<boolean>;
   render(context: RenderContext): Promise<RenderedEmail> | RenderedEmail;
 }
@@ -56,4 +67,5 @@ export const defaultTemplates: Record<string, EmailTemplate> = {
   ...receptionTemplates,
   ...calendarTemplates,
   ...siteTemplates,
+  ...urgentTemplates,
 };

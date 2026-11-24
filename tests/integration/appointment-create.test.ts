@@ -4,6 +4,8 @@ import { ConflictError, NotFoundError, ValidationError } from "../../src/http/er
 import { createFixedClock } from "../../src/lib/clock.js";
 import { createTenantContext, type StaffContext } from "../../src/lib/tenant.js";
 import { createAppointment } from "../../src/modules/calendar/appointment-service.js";
+import { findAppointment, insertAppointment as insertAppointmentRow } from "../../src/modules/calendar/appointment-repository.js";
+import { withCalendarLock } from "../../src/modules/calendar/calendar-lock.js";
 import { issueTicket } from "../../src/modules/calendar/patient-picker.js";
 import {
   clearTables,
@@ -287,5 +289,46 @@ describe("createAppointment: aislamiento", () => {
     const b = await scenario();
     await createAppointment(a.ctx, deps, { startLocal: `${TUESDAY}T10:00`, patientId: a.patientId });
     await expect(createAppointment(b.ctx, deps, { startLocal: `${TUESDAY}T10:00`, patientId: b.patientId })).resolves.toBeDefined();
+  });
+});
+
+describe("createAppointment: espacios de urgencia (feature 4)", () => {
+  it("el personal puede agendar en un espacio de urgencia libre y la cita queda regular", async () => {
+    const s = await scenario();
+    await createCalendarHours(pool, s.doctor.doctorId, [{ weekday: 2, startMinute: 8 * 60, endMinute: 9 * 60, kind: "urgent" }]);
+    const result = await createAppointment(s.ctx, deps, { startLocal: `${TUESDAY}T08:00`, patientId: s.patientId });
+    const [row] = await rows("SELECT kind, status FROM appointment WHERE id = ?", [result.id]);
+    expect(row).toMatchObject({ kind: "regular", status: "booked" });
+  });
+
+  it("sin franja de urgencia ese horario no existe (comportamiento anterior)", async () => {
+    const s = await scenario();
+    await expect(createAppointment(s.ctx, deps, { startLocal: `${TUESDAY}T08:00`, patientId: s.patientId })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("tipo de cita (feature 4)", () => {
+  it("insertAppointment guarda el tipo (regular por defecto) y findAppointment lo devuelve", async () => {
+    const s = await scenario();
+    const start = localAt(MX, TUESDAY, "10:00");
+    const end = new Date(start.getTime() + 45 * 60_000);
+    const [regularId, urgentId] = await withCalendarLock(s.ctx, pool, async (connection) => [
+      await insertAppointmentRow(s.ctx, connection, { patientId: s.patientId, startUtc: start, endUtc: end, now: clock.now() }),
+      await insertAppointmentRow(s.ctx, connection, { patientId: s.patientId, startUtc: new Date(end.getTime() + 15 * 60_000), endUtc: new Date(end.getTime() + 60 * 60_000), now: clock.now(), kind: "urgent" }),
+    ]);
+    expect((await findAppointment(s.ctx, pool, regularId ?? 0))?.kind).toBe("regular");
+    expect((await findAppointment(s.ctx, pool, urgentId ?? 0))?.kind).toBe("urgent");
+    expect((await rows("SELECT kind FROM appointment ORDER BY id")).map((row) => row.kind)).toEqual(["regular", "urgent"]);
+  });
+
+  it("aislamiento: otro médico no lee la cita de urgencia", async () => {
+    const s = await scenario();
+    const other = await scenario();
+    const start = localAt(MX, TUESDAY, "10:00");
+    const id = await withCalendarLock(s.ctx, pool, (connection) =>
+      insertAppointmentRow(s.ctx, connection, { patientId: s.patientId, startUtc: start, endUtc: new Date(start.getTime() + 45 * 60_000), now: clock.now(), kind: "urgent" }),
+    );
+    expect(await findAppointment(other.ctx, pool, id)).toBeNull();
+    expect((await findAppointment(s.ctx, pool, id))?.kind).toBe("urgent");
   });
 });

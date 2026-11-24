@@ -27,7 +27,7 @@ describe("loadSettings", () => {
     const doctor = await createDoctor(pool);
     const config = await loadSettings(await ctxFor(doctor.doctorId, doctor.user.id), pool);
     expect(config).toEqual({ settings: DEFAULT_SETTINGS, hours: [], isDefault: true });
-    expect(DEFAULT_SETTINGS).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24 });
+    expect(DEFAULT_SETTINGS).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30 });
   });
 
   it("con fila y franjas las lee tal cual, ordenadas por día e inicio", async () => {
@@ -43,11 +43,11 @@ describe("loadSettings", () => {
     );
     const config = await loadSettings(await ctxFor(doctor.doctorId, doctor.user.id), pool);
     expect(config.isDefault).toBe(false);
-    expect(config.settings).toEqual({ slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90, cancelNoticeHours: 24 });
+    expect(config.settings).toEqual({ slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30 });
     expect(config.hours).toEqual([
-      { weekday: 1, startMinute: 540, endMinute: 840 },
-      { weekday: 1, startMinute: 960, endMinute: 1080 },
-      { weekday: 2, startMinute: 960, endMinute: 1080 },
+      { weekday: 1, startMinute: 540, endMinute: 840, kind: "regular" },
+      { weekday: 1, startMinute: 960, endMinute: 1080, kind: "regular" },
+      { weekday: 2, startMinute: 960, endMinute: 1080, kind: "regular" },
     ]);
   });
 

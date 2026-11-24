@@ -13,18 +13,19 @@ type Executor = Pick<Pool, "execute"> | Pick<PoolConnection, "execute">;
 /** Configuración y franjas del médico del contexto; si no ha guardado nada, los valores por defecto y sin franjas. */
 export async function loadSettings(ctx: TenantContext, executor: Executor): Promise<CalendarConfig> {
   const [settingsRows] = await executor.execute<RowDataPacket[]>(
-    `SELECT slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours
+    `SELECT slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, urgent_min_notice_minutes
        FROM calendar_settings WHERE doctor_id = ?`,
     [ctx.doctorId],
   );
   const [hourRows] = await executor.execute<RowDataPacket[]>(
-    "SELECT weekday, start_minute, end_minute FROM calendar_hours WHERE doctor_id = ? ORDER BY weekday, start_minute",
+    "SELECT weekday, start_minute, end_minute, kind FROM calendar_hours WHERE doctor_id = ? ORDER BY weekday, start_minute",
     [ctx.doctorId],
   );
   const hours: HoursRange[] = hourRows.map((row) => ({
     weekday: Number(row.weekday),
     startMinute: Number(row.start_minute),
     endMinute: Number(row.end_minute),
+    kind: row.kind === "urgent" ? "urgent" : "regular",
   }));
   const row = settingsRows[0];
   if (!row) return { settings: { ...DEFAULT_SETTINGS }, hours, isDefault: true };
@@ -36,6 +37,7 @@ export async function loadSettings(ctx: TenantContext, executor: Executor): Prom
       minNoticeMinutes: Number(row.min_notice_minutes),
       maxAdvanceDays: Number(row.max_advance_days),
       cancelNoticeHours: Number(row.cancel_notice_hours),
+      urgentMinNoticeMinutes: Number(row.urgent_min_notice_minutes),
     },
     hours,
     isDefault: false,
@@ -53,20 +55,22 @@ export async function saveSettings(ctx: StaffContext, db: Db, input: CalendarInp
     const now = clock.now();
     const { settings } = input;
     await connection.execute(
-      `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, urgent_min_notice_minutes, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE slot_minutes = VALUES(slot_minutes), gap_minutes = VALUES(gap_minutes), timezone = VALUES(timezone),
          min_notice_minutes = VALUES(min_notice_minutes), max_advance_days = VALUES(max_advance_days),
-         cancel_notice_hours = VALUES(cancel_notice_hours), updated_at = VALUES(updated_at)`,
-      [ctx.doctorId, settings.slotMinutes, settings.gapMinutes, settings.timezone, settings.minNoticeMinutes, settings.maxAdvanceDays, settings.cancelNoticeHours, now],
+         cancel_notice_hours = VALUES(cancel_notice_hours), urgent_min_notice_minutes = VALUES(urgent_min_notice_minutes),
+         updated_at = VALUES(updated_at)`,
+      [ctx.doctorId, settings.slotMinutes, settings.gapMinutes, settings.timezone, settings.minNoticeMinutes, settings.maxAdvanceDays, settings.cancelNoticeHours, settings.urgentMinNoticeMinutes, now],
     );
     await connection.execute("DELETE FROM calendar_hours WHERE doctor_id = ?", [ctx.doctorId]);
     for (const range of input.hours) {
-      await connection.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute) VALUES (?, ?, ?, ?)", [
+      await connection.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute, kind) VALUES (?, ?, ?, ?, ?)", [
         ctx.doctorId,
         range.weekday,
         range.startMinute,
         range.endMinute,
+        range.kind ?? "regular",
       ]);
     }
     await logCalendarAction(ctx, connection, { action: "settings_updated", outcome: "ok", at: now });

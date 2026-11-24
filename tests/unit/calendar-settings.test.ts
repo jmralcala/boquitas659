@@ -29,7 +29,7 @@ function fieldsOf(body: Record<string, unknown>): Record<string, readonly string
 describe("parseCalendarForm: valores válidos", () => {
   it("acepta los valores por defecto y convierte horas a minutos", () => {
     const result = parseCalendarForm(validBody());
-    expect(result.settings).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24 });
+    expect(result.settings).toEqual({ slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30 });
     expect(result.hours).toEqual([{ weekday: 1, startMinute: 540, endMinute: 840 }]);
   });
 
@@ -162,5 +162,73 @@ describe("parseCalendarForm: valores inválidos (un mensaje por campo)", () => {
     const fields = fieldsOf(validBody({ slotMinutes: "123456789", timezone: "secreto-xyz" }));
     expect(JSON.stringify(fields)).not.toContain("123456789");
     expect(JSON.stringify(fields)).not.toContain("secreto-xyz");
+  });
+});
+
+describe("parseCalendarForm: horario de urgencias (feature 4)", () => {
+  const urgentBody = (overrides: Record<string, string> = {}) => validBody({ u1_0_start: "08:00", u1_0_end: "09:00", ...overrides });
+
+  it("acepta franjas de urgencia (kind urgent) junto con las regulares y la anticipación de urgencias", () => {
+    const result = parseCalendarForm(urgentBody({ urgentMinNoticeMinutes: "45", u3_0_start: "10:00", u3_0_end: "12:00" }));
+    expect(result.settings.urgentMinNoticeMinutes).toBe(45);
+    expect(result.hours.filter((range) => range.kind === "urgent")).toEqual([
+      { weekday: 1, startMinute: 480, endMinute: 540, kind: "urgent" },
+      { weekday: 3, startMinute: 600, endMinute: 720, kind: "urgent" },
+    ]);
+    expect(result.hours.filter((range) => range.kind !== "urgent")).toEqual([{ weekday: 1, startMinute: 540, endMinute: 840 }]);
+  });
+
+  it("sin el campo, la anticipación de urgencias es 30; acepta 0 y 1440", () => {
+    expect(parseCalendarForm(validBody()).settings.urgentMinNoticeMinutes).toBe(30);
+    expect(parseCalendarForm(validBody({ urgentMinNoticeMinutes: "0" })).settings.urgentMinNoticeMinutes).toBe(0);
+    expect(parseCalendarForm(validBody({ urgentMinNoticeMinutes: " 1440 " })).settings.urgentMinNoticeMinutes).toBe(1440);
+  });
+
+  it.each(["1441", "-1", "1e3", "3.5", "abc", "", "0x10", "99999999"])("rechaza la anticipación de urgencias %j", (value) => {
+    expect(fieldsOf(validBody({ urgentMinNoticeMinutes: value })).urgentMinNoticeMinutes?.length).toBeGreaterThan(0);
+  });
+
+  it("sin franjas de urgencia no hay franjas urgent (ambos vacíos = sin franja)", () => {
+    expect(parseCalendarForm(urgentBody({ u1_0_start: "", u1_0_end: "" })).hours.some((range) => range.kind === "urgent")).toBe(false);
+  });
+
+  it("admite hasta 2 franjas por día; una tercera no existe en el formulario y se ignora", () => {
+    const result = parseCalendarForm(urgentBody({ u1_1_start: "17:00", u1_1_end: "18:00", u1_2_start: "19:00", u1_2_end: "20:00" }));
+    expect(result.hours.filter((range) => range.kind === "urgent" && range.weekday === 1)).toHaveLength(2);
+  });
+
+  it("las franjas adyacentes con las regulares valen (08:00–09:00 y 09:00–14:00)", () => {
+    expect(() => parseCalendarForm(urgentBody())).not.toThrow();
+  });
+
+  it("una franja de urgencia que se solapa con una regular del mismo día se rechaza con la clave u<día>_<franja>", () => {
+    const fields = fieldsOf(urgentBody({ u1_0_start: "08:30", u1_0_end: "09:30" }));
+    expect(Object.keys(fields)).toEqual(["u1_0"]);
+    expect(fields.u1_0?.[0]).toMatch(/solap/);
+  });
+
+  it("una franja de urgencia que se solapa con otra de urgencia se rechaza en la segunda", () => {
+    const fields = fieldsOf(urgentBody({ u1_1_start: "08:30", u1_1_end: "08:45" }));
+    expect(Object.keys(fields)).toEqual(["u1_1"]);
+  });
+
+  it("las franjas de otro día no se mezclan: la urgencia del martes no choca con la regular del lunes", () => {
+    expect(() => parseCalendarForm(urgentBody({ u2_0_start: "09:00", u2_0_end: "14:00" }))).not.toThrow();
+  });
+
+  it("valida el formato de cada franja de urgencia", () => {
+    expect(fieldsOf(urgentBody({ u1_0_end: "" })).u1_0?.length).toBeGreaterThan(0); // media franja
+    expect(fieldsOf(urgentBody({ u1_0_start: "8am" })).u1_0?.length).toBeGreaterThan(0);
+    expect(fieldsOf(urgentBody({ u1_0_start: "08:03" })).u1_0?.length).toBeGreaterThan(0); // múltiplos de 5
+    expect(fieldsOf(urgentBody({ u1_0_start: "09:00", u1_0_end: "08:00" })).u1_0?.length).toBeGreaterThan(0); // fin > inicio
+    expect(fieldsOf(urgentBody({ u1_0_start: "24:00", u1_0_end: "24:00" })).u1_0?.length).toBeGreaterThan(0);
+    expect(() => parseCalendarForm(validBody({ h1_0_start: "09:00", h1_0_end: "14:00", u2_0_start: "20:00", u2_0_end: "24:00" }))).not.toThrow(); // 24:00 solo como fin
+  });
+
+  it("los errores no repiten lo escrito ni mezclan claves de franjas regulares", () => {
+    const secret = "valor-reconocible";
+    const fields = fieldsOf(urgentBody({ u1_0_start: secret }));
+    expect(JSON.stringify(fields)).not.toContain(secret);
+    expect(Object.keys(fields)).toEqual(["u1_0"]);
   });
 });

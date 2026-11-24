@@ -3,8 +3,9 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPatientContext } from "../../src/lib/tenant.js";
 import { reserveAsPatient } from "../../src/modules/site/booking-service.js";
+import { requestUrgent } from "../../src/modules/urgent/urgent-service.js";
 import { createTestApp, linkTokenSentTo, sessionFor, uniqueIp, type TestApp } from "./helpers/app.js";
-import { createAppointment, createDoctor, createPatient, createPublishedSite, createTestPool, ensurePrivacyDocument, resetDatabase } from "./helpers/db.js";
+import { WEEKDAY_HOURS, createAppointment, createDependent, createDoctor, createPatient, createPublishedSite, createTestPool, ensurePrivacyDocument, resetDatabase } from "./helpers/db.js";
 
 /**
  * Auditoría de rutas (T120): contrasta lo REGISTRADO con `contracts/http-routes.md` y comprueba, para todas las
@@ -38,6 +39,7 @@ const CONTRACT_FILES = [
   "specs/001-cuentas-y-acceso/contracts/http-routes.md",
   "specs/002-calendario-del-medico/contracts/http-routes.md",
   "specs/003-micrositio-y-reserva-del-paciente/contracts/http-routes.md",
+  "specs/004-urgencias-y-triaje/contracts/http-routes.md",
 ];
 
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
@@ -75,6 +77,8 @@ const PUBLIC_GET = new Set([
   "/c/:slug/reservar",
   "/c/:slug/paciente-adicional",
   "/citas/enlace/:token",
+  // Feature 4: la urgencia redirige (303) sin sesión.
+  "/c/:slug/urgencia",
 ]);
 
 describe("las rutas registradas coinciden con el contrato", () => {
@@ -240,10 +244,13 @@ describe("feature 3: ningún GET de /c/ ni de /citas/ cambia estado", () => {
     await ensurePrivacyDocument(pool);
     t.clock.set(new Date("2026-06-15T14:00:00.000Z"));
     const doctor = await createDoctor(pool);
-    await createPublishedSite(pool, doctor, { slug: "clinica-rios" });
+    await createPublishedSite(pool, doctor, { slug: "clinica-rios", hours: [...WEEKDAY_HOURS, { weekday: 1, startMinute: 14 * 60, endMinute: 16 * 60, kind: "urgent" }] });
     const patient = await createPatient(pool, { email: "auditoria@example.com" });
     await reserveAsPatient(createPatientContext(doctor.doctorId, patient.user.id), { db: pool, clock: t.clock }, { startLocal: "2026-06-17T10:00", patientId: patient.patientId, authorize: true });
     await createAppointment(pool, { doctorId: doctor.doctorId, patientId: patient.patientId, startUtc: new Date("2026-06-20T16:00:00.000Z") });
+    // Una urgencia agendada deja su aviso en cola (con la categoría): recorrer los GET no debe tocarla.
+    const minor = await createDependent(pool, patient.accountId, "Menor de auditoría");
+    await requestUrgent(createPatientContext(doctor.doctorId, patient.user.id), { db: pool, clock: t.clock }, { patientId: minor, category: "naranja", authorize: true });
     const token = await linkTokenSentTo(t, "auditoria@example.com", "/citas/enlace");
     const client = await sessionFor(t.services, patient.user);
 
@@ -259,4 +266,43 @@ describe("feature 3: ningún GET de /c/ ni de /citas/ cambia estado", () => {
     }
     expect(await snapshot()).toBe(before);
   });
+});
+
+describe("urgencias: siempre con el contexto de médico", () => {
+  // Funciones que NO reciben el contexto y por qué: fábricas, utilidades puras sin datos de un médico, y las rutas.
+  const EXEMPT: Readonly<Record<string, string>> = {
+    createTurnstileVerifier: "fábrica del verificador de CAPTCHA (solo recibe un token y una IP)",
+    createDisabledVerifier: "fábrica del verificador de desarrollo",
+    createUnavailableVerifier: "fábrica del verificador de producción sin claves",
+    withTurnstileCsp: "pura: texto de la política de seguridad",
+    registerUrgentRoutes: "rutas",
+    parseCategory: "pura: valida un valor contra la lista fija",
+    parseAlarmSignals: "pura: valida un valor contra la lista fija",
+    categoryById: "pura: contenido estático del triaje",
+    urgentContentAvailable: "pura: bandera del contenido médico",
+  };
+
+  it("toda función exportada de src/modules/urgent/ recibe ctx como primer parámetro o está en la lista justificada", () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const name of readdirSync("src/modules/urgent").filter((file) => file.endsWith(".ts"))) {
+      const source = readFileSync(`src/modules/urgent/${name}`, "utf8");
+      for (const match of source.matchAll(/export (?:async )?function (\w+)(?:<[^>]*>)?\(\s*([^)]*)\)/g)) {
+        checked += 1;
+        const fn = match[1] as string;
+        if (/^_?ctx: (?:Staff|Tenant)Context\b/.test((match[2] ?? "").trim())) continue;
+        if (!(fn in EXEMPT)) offenders.push(`${name}: ${fn}`);
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(10);
+    expect(offenders).toEqual([]);
+  });
+
+  it("las rutas de urgencia obtienen el médico del enlace, nunca de la petición", () => {
+    const source = readFileSync("src/modules/urgent/routes.ts", "utf8");
+    expect(source).not.toMatch(/doctorId\s*[:=]\s*(?:request|body|params|query)/);
+    expect(source).not.toMatch(/request\.(?:body|params|query)[^;]*doctorId/);
+    expect(source).not.toMatch(/body\.doctorId/);
+  });
+
 });

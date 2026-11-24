@@ -1,7 +1,7 @@
 import type { PoolConnection } from "mysql2/promise";
 import type { Db } from "../../db/pool.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../http/errors.js";
-import { classifySlots, generateSlotsForDay, type SlotTime } from "../../lib/calendar-slots.js";
+import { STAFF_SLOT_KINDS, classifySlots, generateSlotsForDay, type SlotKind, type SlotTime } from "../../lib/calendar-slots.js";
 import type { Clock } from "../../lib/clock.js";
 import type { StaffContext, TenantContext } from "../../lib/tenant.js";
 import { daysBetweenLocalDates, isValidLocalDate, localToUtc, utcToLocal } from "../../lib/zoned-time.js";
@@ -55,6 +55,13 @@ function invalidStart(message = "Elige una fecha y hora válidas."): ValidationE
 
 type SettingsExecutor = Parameters<typeof loadSettings>[1];
 
+export { STAFF_SLOT_KINDS };
+
+export interface SlotOptions {
+  /** Tipos de espacio que cuentan. Por defecto solo los convencionales (lo que ve el paciente al reservar). */
+  kinds?: readonly SlotKind[];
+}
+
 /**
  * Espacio de la configuración vigente que empieza en `startLocal`. Lanza `ValidationError` (400) si el inicio está mal
  * formado, la hora local no existe, está a más de 730 días o no es un espacio del horario (fuera de franja o desfasado).
@@ -64,6 +71,7 @@ export async function resolveSlot(
   executor: SettingsExecutor,
   startLocal: string,
   now: Date,
+  options: SlotOptions = {},
 ): Promise<{ slot: SlotTime; timezone: string }> {
   const parsed = parseLocalStart(startLocal);
   if (!parsed) throw invalidStart();
@@ -73,7 +81,7 @@ export async function resolveSlot(
   if (daysBetweenLocalDates(utcToLocal(settings.timezone, now).date, parsed.date) > MAX_DAYS_AHEAD) {
     throw invalidStart(`Solo se puede agendar hasta ${MAX_DAYS_AHEAD} días hacia adelante.`);
   }
-  const slot = generateSlotsForDay(settings, hours, parsed.date).find((candidate) => candidate.startUtc.getTime() === startUtc.getTime());
+  const slot = generateSlotsForDay(settings, hours, parsed.date, options.kinds).find((candidate) => candidate.startUtc.getTime() === startUtc.getTime());
   if (!slot) throw invalidStart("Ese horario no existe en la agenda del consultorio.");
   return { slot, timezone: settings.timezone };
 }
@@ -91,7 +99,7 @@ export async function describeFreeSlot(
   if (parseLocalStart(startLocal) === null) throw invalidStart();
   let resolved: { slot: SlotTime; timezone: string };
   try {
-    resolved = await resolveSlot(ctx, db, startLocal, now);
+    resolved = await resolveSlot(ctx, db, startLocal, now, { kinds: STAFF_SLOT_KINDS });
   } catch (error) {
     if (error instanceof ValidationError) return null; // el espacio no existe en el horario actual
     throw error;
@@ -116,8 +124,9 @@ export async function assertSlotBookable(
   connection: PoolConnection,
   startLocal: string,
   now: Date,
+  options: SlotOptions = {},
 ): Promise<{ slot: SlotTime; timezone: string }> {
-  const resolved = await resolveSlot(ctx, connection, startLocal, now);
+  const resolved = await resolveSlot(ctx, connection, startLocal, now, options);
   const { slot } = resolved;
   if (slot.startUtc.getTime() <= now.getTime()) throw new ConflictError("Ese espacio ya pasó.", "slot_unavailable");
   if (await findOverlappingBooked(ctx, connection, slot.startUtc, slot.endUtc)) {
@@ -147,7 +156,7 @@ export async function createAppointment(
     const now = deps.clock.now();
     // Límite por persona y por paciente (cada cita manda un correo): bajo el bloqueo, así que las ráfagas no lo eluden.
     await assertWithinAppointmentLimits(ctx, connection, now, input.patientId);
-    const { slot } = await assertSlotBookable(ctx, connection, input.startLocal, now);
+    const { slot } = await assertSlotBookable(ctx, connection, input.startLocal, now, { kinds: STAFF_SLOT_KINDS });
 
     // Un paciente es alcanzable si ya está vinculado con ESTE médico o si trae un boleto firmado para este médico y actor.
     let newlyLinked = false;

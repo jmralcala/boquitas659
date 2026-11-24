@@ -22,6 +22,7 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 | `CEDULA_STORAGE_DIR` | sí | Directorio privado, **fuera de la raíz pública**, para los archivos de cédula | `./storage/cedulas` |
 | `LOGO_STORAGE_DIR` | no (`<CEDULA_STORAGE_DIR>/logos`) | Directorio privado, **fuera de la raíz pública**, para los logos de los micrositios | `./storage/logos` |
 | `GOOGLE_MAPS_EMBED_KEY` | no | Clave de Google Maps Embed para el mapa del micrositio. Sin ella se muestra solo la dirección en texto. Restringirla por referente (`PUBLIC_BASE_URL`) y fijar una cuota diaria en la consola del proveedor (tope de gasto) | (la entrega Google) |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | no (van en pareja) | Claves de Cloudflare Turnstile para el CAPTCHA del paso de urgencia. Sin ellas la urgencia **no se ofrece en producción**; en desarrollo el paso del CAPTCHA se omite. Para probar con el widget real usa las claves de prueba oficiales de Turnstile (la clave de sitio `1x00000000000000000000AA` y el secreto `1x0000000000000000000000000000000AA` siempre pasan). El secreto nunca se registra | (las entrega Cloudflare) |
 | `RIGHTS_CONTACT_EMAIL` | no (`soporte@innvend.com`) | Canal para derechos ARCO (provisional hasta revisión legal) | `soporte@innvend.com` |
 | `RIGHTS_RESPONSE_DAYS` | no (`20`) | Plazo de respuesta a derechos ARCO en días hábiles (provisional hasta revisión legal) | `20` |
 
@@ -108,3 +109,16 @@ Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_E
 - [ ] Comprobar que el cron de `jobs:outbox` envía el recordatorio y que el mapa carga con la clave real y respeta la cuota.
 - [ ] Cancelar desde el enlace del correo y revocar un vínculo; comprobar los avisos.
 - [ ] Medir en el piloto: tiempo para reservar (SC-001), finalización (SC-002) y entrega de correos en 5 minutos (SC-005).
+
+### Urgencias y triaje (feature 4)
+- Migración `0013_urgent.sql` (columnas `kind` en horarios y citas, `urgent_min_notice_minutes`, acción `urgent_requested`).
+- `TURNSTILE_SITE_KEY` y `TURNSTILE_SECRET_KEY`: ambas o ninguna. En producción sin claves la urgencia no se ofrece; en desarrollo se omite el CAPTCHA.
+- En producción la urgencia tampoco se ofrece mientras `reviewedByDentist` sea `false` en `src/modules/urgent/triage-content.ts` (contenido provisional; ver `docs/decisions/0005-urgencias.md`).
+- `jobs:outbox` ahora también convierte en genéricos los avisos de urgencia con 24 h o más en cola (`expireUrgentCategories`); mismo cron de cada minuto.
+
+### Humo de despliegue de urgencias (pendiente)
+- [ ] `npm run migrate` aplica `0013` en MariaDB.
+- [ ] Repetir contra MariaDB las pruebas de concurrencia de urgencias (26–30 del quickstart).
+- [ ] Turnstile real: formulario, rechazo con token inválido y pantalla de «no disponible».
+- [ ] Aviso al médico con SMTP real: llega en menos de 3 min y la categoría desaparece de la cola.
+- [ ] Validación del contenido por un dentista y cambio de `reviewedByDentist`.

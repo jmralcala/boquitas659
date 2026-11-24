@@ -299,3 +299,15 @@ describe("reserveAsPatient: doble envío", () => {
     expect(again.id).not.toBe(first.id);
   });
 });
+
+describe("reserveAsPatient: espacios de urgencia (feature 4)", () => {
+  it("la reserva convencional del paciente no ve los horarios que solo existen como franja de urgencia (400)", async () => {
+    const s = await scenario();
+    await pool.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute, kind) VALUES (?, 2, 480, 540, 'urgent')", [s.doctor.doctorId]);
+    await expect(reserve(s, `${TUESDAY}T08:00`)).rejects.toBeInstanceOf(ValidationError);
+    expect(await rows("SELECT id FROM appointment")).toEqual([]);
+    expect(await rows("SELECT id FROM data_authorization")).toEqual([]);
+    // Los horarios regulares siguen funcionando igual.
+    expect((await reserve(s, `${TUESDAY}T10:00`)).created).toBe(true);
+  });
+});

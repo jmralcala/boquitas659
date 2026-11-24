@@ -10,18 +10,29 @@ export interface CalendarSettings {
   maxAdvanceDays: number;
   /** Horas antes de la cita hasta las que el paciente puede cancelar (por defecto 24). */
   cancelNoticeHours: number;
+  /** Minutos de anticipación mínima de una URGENCIA (30 por defecto; 0 a 1440). Las urgencias no usan `minNoticeMinutes`. */
+  urgentMinNoticeMinutes: number;
 }
 
-/** Franja del horario semanal en hora local: 1 = lunes … 7 = domingo; minutos desde las 00:00. */
+/** Tipo de espacio: `regular` (calendario convencional) o `urgent` (solo para urgencias, feature 4). */
+export type SlotKind = "regular" | "urgent";
+
+/** Tipos de espacio que ve el PERSONAL (agenda, nueva cita y bloqueos): los convencionales y los de urgencia. */
+export const STAFF_SLOT_KINDS: readonly SlotKind[] = ["regular", "urgent"];
+
+/** Franja del horario semanal en hora local: 1 = lunes … 7 = domingo; minutos desde las 00:00. Sin `kind` es `regular`. */
 export interface HoursRange {
   weekday: number;
   startMinute: number;
   endMinute: number;
+  kind?: SlotKind;
 }
 
 export interface SlotTime {
   startUtc: Date;
   endUtc: Date;
+  /** Tipo del espacio (lo fija `generateSlotsForDay`; las citas y los bloqueos no lo llevan). */
+  kind?: SlotKind;
 }
 
 export type SlotState = "free" | "booked" | "blocked" | "past";
@@ -44,16 +55,25 @@ export type BlockSpan = SlotTime;
  * `inicio + duración ≤ fin`; el intervalo es una pausa, así que los espacios nunca se solapan. Una hora local que no
  * existe (salto de verano) no genera espacio, y los inicios duplicados (hora repetida) se eliminan. Ordenados por inicio.
  */
-export function generateSlotsForDay(settings: CalendarSettings, hours: readonly HoursRange[], localDate: string): SlotTime[] {
+export function generateSlotsForDay(
+  settings: CalendarSettings,
+  hours: readonly HoursRange[],
+  localDate: string,
+  kinds: readonly SlotKind[] = ["regular"],
+): SlotTime[] {
   const weekday = weekdayOfLocalDate(localDate);
   const step = settings.slotMinutes + settings.gapMinutes;
   const byStart = new Map<number, SlotTime>();
   for (const range of hours) {
     if (range.weekday !== weekday) continue;
+    const kind: SlotKind = range.kind ?? "regular";
+    if (!kinds.includes(kind)) continue;
     for (let minute = range.startMinute; minute + settings.slotMinutes <= range.endMinute; minute += step) {
       const startUtc = localToUtc(settings.timezone, localDate, minute);
       if (!startUtc) continue;
-      byStart.set(startUtc.getTime(), { startUtc, endUtc: new Date(startUtc.getTime() + settings.slotMinutes * 60_000) });
+      // Si dos franjas generan el mismo inicio, el espacio de urgencia conserva su tipo (las urgencias lo prefieren).
+      if (byStart.get(startUtc.getTime())?.kind === "urgent" && kind !== "urgent") continue;
+      byStart.set(startUtc.getTime(), { startUtc, endUtc: new Date(startUtc.getTime() + settings.slotMinutes * 60_000), kind });
     }
   }
   return [...byStart.values()].sort((a, b) => a.startUtc.getTime() - b.startUtc.getTime());
@@ -75,7 +95,7 @@ export function classifySlots(
 ): Slot[] {
   return slots.map((slot) => {
     const appointment = appointments.find((candidate) => overlaps(candidate, slot));
-    const base: SlotTime = { startUtc: slot.startUtc, endUtc: slot.endUtc };
+    const base: SlotTime = { startUtc: slot.startUtc, endUtc: slot.endUtc, ...(slot.kind ? { kind: slot.kind } : {}) };
     const withAppointment = appointment ? { appointmentId: appointment.id } : {};
     if (slot.startUtc.getTime() <= now.getTime()) return { ...base, state: "past", ...withAppointment };
     if (appointment) return { ...base, state: "booked", ...withAppointment };

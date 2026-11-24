@@ -1,6 +1,7 @@
 import type { Db } from "../../db/pool.js";
 import { ValidationError } from "../../http/errors.js";
 import {
+  STAFF_SLOT_KINDS,
   classifySlots,
   findOutOfScheduleAppointments,
   generateSlotsForDay,
@@ -25,6 +26,8 @@ export interface AgendaAppointment {
   patientName: string;
   startUtc: Date;
   endUtc: Date;
+  /** Tipo de cita (urgencia o convencional); la categoría del triaje no existe en la agenda. */
+  kind: "regular" | "urgent";
   /** La cita ya no coincide con ningún espacio de la configuración vigente (se conserva y se marca). */
   outOfSchedule: boolean;
 }
@@ -77,7 +80,7 @@ function buildDay(
   now: Date,
 ): AgendaDay {
   const { start, end } = localDayRangeUtc(settings.timezone, localDate);
-  const baseSlots = generateSlotsForDay(settings, hours, localDate);
+  const baseSlots = generateSlotsForDay(settings, hours, localDate, STAFF_SLOT_KINDS);
   // El estado de un espacio usa todas las citas que se le solapan (aunque empiecen otro día local).
   const slots = classifySlots(baseSlots, appointments, blocks, now);
   // Las citas de un día son las que EMPIEZAN en él (hora local del consultorio).
@@ -94,6 +97,7 @@ function buildDay(
       patientName: a.patientName,
       startUtc: a.startUtc,
       endUtc: a.endUtc,
+      kind: a.kind,
       outOfSchedule: outOfSchedule.has(a.id),
     })),
     blocks: blocks.filter((b) => b.startUtc.getTime() < end.getTime() && b.endUtc.getTime() > start.getTime()).map(toAgendaBlock),

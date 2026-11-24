@@ -75,8 +75,8 @@ function minutesText(total: number): string {
 
 /** Valores del formulario (mismos nombres que el cuerpo del `POST`) a partir de la configuración guardada. */
 export function configFormValues(config: {
-  settings: { slotMinutes: number; gapMinutes: number; timezone: string; minNoticeMinutes: number; maxAdvanceDays: number; cancelNoticeHours: number };
-  hours: readonly { weekday: number; startMinute: number; endMinute: number }[];
+  settings: { slotMinutes: number; gapMinutes: number; timezone: string; minNoticeMinutes: number; maxAdvanceDays: number; cancelNoticeHours: number; urgentMinNoticeMinutes: number };
+  hours: readonly { weekday: number; startMinute: number; endMinute: number; kind?: "regular" | "urgent" }[];
 }): Record<string, string> {
   const values: Record<string, string> = {
     slotMinutes: String(config.settings.slotMinutes),
@@ -85,14 +85,17 @@ export function configFormValues(config: {
     minNoticeHours: String(Math.floor(config.settings.minNoticeMinutes / 60)),
     maxAdvanceDays: String(config.settings.maxAdvanceDays),
     cancelNoticeHours: String(config.settings.cancelNoticeHours),
+    urgentMinNoticeMinutes: String(config.settings.urgentMinNoticeMinutes),
   };
-  const used = new Map<number, number>();
+  const used = new Map<string, number>();
   for (const range of config.hours) {
-    const slot = used.get(range.weekday) ?? 0;
-    used.set(range.weekday, slot + 1);
-    if (slot > 3) continue;
-    values[`h${range.weekday}_${slot}_start`] = minutesText(range.startMinute);
-    values[`h${range.weekday}_${slot}_end`] = minutesText(range.endMinute);
+    const prefix = range.kind === "urgent" ? "u" : "h";
+    const counter = `${prefix}${range.weekday}`;
+    const slot = used.get(counter) ?? 0;
+    used.set(counter, slot + 1);
+    if (slot > (prefix === "u" ? 1 : 3)) continue;
+    values[`${prefix}${range.weekday}_${slot}_start`] = minutesText(range.startMinute);
+    values[`${prefix}${range.weekday}_${slot}_end`] = minutesText(range.endMinute);
   }
   return values;
 }
@@ -131,6 +134,19 @@ export function configurationPage(options: {
     });
     return html`<li><strong>${name}</strong> ${slots}</li>`;
   });
+  const urgentRows = WEEKDAY_NAMES.map((name, index) => {
+    const weekday = index + 1;
+    const slots = [0, 1].map((slot) => {
+      const key = `u${weekday}_${slot}`;
+      return html`<span>
+  <input type="text" name="${key}_start" value="${values[`${key}_start`] ?? ""}" placeholder="08:00" size="5" aria-label="${name}, urgencias, franja ${slot + 1}, inicio">
+  a
+  <input type="text" name="${key}_end" value="${values[`${key}_end`] ?? ""}" placeholder="09:00" size="5" aria-label="${name}, urgencias, franja ${slot + 1}, fin">
+  ${errorList(errors[key])}
+</span>`;
+    });
+    return html`<li><strong>${name}</strong> ${slots}</li>`;
+  });
   const content = html`<h1>Configuración del calendario</h1>
 ${options.saved ? html`<p role="status">Configuración guardada. Las citas ya agendadas no cambian.</p>` : null}
 ${options.isDefault ? html`<p>Todavía no guardas tu configuración: se usan los valores por defecto y no hay horario de atención, así que aún no hay espacios.</p>` : null}
@@ -154,6 +170,10 @@ ${numberField("cancelNoticeHours", "Límite para que el paciente cancele (horas 
 <h2>Horario de atención</h2>
 <p>Hasta 4 franjas por día en formato 24 horas (HH:MM, minutos de 5 en 5). Deja vacío un día sin atención.</p>
 <ul>${dayRows}</ul>
+<h2>Urgencias</h2>
+<p>Horarios que reservas solo para urgencias: no aparecen en el calendario de tus pacientes. Hasta 2 franjas por día, sin solaparse con tu horario de atención ni entre sí. Los espacios usan la misma duración y pausa de tus citas.</p>
+${numberField("urgentMinNoticeMinutes", "Anticipación mínima de una urgencia (minutos)", values, errors, "De 0 a 1440 minutos; 30 por defecto.")}
+<ul>${urgentRows}</ul>
 <button type="submit">Guardar configuración</button>
 </form>`;
   return calendarLayout({ title: "Configuración del calendario", content, canConfigure: true });
@@ -177,7 +197,7 @@ function dateLabel(zone: string, localDate: string): string {
 function appointmentName(day: AgendaDay, appointmentId: number | undefined): SafeHtml | null {
   if (appointmentId === undefined) return null;
   const appointment = day.appointments.find((candidate) => candidate.id === appointmentId);
-  return html`<a href="/agenda/citas/${appointmentId}">${appointment?.patientName ?? "Ver cita"}</a>`;
+  return html`<a href="/agenda/citas/${appointmentId}">${appointment?.patientName ?? "Ver cita"}</a>${appointment?.kind === "urgent" ? html` <strong>Urgencia</strong>` : null}`;
 }
 
 /** Acciones de un espacio libre: agendar (enlace) y bloquearlo (formulario con CSRF). */
@@ -190,7 +210,7 @@ function freeSlotActions(day: AgendaDay, slot: AgendaDay["slots"][number], csrf:
 function slotRows(day: AgendaDay, csrf: string): SafeHtml[] {
   return day.slots.map(
     (slot) => html`<tr>
-  <td>${formatTime(day.timezone, slot.startUtc)} – ${formatTime(day.timezone, slot.endUtc)}</td>
+  <td>${formatTime(day.timezone, slot.startUtc)} – ${formatTime(day.timezone, slot.endUtc)}${slot.kind === "urgent" ? html` <strong>Urgencia</strong>` : null}</td>
   <td>${STATE_LABELS[slot.state] ?? slot.state}</td>
   <td>${appointmentName(day, slot.appointmentId)}</td>
   <td>${slot.state === "free" ? freeSlotActions(day, slot, csrf) : null}</td>
@@ -337,6 +357,7 @@ export function appointmentDetailPage(options: {
   startUtc: Date;
   endUtc: Date;
   status: "booked" | "cancelled";
+  kind: "regular" | "urgent";
   createdByRole: "doctor" | "reception" | "patient";
   cancelledByRole: "doctor" | "reception" | "patient" | null;
   cancelledAt: Date | null;
@@ -350,6 +371,7 @@ export function appointmentDetailPage(options: {
   <dt>Fecha</dt><dd>${formatDate(options.timezone, options.startUtc)}</dd>
   <dt>Horario</dt><dd>${formatTime(options.timezone, options.startUtc)} – ${formatTime(options.timezone, options.endUtc)}</dd>
   <dt>Estado</dt><dd>${options.status === "booked" ? "Agendada" : "Cancelada"}</dd>
+  <dt>Tipo</dt><dd>${options.kind === "urgent" ? "Urgencia" : "Convencional"}</dd>
   <dt>Agendada por</dt><dd>${roleLabel(options.createdByRole)}</dd>
   ${options.cancelledAt && options.cancelledByRole ? html`<dt>Cancelada por</dt><dd>${roleLabel(options.cancelledByRole)}, ${formatDateTime(options.timezone, options.cancelledAt)}</dd>` : null}
 </dl>

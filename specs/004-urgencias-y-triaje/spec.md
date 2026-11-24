@@ -44,7 +44,7 @@ Cuando no hay ningún espacio libre dentro de la ventana del nivel elegido, el p
 
 1. **Given** que no hay espacio libre dentro de la ventana del nivel, **When** el paciente solicita la urgencia, **Then** ve «No encontramos espacio», el móvil de emergencias del médico y el aviso de acudir a un hospital si el nivel lo requiere; no se crea ninguna cita.
 2. **Given** un consultorio sin horarios de urgencia pero con espacios convencionales libres dentro de la ventana, **When** se solicita, **Then** se usa el espacio convencional libre más próximo.
-3. **Given** un consultorio publicado cuyo médico no tiene móvil de emergencias verificado, **When** no hay espacio, **Then** se muestra el teléfono del consultorio en su lugar y el aviso de hospital.
+3. **Given** un consultorio publicado cuyo médico no tiene móvil de emergencias registrado, **When** no hay espacio, **Then** se muestra el teléfono del consultorio en su lugar y el aviso de hospital.
 4. **Given** una solicitud sin espacio, **When** el paciente la repite, **Then** cuenta para el límite de solicitudes por cuenta (ver User Story 4).
 
 ---
@@ -145,7 +145,7 @@ Si el consultorio no acepta reservas en línea (micrositio despublicado, médico
 - **Urgencia fuera del horario**: la ventana de un nivel termina antes de que abra el consultorio → «sin espacio» con el móvil de emergencias.
 - **Cambio de hora** (zona horaria del consultorio): los espacios de urgencia y las ventanas se calculan en la zona del consultorio sin duplicar ni perder horarios.
 - **Reloj y borde de anticipación**: un espacio que empieza justo en el límite de la anticipación mínima de urgencias se acepta (borde inclusivo).
-- **Médico con teléfono de emergencias sin verificar**: se muestra el teléfono del consultorio y el aviso de hospital (nunca un número sin verificar).
+- **Médico sin móvil de emergencias registrado**: se muestra el teléfono del consultorio y el aviso de hospital (nunca un número que no esté en el registro del médico aprobado).
 - **Paciente adicional (menor)**: la urgencia queda a nombre del menor con la autorización del tutor; la regla «una urgencia activa por paciente» aplica por persona, y el tope de 3 solicitudes por cuenta.
 - **Paciente cuyo vínculo con el consultorio está revocado**: reservar una urgencia reactiva el vínculo con una nueva autorización, igual que una reserva convencional.
 - **Doble envío del formulario**: la misma petición enviada dos veces no crea dos citas ni cuenta dos veces para el límite.
@@ -173,7 +173,7 @@ Si el consultorio no acepta reservas en línea (micrositio despublicado, médico
 - **FR-007**: El servidor MUST asignar el espacio libre más próximo, de urgencia o convencional, que empiece al menos después de la anticipación mínima de urgencias del médico y dentro de la ventana de tiempo del nivel elegido; un espacio de urgencia MUST preferirse a uno convencional cuando empiezan a la misma hora.
 - **FR-008**: El sistema MUST NOT asignar espacios ocupados, bloqueados, pasados ni fuera del horario del consultorio, ni mover o desplazar citas ya agendadas.
 - **FR-009**: Buscar el espacio, comprobar el solape con citas y bloqueos, insertar la cita y registrar la acción MUST ocurrir en una sola transacción que bloquea la fila del médico, con el índice único de la cita vigente como respaldo (constitución III); debe existir una prueba automática de solicitudes simultáneas.
-- **FR-010**: Cuando no hay espacio dentro de la ventana, el sistema MUST informarlo, mostrar el móvil de emergencias verificado del médico (o, si no lo tiene, el teléfono del consultorio) y el aviso de acudir a un hospital cuando el nivel lo requiera, sin crear cita ni enviar avisos al médico.
+- **FR-010**: Cuando no hay espacio dentro de la ventana, el sistema MUST informarlo, mostrar el móvil de emergencias registrado del médico (o, si no lo tiene, el teléfono del consultorio) y el aviso de acudir a un hospital cuando el nivel lo requiera, sin crear cita ni enviar avisos al médico.
 - **FR-011**: La cita de urgencia MUST guardar solo su tipo (urgencia o convencional); el sistema MUST NOT guardar la categoría del triaje, las respuestas ni indicios de ellas en ninguna tabla, registro técnico, métrica ni herramienta de errores.
 - **FR-012**: La agenda del médico y de recepción MUST mostrar las citas de urgencia con una etiqueta que las distinga de las convencionales.
 - **FR-013**: Al agendar la urgencia el sistema MUST crear o reutilizar la relación médico-paciente con la autorización de datos del paciente, con las mismas reglas de la feature 3 (casilla sin marcar si no hay una autorización activa).
@@ -181,7 +181,7 @@ Si el consultorio no acepta reservas en línea (micrositio despublicado, médico
 **Horarios y configuración del médico**
 
 - **FR-014**: El médico MUST poder definir franjas semanales de urgencia, solo para urgencias; esos horarios MUST NOT aparecer en el calendario convencional del paciente ni asignarse a reservas convencionales.
-- **FR-015**: El médico MUST poder configurar la anticipación mínima de urgencias (30 minutos por defecto, dentro de límites razonables que defina el plan); solo el médico, nunca recepción.
+- **FR-015**: El médico MUST poder configurar la anticipación mínima de urgencias (30 minutos por defecto, entre 0 y 1440 minutos); solo el médico, nunca recepción.
 - **FR-016**: Un mismo instante MUST NOT contar como dos espacios (urgencia y convencional); las franjas de urgencia que se solapan con el horario convencional MUST resolverse sin duplicar espacios.
 - **FR-017**: Cambiar los horarios o la anticipación de urgencias MUST NOT modificar citas ya agendadas.
 
@@ -231,22 +231,23 @@ Si el consultorio no acepta reservas en línea (micrositio despublicado, médico
 
 ### Measurable Outcomes
 
-- **SC-001**: Un paciente con sesión completa la solicitud de urgencia y ve su resultado (cita o «sin espacio») en menos de 1 minuto, sin elegir fecha ni hora.
+- **SC-001**: Un paciente con sesión completa la solicitud de urgencia (desde que abre el formulario hasta ver su resultado, cita o «sin espacio») en menos de 1 minuto, sin elegir fecha ni hora; se mide en el piloto y, en pruebas, el servidor responde en menos de 5 segundos.
 - **SC-002**: En 100 % de las pruebas de solicitudes simultáneas sobre el mismo espacio hay como máximo una cita vigente por espacio, y ninguna solicitud con espacio disponible dentro de su ventana termina en «sin espacio» por una carrera.
 - **SC-003**: El médico recibe el aviso de una urgencia agendada en menos de 3 minutos en el 98 % de los casos, con el cron por minuto del hosting compartido.
 - **SC-004**: En 100 % de las revisiones automáticas de base de datos, registros técnicos, registro de acciones y correos de confirmación, no aparece la categoría del triaje fuera de la cola de envío, y desaparece de ella a más tardar a las 24 horas.
 - **SC-005**: Cuando no hay espacio, el paciente ve el número de emergencias del médico y el aviso de hospital en la misma pantalla de resultado en el 100 % de los casos.
 - **SC-006**: Ninguna solicitud por encima de los límites (una activa, 3 por 24 h, sin verificación anti-bots, exceso por IP) agenda una cita ni envía un aviso al médico.
 - **SC-007**: Un paciente puede cancelar una urgencia que empieza en menos de 24 horas y el espacio vuelve a estar disponible en el mismo momento; el médico recibe el aviso de cancelación.
-- **SC-008**: Entre los médicos del piloto, medir la proporción de urgencias con espacio frente a «llama al médico» para decidir ajustes de ventanas y horarios de urgencia.
+- **SC-008**: Entre los médicos del piloto, medir la proporción de solicitudes agendadas frente a solicitudes «sin espacio» (las únicas que se registran) para decidir ajustes de ventanas y horarios de urgencia. Las pantallas de señal de alarma y de CAPTCHA no disponible **no se registran por diseño** (no dejan rastro), por lo que no entran en esta proporción.
 
 ## Assumptions
 
 - **Dependencias**: se reutilizan las cuentas de paciente, sesión, pacientes adicionales, autorización de datos, enlaces de correo, outbox y cron de las features 1 a 3; la agenda y el índice único de la feature 2.
 - **Alcance del piloto**: los avisos de urgencia salen **solo por correo**. WhatsApp, las cuotas de mensajes por plan y el cobro excedente son posteriores al piloto y quedan fuera.
 - **Verificación anti-bots**: se exige una (CAPTCHA); la elección del proveedor y su impacto en privacidad se resuelven en el plan, y debe poder cumplirse sin enviar datos del paciente ni la categoría al proveedor.
-- **Móvil de emergencias**: ya existe y se verifica en el registro del médico (feature 1); el teléfono del consultorio es el respaldo si no hay móvil verificado.
+- **Móvil de emergencias**: ya existe en el registro del médico (feature 1, formato y unicidad validados); la verificación por WhatsApp es posterior al piloto, así que se muestra el móvil registrado de un médico aprobado; el teléfono del consultorio es el respaldo si no hay móvil.
 - **Una persona, una urgencia activa**: se cuenta por paciente (titular o adicional); las 3 solicitudes por 24 h se cuentan por cuenta.
+- **Exactitud de los límites**: se comprueban bajo el bloqueo de la agenda del médico, así que con un mismo consultorio son exactos aunque lleguen solicitudes simultáneas. Entre consultorios distintos dos solicitudes simultáneas de la misma cuenta pueden excederlos por una (como los límites de búsqueda de la feature 2); se acepta como freno contra el abuso, no como garantía exacta.
 - **Duración del espacio**: una urgencia usa la misma duración de espacio que la configuración del consultorio.
 - **Sin desplazamiento de citas**: una urgencia nunca desplaza una cita ya agendada; solo toma espacios libres.
 - **Tabla de triaje (decidida por el responsable, provisional hasta la validación dental)**: cinco niveles de semáforo con una ventana máxima por nivel: Rojo (2 h), Naranja (12 h), Amarillo (24 h), Verde claro (48 h) y Verde (72 h). Las descripciones de cada opción, las indicaciones de primeros auxilios, la pregunta de señales de alarma y el aviso de hospital son texto provisional que un dentista valida antes de producción.

@@ -6,7 +6,7 @@ import type { StaffContext } from "../../lib/tenant.js";
 import { daysBetweenLocalDates, localToUtc, utcToLocal } from "../../lib/zoned-time.js";
 import { logCalendarAction } from "./action-log.js";
 import { MAX_DAYS_AHEAD, MAX_DAYS_BACK } from "./agenda-service.js";
-import { parseLocalStart, resolveSlot } from "./appointment-service.js";
+import { parseLocalStart, resolveSlot, STAFF_SLOT_KINDS } from "./appointment-service.js";
 import { deleteBlock, findConflictingAppointments, insertBlock, type ConflictingAppointment } from "./block-repository.js";
 import { withCalendarLock } from "./calendar-lock.js";
 import { loadSettings } from "./settings-repository.js";
@@ -109,7 +109,7 @@ export async function createBlock(ctx: StaffContext, deps: BlockDeps, input: Cre
 /** Atajo desde la agenda: bloquea exactamente el rango de un espacio. */
 export async function blockSlot(ctx: StaffContext, deps: BlockDeps, startLocal: string): Promise<{ id: number }> {
   return blockWithin(ctx, deps, null, async (connection, now) => {
-    const { slot } = await resolveSlot(ctx, connection, startLocal, now);
+    const { slot } = await resolveSlot(ctx, connection, startLocal, now, { kinds: STAFF_SLOT_KINDS });
     if (slot.endUtc.getTime() <= now.getTime()) throw new ValidationError({ inicio: ["Ese espacio ya terminó."] });
     return { fromUtc: slot.startUtc, toUtc: slot.endUtc };
   });

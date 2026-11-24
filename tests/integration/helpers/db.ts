@@ -245,13 +245,14 @@ export interface CalendarSettingsOverrides {
   minNoticeMinutes?: number;
   maxAdvanceDays?: number;
   cancelNoticeHours?: number;
+  urgentMinNoticeMinutes?: number;
 }
 
 /** Configuración del calendario de un médico (valores por defecto salvo lo indicado). */
 export async function createCalendarSettings(pool: Db, doctorId: number, overrides: CalendarSettingsOverrides = {}): Promise<void> {
   await pool.execute(
-    `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+    `INSERT INTO calendar_settings (doctor_id, slot_minutes, gap_minutes, timezone, min_notice_minutes, max_advance_days, cancel_notice_hours, urgent_min_notice_minutes, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
     [
       doctorId,
       overrides.slotMinutes ?? 45,
@@ -260,6 +261,7 @@ export async function createCalendarSettings(pool: Db, doctorId: number, overrid
       overrides.minNoticeMinutes ?? 120,
       overrides.maxAdvanceDays ?? 60,
       overrides.cancelNoticeHours ?? 24,
+      overrides.urgentMinNoticeMinutes ?? 30,
     ],
   );
 }
@@ -268,14 +270,15 @@ export async function createCalendarSettings(pool: Db, doctorId: number, overrid
 export async function createCalendarHours(
   pool: Db,
   doctorId: number,
-  ranges: readonly { weekday: number; startMinute: number; endMinute: number }[],
+  ranges: readonly { weekday: number; startMinute: number; endMinute: number; kind?: "regular" | "urgent" }[],
 ): Promise<void> {
   for (const range of ranges) {
-    await pool.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute) VALUES (?, ?, ?, ?)", [
+    await pool.execute("INSERT INTO calendar_hours (doctor_id, weekday, start_minute, end_minute, kind) VALUES (?, ?, ?, ?, ?)", [
       doctorId,
       range.weekday,
       range.startMinute,
       range.endMinute,
+      range.kind ?? "regular",
     ]);
   }
 }
@@ -298,6 +301,7 @@ export async function createAppointment(
     createdByUserId?: number;
     createdByRole?: "doctor" | "reception" | "patient";
     createdAt?: Date;
+    kind?: "regular" | "urgent";
   },
 ): Promise<number> {
   await pool.execute("INSERT INTO doctor_patient (doctor_id, patient_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE doctor_id = doctor_id", [
@@ -311,8 +315,8 @@ export async function createAppointment(
   }
   const [result] = await pool.execute<import("mysql2/promise").ResultSetHeader>(
     `INSERT INTO appointment (doctor_id, patient_id, start_utc, end_utc, status, created_by_user_id, created_by_role, created_at,
-                              cancelled_by_user_id, cancelled_by_role, cancelled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                              cancelled_by_user_id, cancelled_by_role, cancelled_at, kind)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       options.doctorId,
       options.patientId,
@@ -325,6 +329,7 @@ export async function createAppointment(
       options.status === "cancelled" ? createdBy : null,
       options.status === "cancelled" ? (options.createdByRole ?? "doctor") : null,
       options.status === "cancelled" ? new Date() : null,
+      options.kind ?? "regular",
     ],
   );
   return result.insertId;
@@ -374,7 +379,7 @@ export async function createDoctorSite(
 export async function createPublishedSite(
   pool: Db,
   doctor: CreatedDoctor,
-  options: { slug?: string; settings?: CalendarSettingsOverrides; hours?: readonly { weekday: number; startMinute: number; endMinute: number }[] } = {},
+  options: { slug?: string; settings?: CalendarSettingsOverrides; hours?: readonly { weekday: number; startMinute: number; endMinute: number; kind?: "regular" | "urgent" }[] } = {},
 ): Promise<{ slug: string }> {
   await pool.execute("UPDATE doctor SET office_phone = '5598765432' WHERE id = ?", [doctor.doctorId]);
   await createCalendarSettings(pool, doctor.doctorId, options.settings);

@@ -55,3 +55,5 @@ Un instante se identifica con `inicio` = `AAAA-MM-DDTHH:MM` local (no UTC).
 
 Cada ruta: sin sesión (401), rol no permitido (403), médico ajeno (404), CSRF faltante en `POST` (403), validación
 (400). Además: 409 por espacio ocupado, 409 por bloqueo con citas y recepción revocada (403 en la misma petición).
+
+> Feature 4: las franjas de `calendar_hours` ahora tienen `kind` (`regular`/`urgent`) y los ajustes `urgentMinNoticeMinutes`; el JSON y el formulario de configuración los incluyen (campos `u<día>_<n>_start/end`). Ver `specs/004-urgencias-y-triaje/contracts/http-routes.md`.

@@ -54,7 +54,7 @@ async function scenario(cancelNoticeHours = 24): Promise<Scenario> {
 }
 
 /** Cita que empieza dentro de `hoursAhead` horas, creada con tiempo (hace 4 días) salvo que se indique otra cosa. */
-function appointmentIn(s: Scenario, hoursAhead: number, extra: { status?: "booked" | "cancelled"; createdAt?: Date; createdByRole?: "doctor" | "patient" } = {}): Promise<number> {
+function appointmentIn(s: Scenario, hoursAhead: number, extra: { status?: "booked" | "cancelled"; createdAt?: Date; createdByRole?: "doctor" | "patient"; kind?: "regular" | "urgent" } = {}): Promise<number> {
   return createAppointment(pool, {
     doctorId: s.doctor.doctorId,
     patientId: s.patient.patientId,
@@ -62,6 +62,7 @@ function appointmentIn(s: Scenario, hoursAhead: number, extra: { status?: "booke
     createdAt: extra.createdAt ?? new Date(NOW.getTime() - 96 * HOUR),
     ...(extra.status ? { status: extra.status } : {}),
     ...(extra.createdByRole ? { createdByRole: extra.createdByRole } : {}),
+    ...(extra.kind ? { kind: extra.kind } : {}),
   });
 }
 
@@ -103,6 +104,14 @@ describe("enqueueDueReminders", () => {
     await appointmentIn(s, 10, { createdAt: new Date(NOW.getTime() - 5 * 60_000) }); // reservada hace 5 min: la confirmación basta
     expect(await enqueueDueReminders(pool, t.clock)).toBe(0);
     expect(await reminders()).toEqual([]);
+  });
+
+  it("una urgencia nunca recibe recordatorio (ni su «plazo para cancelar»), aunque cumpla el momento", async () => {
+    const s = await scenario();
+    await appointmentIn(s, 29, { kind: "urgent", createdByRole: "patient" });
+    expect(await enqueueDueReminders(pool, t.clock)).toBe(0);
+    expect(await reminders()).toEqual([]);
+    expect((await rows("SELECT reminder_enqueued_at FROM appointment"))[0]?.reminder_enqueued_at).toBeNull();
   });
 
   it("con límite de 48 h el recordatorio sale 54 h antes", async () => {

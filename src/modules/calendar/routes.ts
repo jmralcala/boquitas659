@@ -66,6 +66,7 @@ function dayJson(day: AgendaDay): Record<string, unknown> {
       start: local(slot.startUtc),
       end: local(slot.endUtc),
       state: slot.state,
+      kind: slot.kind ?? "regular",
       ...(slot.appointmentId === undefined ? {} : { appointmentId: slot.appointmentId }),
     })),
     appointments: day.appointments.map((appointment) => ({
@@ -73,6 +74,7 @@ function dayJson(day: AgendaDay): Record<string, unknown> {
       patientName: appointment.patientName,
       start: local(appointment.startUtc),
       end: local(appointment.endUtc),
+      kind: appointment.kind,
       outOfSchedule: appointment.outOfSchedule,
     })),
     blocks: day.blocks.map((block) => ({ id: block.id, start: local(block.startUtc), end: local(block.endUtc), reason: block.reason })),
@@ -194,6 +196,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
         start: formatLocalInstant(settings.timezone, appointment.startUtc),
         end: formatLocalInstant(settings.timezone, appointment.endUtc),
         status: appointment.status,
+        kind: appointment.kind,
         createdByRole: appointment.createdByRole,
         cancelable,
         patientDetailPath: `/agenda/pacientes/${appointment.patientId}`,
@@ -209,6 +212,7 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
         startUtc: appointment.startUtc,
         endUtc: appointment.endUtc,
         status: appointment.status,
+        kind: appointment.kind,
         createdByRole: appointment.createdByRole,
         cancelledByRole: appointment.cancelledByRole,
         cancelledAt: appointment.cancelledAt,
@@ -372,8 +376,9 @@ export function registerCalendarRoutes(app: FastifyInstance, services: Services)
           minNoticeHours: Math.floor(config.settings.minNoticeMinutes / 60),
           maxAdvanceDays: config.settings.maxAdvanceDays,
           cancelNoticeHours: config.settings.cancelNoticeHours,
+          urgentMinNoticeMinutes: config.settings.urgentMinNoticeMinutes,
         },
-        hours: config.hours.map((range) => ({ weekday: range.weekday, start: minutesText(range.startMinute), end: minutesText(range.endMinute) })),
+        hours: config.hours.map((range) => ({ weekday: range.weekday, start: minutesText(range.startMinute), end: minutesText(range.endMinute), kind: range.kind ?? "regular" })),
       });
     }
     const saved = (request.query as Record<string, unknown> | undefined)?.guardado === "1";

@@ -53,10 +53,17 @@ const schema = z
     LOGO_STORAGE_DIR: z.string().min(1).optional(),
     /** Clave de Google Maps Embed. Sin ella el micrositio muestra la dirección en texto en lugar del mapa. */
     GOOGLE_MAPS_EMBED_KEY: z.string().min(10).optional(),
+    /** CAPTCHA del paso de urgencia (Cloudflare Turnstile). Van en pareja; sin ellas la urgencia no se ofrece en producción. */
+    TURNSTILE_SITE_KEY: z.string().min(10).optional(),
+    TURNSTILE_SECRET_KEY: z.string().min(10).optional(),
     RIGHTS_CONTACT_EMAIL: z.email().default("soporte@innvend.com"),
     RIGHTS_RESPONSE_DAYS: z.coerce.number().int().min(1).max(60).default(20),
   })
   .superRefine((value, ctx) => {
+    if ((value.TURNSTILE_SITE_KEY === undefined) !== (value.TURNSTILE_SECRET_KEY === undefined)) {
+      const missing = value.TURNSTILE_SITE_KEY === undefined ? "TURNSTILE_SITE_KEY" : "TURNSTILE_SECRET_KEY";
+      ctx.addIssue({ code: "custom", path: [missing], message: "las claves de Turnstile van en pareja: falta esta" });
+    }
     if (value.APP_ENV !== "production") return;
     for (const key of productionSmtpKeys) {
       if (value[key] === undefined) {

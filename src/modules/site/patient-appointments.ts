@@ -29,6 +29,8 @@ export interface PatientAppointmentItem {
   endUtc: Date;
   timezone: string;
   status: "booked" | "cancelled";
+  /** Tipo de cita (urgencia o convencional). */
+  kind: "regular" | "urgent";
   /** Agendada y su hora aún no termina. */
   live: boolean;
   /** Vigente y todavía dentro del plazo en que el paciente puede cancelar en línea. */
@@ -60,8 +62,10 @@ function toItem(row: PatientAppointmentRow, names: ReadonlyMap<number, string>, 
     endUtc: row.endUtc,
     timezone: row.timezone,
     status: row.status,
+    kind: row.kind,
     live,
-    cancelable: live && now.getTime() <= cancelDeadline.getTime(),
+    // Una urgencia se puede cancelar en cualquier momento mientras no termine (sin el plazo del consultorio).
+    cancelable: live && (row.kind === "urgent" || now.getTime() <= cancelDeadline.getTime()),
     cancelDeadline,
     officePhone: row.officePhone,
     address: row.address,
@@ -122,7 +126,8 @@ export async function cancelAsPatient(
     // Una cancelación por revocación del vínculo no está sujeta al plazo ni al límite (es una decisión sobre los datos).
     if (options.reason !== "revoked") {
       const deadline = current.startUtc.getTime() - current.cancelNoticeHours * 3_600_000;
-      if (now.getTime() > deadline) {
+      // Las urgencias están exentas del plazo del consultorio (siguen sujetas al tope de cancelaciones por hora).
+      if (current.kind !== "urgent" && now.getTime() > deadline) {
         const contact = current.officePhone ? ` Llama al consultorio: ${current.officePhone}.` : " Comunícate directamente con el consultorio.";
         throw new ConflictError(`Ya pasó el plazo para cancelar en línea (hasta ${current.cancelNoticeHours} horas antes de la cita).${contact}`, "cancellation_window_closed");
       }

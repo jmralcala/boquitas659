@@ -14,7 +14,8 @@ export type CalendarAction =
   | "patient_lookup"
   | "site_updated"
   | "data_authorized"
-  | "link_revoked";
+  | "link_revoked"
+  | "urgent_requested";
 
 export interface CalendarActionEntry {
   action: CalendarAction;

@@ -11,6 +11,7 @@ import { createFixedClock, type FixedClock } from "../../../src/lib/clock.js";
 import { processOutbox, type OutboxResult } from "../../../src/mail/outbox.js";
 import { createMemoryTransport, type MemoryTransport } from "../../../src/mail/transport.js";
 import { createPasswordHasher } from "../../../src/modules/auth/password-hasher.js";
+import type { CaptchaResult, CaptchaVerifier } from "../../../src/modules/urgent/captcha.js";
 import { generate } from "otplib";
 import { localToUtc } from "../../../src/lib/zoned-time.js";
 import { createDoctor, createMembership, createPatient, createUser, testDatabaseUrl, type CreatedDoctor, type CreatedPatient, type CreatedUser } from "./db.js";
@@ -46,6 +47,8 @@ export async function createTestApp(
   options: {
     logStream?: import("node:stream").Writable;
     onRoute?: (route: { method: string | string[]; url: string }) => void;
+    /** `null`: no se inyecta ninguno y rige el de la configuración (en producción sin claves, uno siempre no disponible). */
+    captcha?: CaptchaVerifier | null;
   } = {},
 ): Promise<TestApp> {
   const clock = createFixedClock(new Date());
@@ -57,6 +60,7 @@ export async function createTestApp(
     hasher: createPasswordHasher("argon2", { argon2: { memoryCost: 1024, timeCost: 2, parallelism: 1 } }),
     ...(options.logStream ? { logStream: options.logStream } : {}),
     ...(options.onRoute ? { onRoute: options.onRoute } : {}),
+    ...(options.captcha === null ? {} : { captcha: options.captcha ?? createFakeCaptcha() }),
   });
   await app.ready();
   return {
@@ -75,6 +79,26 @@ export async function createTestApp(
         maxAttempts: 3,
       }),
   };
+}
+
+export interface FakeCaptcha extends CaptchaVerifier {
+  /** Resultado que devolverá la próxima verificación (y las siguientes). */
+  result: CaptchaResult;
+  /** Lo que recibió el verificador: solo el token y la IP. */
+  calls: { token: string; ip: string }[];
+}
+
+/** Verificador de CAPTCHA falso y controlable para las pruebas: nunca llama al proveedor. */
+export function createFakeCaptcha(result: CaptchaResult = "ok"): FakeCaptcha {
+  const fake: FakeCaptcha = {
+    result,
+    calls: [],
+    verify(token, ip) {
+      fake.calls.push({ token, ip });
+      return Promise.resolve(fake.result);
+    },
+  };
+  return fake;
 }
 
 let ipCounter = 0;

@@ -135,7 +135,7 @@ async function assertWithinBookingLimits(ctx: TenantContext, connection: PoolCon
   const since = new Date(now.getTime() - BOOKING_LIMITS.windowMs);
   const [recent] = await connection.execute<RowDataPacket[]>(
     `SELECT COUNT(*) AS n, MIN(created_at) AS oldest FROM appointment
-      WHERE created_by_user_id = ? AND created_by_role = 'patient' AND created_at >= ?`,
+      WHERE created_by_user_id = ? AND created_by_role = 'patient' AND kind = 'regular' AND created_at >= ?`,
     [userId, since],
   );
   if (Number(recent[0]?.n ?? 0) >= BOOKING_LIMITS.perAccountPerHour) {
@@ -145,7 +145,7 @@ async function assertWithinBookingLimits(ctx: TenantContext, connection: PoolCon
   }
 
   const [active] = await connection.execute<RowDataPacket[]>(
-    "SELECT COUNT(*) AS n FROM appointment WHERE doctor_id = ? AND patient_id = ? AND status = 'booked' AND end_utc > ?",
+    "SELECT COUNT(*) AS n FROM appointment WHERE doctor_id = ? AND patient_id = ? AND status = 'booked' AND kind = 'regular' AND end_utc > ?",
     [ctx.doctorId, patientId, now],
   );
   if (Number(active[0]?.n ?? 0) >= BOOKING_LIMITS.activePerPatient) {

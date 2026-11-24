@@ -12,7 +12,7 @@ const MX = "America/Mexico_City";
 const TJ = "America/Tijuana";
 
 function settings(overrides: Partial<CalendarSettings> = {}): CalendarSettings {
-  return { slotMinutes: 45, gapMinutes: 15, timezone: MX, minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24, ...overrides };
+  return { slotMinutes: 45, gapMinutes: 15, timezone: MX, minNoticeMinutes: 120, maxAdvanceDays: 60, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30, ...overrides };
 }
 
 const hm = (hours: number, minutes = 0): number => hours * 60 + minutes;
@@ -156,5 +156,48 @@ describe("findOutOfScheduleAppointments", () => {
       { id: 3, startUtc: at(11), endUtc: at(11, 45) }, // coincide
     ];
     expect(findOutOfScheduleAppointments(appointments, slots).map((a) => a.id)).toEqual([1, 2]);
+  });
+});
+
+describe("tipos de franja (regular y urgencia)", () => {
+  const urgent = (weekday: number, start: number, end: number): HoursRange => ({ weekday, startMinute: start, endMinute: end, kind: "urgent" });
+  const mixed: HoursRange[] = [range(1, hm(9), hm(11)), urgent(1, hm(8), hm(9))];
+
+  it("por defecto solo genera las franjas regulares y cada espacio lleva su tipo", () => {
+    const slots = generateSlotsForDay(settings(), mixed, MONDAY);
+    expect(localStarts(slots)).toEqual(["09:00", "10:00"]);
+    expect(slots.every((slot) => slot.kind === "regular")).toBe(true);
+  });
+
+  it("una franja sin `kind` cuenta como regular", () => {
+    const slots = generateSlotsForDay(settings(), [range(1, hm(9), hm(10))], MONDAY, ["regular"]);
+    expect(slots.map((slot) => slot.kind)).toEqual(["regular"]);
+  });
+
+  it("con ambos tipos devuelve los espacios ordenados por inicio, cada uno con su tipo", () => {
+    const slots = generateSlotsForDay(settings(), mixed, MONDAY, ["regular", "urgent"]);
+    expect(localStarts(slots)).toEqual(["08:00", "09:00", "10:00"]);
+    expect(slots.map((slot) => slot.kind)).toEqual(["urgent", "regular", "regular"]);
+  });
+
+  it("solo urgencias", () => {
+    expect(localStarts(generateSlotsForDay(settings(), mixed, MONDAY, ["urgent"]))).toEqual(["08:00"]);
+  });
+
+  it("classifySlots conserva el tipo del espacio", () => {
+    const slots = generateSlotsForDay(settings(), mixed, MONDAY, ["regular", "urgent"]);
+    const now = new Date("2026-06-15T00:00:00.000Z");
+    expect(classifySlots(slots, [], [], now).map((slot) => slot.kind)).toEqual(["urgent", "regular", "regular"]);
+  });
+
+  it("el cambio de hora (primavera, America/Tijuana) no duplica ni pierde espacios de ninguno de los dos tipos", () => {
+    // 2026-03-08 es domingo (weekday 7): a las 2:00 locales los relojes saltan a las 3:00.
+    const hours: HoursRange[] = [urgent(7, hm(0), hm(2)), { weekday: 7, startMinute: hm(3), endMinute: hm(5), kind: "regular" }];
+    const slots = generateSlotsForDay(settings({ timezone: TJ }), hours, "2026-03-08", ["regular", "urgent"]);
+    const starts = slots.map((slot) => slot.startUtc.getTime());
+    expect(new Set(starts).size).toBe(starts.length);
+    expect(starts).toEqual([...starts].sort((a, b) => a - b));
+    expect(slots.filter((slot) => slot.kind === "urgent")).toHaveLength(2);
+    expect(slots.filter((slot) => slot.kind === "regular")).toHaveLength(2);
   });
 });

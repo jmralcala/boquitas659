@@ -21,6 +21,7 @@ import { DEVICE_COOKIE, setDeviceCookie } from "../auth/devices.js";
 import { loadSettings } from "../calendar/settings-repository.js";
 import { findAccountByUserId, listPatientsByAccount } from "../patients/patient-repository.js";
 import { getDayView, getMonthView, type DayView } from "./availability-view.js";
+import { urgentContentAvailable } from "../urgent/triage-content.js";
 import { hasActiveAuthorization } from "./authorization.js";
 import { reserveAsPatient } from "./booking-service.js";
 import { listOffices, previewRevocation, revoke } from "./offices-service.js";
@@ -98,6 +99,7 @@ export function registerSitePatientRoutes(app: FastifyInstance, services: Servic
         selectedPatientId: options.selectedPatientId ?? null,
         selectedStart: options.selectedStart ?? null,
         needsAuthorization,
+        urgentOffered: urgentContentAvailable(services.env.APP_ENV) && services.captchaConfigured,
         errors: options.errors ?? {},
         ...(options.notice !== undefined ? { notice: options.notice } : {}),
       }),

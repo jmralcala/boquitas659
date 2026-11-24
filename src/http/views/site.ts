@@ -220,6 +220,8 @@ export interface BookingPageOptions {
   selectedStart: string | null;
   /** Falta la autorización de datos: se muestra la casilla (sin marcar). */
   needsAuthorization: boolean;
+  /** La urgencia en línea está disponible (contenido médico validado y CAPTCHA configurado en producción). */
+  urgentOffered: boolean;
   errors: FieldErrors;
   /** Aviso al volver a mostrar la página (por ejemplo, el horario elegido ya no está disponible). */
   notice?: string;
@@ -295,6 +297,7 @@ ${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
 ${errorList(errors._)}
 ${monthCalendar(options.slug, options.month)}
 ${dayContent}
+${options.urgentOffered ? html`<p><a href="${base}/urgencia">Tengo una urgencia</a></p>` : null}
 <p><a href="/pacientes/citas">Mis citas</a></p>`;
   return sitePage({ title: options.doctorName, content });
 }
@@ -393,7 +396,7 @@ ${form({
 
 function appointmentRow(item: PatientAppointmentItem): SafeHtml {
   return html`<li><a href="/pacientes/citas/${item.id}">${formatDate(item.timezone, item.startUtc)}, ${formatTime(item.timezone, item.startUtc)}</a>
-  — ${item.patientName} con ${item.doctorName}${item.status === "cancelled" ? " (cancelada)" : ""}</li>`;
+  — ${item.patientName} con ${item.doctorName}${item.kind === "urgent" ? html` <strong>Urgencia</strong>` : null}${item.status === "cancelled" ? " (cancelada)" : ""}</li>`;
 }
 
 /** «Mis citas»: próximas e historial reciente de todas las personas de la cuenta, con cualquier consultorio. */
@@ -424,6 +427,7 @@ ${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
   <dt>Hora</dt><dd>${formatTime(item.timezone, item.startUtc)} (hora del consultorio)</dd>
   ${item.address ? html`<dt>Dónde</dt><dd>${item.address}</dd>` : null}
   <dt>Estado</dt><dd>${item.status === "cancelled" ? "Cancelada" : "Agendada"}</dd>
+  <dt>Tipo</dt><dd>${item.kind === "urgent" ? "Urgencia" : "Convencional"}</dd>
 </dl>
 ${phoneNotice(item.officePhone)}
 ${item.cancelable

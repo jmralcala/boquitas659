@@ -21,8 +21,9 @@ export interface AppointmentSummary {
   startUtc: Date;
   endUtc: Date;
   timezone: string;
-  /** El paciente todavía puede cancelar (antes del límite que fijó el médico). */
+  /** El paciente todavía puede cancelar (antes del límite que fijó el médico; las urgencias, siempre mientras no empiecen). */
   cancelable: boolean;
+  kind: "regular" | "urgent";
   /** Último instante en que el paciente puede cancelar. */
   cancelDeadline: Date;
 }
@@ -59,6 +60,7 @@ interface LiveAppointment {
   address: string | null;
   timezone: string;
   cancelNoticeHours: number;
+  kind: "regular" | "urgent";
 }
 
 export function createAppointmentLinks(deps: AppointmentLinksDeps): AppointmentLinks {
@@ -75,7 +77,7 @@ export function createAppointmentLinks(deps: AppointmentLinksDeps): AppointmentL
     if (appointmentId === null) return null;
 
     const [rows] = await deps.db.execute<RowDataPacket[]>(
-      `SELECT a.id, a.patient_id, a.start_utc, a.end_utc, d.full_name AS doctor_name, d.office_phone, ds.address,
+      `SELECT a.id, a.patient_id, a.start_utc, a.end_utc, a.kind, d.full_name AS doctor_name, d.office_phone, ds.address,
               COALESCE(cs.timezone, ?) AS timezone, COALESCE(cs.cancel_notice_hours, ?) AS cancel_notice_hours
          FROM appointment a
          JOIN doctor d ON d.id = a.doctor_id
@@ -96,6 +98,7 @@ export function createAppointmentLinks(deps: AppointmentLinksDeps): AppointmentL
       address: row.address === null ? null : String(row.address),
       timezone: String(row.timezone),
       cancelNoticeHours: Number(row.cancel_notice_hours),
+      kind: row.kind === "urgent" ? "urgent" : "regular",
     };
   }
 
@@ -130,7 +133,9 @@ export function createAppointmentLinks(deps: AppointmentLinksDeps): AppointmentL
           startUtc: appointment.startUtc,
           endUtc: appointment.endUtc,
           timezone: appointment.timezone,
-          cancelable: deps.clock.now().getTime() <= cancelDeadline.getTime(),
+          // Una urgencia se cancela mientras no empiece; la convencional, hasta el plazo del consultorio.
+          kind: appointment.kind,
+          cancelable: appointment.kind === "urgent" || deps.clock.now().getTime() <= cancelDeadline.getTime(),
           cancelDeadline,
         },
       };

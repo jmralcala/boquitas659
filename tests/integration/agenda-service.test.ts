@@ -67,7 +67,7 @@ describe("getDay", () => {
     expect(day.appointments).toHaveLength(1);
     const appointment = day.appointments[0];
     expect(appointment?.patientName).toBe("Ana Pérez");
-    expect(Object.keys(appointment ?? {}).sort()).toEqual(["endUtc", "id", "outOfSchedule", "patientId", "patientName", "startUtc"]);
+    expect(Object.keys(appointment ?? {}).sort()).toEqual(["endUtc", "id", "kind", "outOfSchedule", "patientId", "patientName", "startUtc"]);
     expect(JSON.stringify(day)).not.toContain("ana@example.com");
     expect(JSON.stringify(day)).not.toContain("5512345678");
   });

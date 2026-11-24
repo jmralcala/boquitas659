@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: CalendarSettings = {
   minNoticeMinutes: 120,
   maxAdvanceDays: 60,
   cancelNoticeHours: 24,
+  urgentMinNoticeMinutes: 30,
 };
 
 /** Configuración vigente de un calendario: valores, franjas y si todavía rigen los valores por defecto. */
@@ -34,7 +35,10 @@ export const LIMITS = {
   minNoticeHours: { min: 0, max: 168 },
   maxAdvanceDays: { min: 1, max: 365 },
   cancelNoticeHours: { min: 0, max: 168 },
+  urgentMinNoticeMinutes: { min: 0, max: 1440 },
   rangesPerDay: 4,
+  /** Franjas de urgencia por día. */
+  urgentRangesPerDay: 2,
 } as const;
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -78,11 +82,17 @@ const formSchema = z.object({
   minNoticeHours: integer("la anticipación mínima", LIMITS.minNoticeHours.min, LIMITS.minNoticeHours.max),
   maxAdvanceDays: integer("la anticipación máxima", LIMITS.maxAdvanceDays.min, LIMITS.maxAdvanceDays.max),
   cancelNoticeHours: integer("el límite de cancelación", LIMITS.cancelNoticeHours.min, LIMITS.cancelNoticeHours.max),
+  urgentMinNoticeMinutes: integer("la anticipación de urgencias", LIMITS.urgentMinNoticeMinutes.min, LIMITS.urgentMinNoticeMinutes.max),
 });
 
 /** Clave del campo de una franja en el formulario: `h<día>_<n>_start|end`; los errores de la franja usan `h<día>_<n>`. */
 export function rangeFieldName(weekday: number, slot: number, edge: "start" | "end"): string {
   return `h${weekday}_${slot}_${edge}`;
+}
+
+/** Clave del campo de una franja de URGENCIA: `u<día>_<n>_start|end`; los errores de la franja usan `u<día>_<n>`. */
+export function urgentRangeFieldName(weekday: number, slot: number, edge: "start" | "end"): string {
+  return `u${weekday}_${slot}_${edge}`;
 }
 
 function textOf(body: Record<string, unknown>, key: string): string {
@@ -110,39 +120,46 @@ export function parseCalendarForm(body: Record<string, unknown>): CalendarInput 
     maxAdvanceDays: typeof body.maxAdvanceDays === "string" ? body.maxAdvanceDays.slice(0, 10) : undefined,
     // Si el campo no viene (formularios anteriores a esta versión) rige el valor por defecto.
     cancelNoticeHours: typeof body.cancelNoticeHours === "string" ? body.cancelNoticeHours.slice(0, 10) : String(DEFAULT_SETTINGS.cancelNoticeHours),
+    urgentMinNoticeMinutes: typeof body.urgentMinNoticeMinutes === "string" ? body.urgentMinNoticeMinutes.slice(0, 10) : String(DEFAULT_SETTINGS.urgentMinNoticeMinutes),
   });
   if (!parsed.success) {
     for (const issue of parsed.error.issues) add(String(issue.path[0] ?? "_"), issue.message);
   }
 
-  // Franjas: cada par inicio/fin se valida por separado; vacío + vacío se ignora.
+  /** Lee un par inicio/fin del formulario; vacío + vacío se ignora y un par inválido añade su error y se descarta. */
+  const readRange = (prefix: "h" | "u", weekday: number, slot: number): { slot: number; start: number; end: number } | null => {
+    const startText = textOf(body, `${prefix}${weekday}_${slot}_start`);
+    const endText = textOf(body, `${prefix}${weekday}_${slot}_end`);
+    if (startText === "" && endText === "") return null;
+    const key = `${prefix}${weekday}_${slot}`;
+    if (startText === "" || endText === "") {
+      add(key, "Escribe la hora de inicio y la de fin, o deja ambas vacías.");
+      return null;
+    }
+    const startMinute = toMinutes(startText);
+    const endMinute = toMinutes(endText);
+    if (startMinute === null || endMinute === null || startMinute >= 1440) {
+      add(key, "Las horas deben tener el formato HH:MM (24 horas).");
+      return null;
+    }
+    if (startMinute % 5 !== 0 || endMinute % 5 !== 0) {
+      add(key, "Los minutos deben ser múltiplos de 5.");
+      return null;
+    }
+    if (endMinute <= startMinute) {
+      add(key, "La hora de fin debe ser posterior a la de inicio.");
+      return null;
+    }
+    return { slot, start: startMinute, end: endMinute };
+  };
+
+  // Franjas: regulares (h) y de urgencia (u). Cada par se valida por separado.
   const ranges: HoursRange[] = [];
   for (const weekday of WEEKDAYS) {
     const day: { slot: number; start: number; end: number }[] = [];
     for (let slot = 0; slot < SLOTS_PER_DAY; slot += 1) {
-      const startText = textOf(body, rangeFieldName(weekday, slot, "start"));
-      const endText = textOf(body, rangeFieldName(weekday, slot, "end"));
-      if (startText === "" && endText === "") continue;
-      const key = `h${weekday}_${slot}`;
-      if (startText === "" || endText === "") {
-        add(key, "Escribe la hora de inicio y la de fin, o deja ambas vacías.");
-        continue;
-      }
-      const start = toMinutes(startText);
-      const end = toMinutes(endText);
-      if (start === null || end === null || start >= 1440) {
-        add(key, "Las horas deben tener el formato HH:MM (24 horas).");
-        continue;
-      }
-      if (start % 5 !== 0 || end % 5 !== 0) {
-        add(key, "Los minutos deben ser múltiplos de 5.");
-        continue;
-      }
-      if (end <= start) {
-        add(key, "La hora de fin debe ser posterior a la de inicio.");
-        continue;
-      }
-      day.push({ slot, start, end });
+      const range = readRange("h", weekday, slot);
+      if (range) day.push(range);
     }
     // Un día no puede tener franjas solapadas (las adyacentes sí valen).
     const sorted = [...day].sort((a, b) => a.start - b.start);
@@ -154,6 +171,22 @@ export function parseCalendarForm(body: Record<string, unknown>): CalendarInput 
       }
     }
     for (const entry of sorted) ranges.push({ weekday, startMinute: entry.start, endMinute: entry.end });
+
+    // Urgencias: hasta `urgentRangesPerDay` por día y sin solape con NINGUNA otra franja del día (regular o de urgencia).
+    const urgentDay: { slot: number; start: number; end: number }[] = [];
+    for (let slot = 0; slot < LIMITS.urgentRangesPerDay; slot += 1) {
+      const range = readRange("u", weekday, slot);
+      if (range) urgentDay.push(range);
+    }
+    const occupied = day.map((entry) => ({ start: entry.start, end: entry.end }));
+    const urgentSorted = [...urgentDay].sort((a, b) => a.start - b.start);
+    for (const entry of urgentSorted) {
+      if (occupied.some((other) => entry.start < other.end && other.start < entry.end)) {
+        add(`u${weekday}_${entry.slot}`, "Una franja de urgencia no puede solaparse con ninguna otra franja del mismo día.");
+      }
+      occupied.push({ start: entry.start, end: entry.end });
+    }
+    for (const entry of urgentSorted) ranges.push({ weekday, startMinute: entry.start, endMinute: entry.end, kind: "urgent" });
   }
 
   if (parsed.success && parsed.data.minNoticeHours * 60 >= parsed.data.maxAdvanceDays * 1440) {
@@ -170,6 +203,8 @@ export function parseCalendarForm(body: Record<string, unknown>): CalendarInput 
       minNoticeMinutes: parsed.data.minNoticeHours * 60,
       maxAdvanceDays: parsed.data.maxAdvanceDays,
       cancelNoticeHours: parsed.data.cancelNoticeHours,
+      // Las franjas y la anticipación de urgencias se leen del formulario en la historia 3 (T029); mientras tanto rige el valor por defecto.
+      urgentMinNoticeMinutes: parsed.data.urgentMinNoticeMinutes,
     },
     hours: ranges,
   };

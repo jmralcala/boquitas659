@@ -1,6 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { clearTables, createCalendarHours, createCalendarSettings, createTestPool, resetDatabase } from "../integration/helpers/db.js";
+import { clearTables, createAppointment, createCalendarHours, createCalendarSettings, createPatient, createTestPool, resetDatabase } from "../integration/helpers/db.js";
 import { agendaClientFor, createTestApp, uniqueIp, type AuthedClient, type TestApp } from "../integration/helpers/app.js";
 
 const pool = createTestPool();
@@ -60,7 +60,7 @@ describe("GET /agenda/configuracion", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       isDefault: true,
-      settings: { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeHours: 2, maxAdvanceDays: 60, cancelNoticeHours: 24 },
+      settings: { slotMinutes: 45, gapMinutes: 15, timezone: "America/Mexico_City", minNoticeHours: 2, maxAdvanceDays: 60, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30 },
       hours: [],
     });
   });
@@ -93,11 +93,11 @@ describe("POST /agenda/configuracion", () => {
 
     expect((await get(client)).json()).toEqual({
       isDefault: false,
-      settings: { slotMinutes: 30, gapMinutes: 10, timezone: "America/Tijuana", minNoticeHours: 3, maxAdvanceDays: 45, cancelNoticeHours: 24 },
+      settings: { slotMinutes: 30, gapMinutes: 10, timezone: "America/Tijuana", minNoticeHours: 3, maxAdvanceDays: 45, cancelNoticeHours: 24, urgentMinNoticeMinutes: 30 },
       hours: [
-        { weekday: 1, start: "09:00", end: "14:00" },
-        { weekday: 1, start: "16:00", end: "19:00" },
-        { weekday: 5, start: "08:00", end: "12:00" },
+        { weekday: 1, start: "09:00", end: "14:00", kind: "regular" },
+        { weekday: 1, start: "16:00", end: "19:00", kind: "regular" },
+        { weekday: 5, start: "08:00", end: "12:00", kind: "regular" },
       ],
     });
     expect(await rows("SELECT action, doctor_id FROM calendar_action_log")).toEqual([{ action: "settings_updated", doctor_id: doctor.doctorId }]);
@@ -188,8 +188,79 @@ describe("POST /agenda/configuracion", () => {
 
     expect((await get(a.client)).json()).toMatchObject({
       settings: { slotMinutes: 60 },
-      hours: [{ weekday: 3, start: "10:00", end: "11:00" }],
+      hours: [{ weekday: 3, start: "10:00", end: "11:00", kind: "regular" }],
     });
     expect((await get(b.client)).json()).toMatchObject({ settings: { slotMinutes: 30 } });
+  });
+});
+
+describe("horario de urgencias en la configuración (feature 4)", () => {
+  const WITH_URGENT = { ...VALID, urgentMinNoticeMinutes: "45", u1_0_start: "08:00", u1_0_end: "09:00", u6_0_start: "10:00", u6_0_end: "12:00", u6_1_start: "15:00", u6_1_end: "16:00" };
+
+  it("GET en HTML muestra el bloque de urgencias (2 franjas por día) y la anticipación de urgencias con su valor por defecto", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    const response = await get(client, "text/html");
+    expect(response.body).toContain('name="urgentMinNoticeMinutes"');
+    expect(response.body).toContain('value="30"');
+    for (const weekday of [1, 2, 3, 4, 5, 6, 7]) {
+      expect(response.body).toContain(`name="u${weekday}_0_start"`);
+      expect(response.body).toContain(`name="u${weekday}_1_end"`);
+    }
+    expect(response.body).not.toContain('name="u1_2_start"');
+  });
+
+  it("POST guarda ambas listas y la anticipación en una transacción; GET las devuelve con su tipo", async () => {
+    const { client, doctor } = await agendaClientFor(t, pool, "doctor");
+    expect((await post(client, WITH_URGENT)).statusCode).toBe(303);
+    const json = (await get(client)).json() as { settings: { urgentMinNoticeMinutes: number }; hours: { weekday: number; start: string; end: string; kind: string }[] };
+    expect(json.settings.urgentMinNoticeMinutes).toBe(45);
+    expect(json.hours.filter((range) => range.kind === "urgent")).toEqual([
+      { weekday: 1, start: "08:00", end: "09:00", kind: "urgent" },
+      { weekday: 6, start: "10:00", end: "12:00", kind: "urgent" },
+      { weekday: 6, start: "15:00", end: "16:00", kind: "urgent" },
+    ]);
+    expect(json.hours.filter((range) => range.kind === "regular")).toHaveLength(3);
+    expect(await rows("SELECT action, doctor_id FROM calendar_action_log")).toEqual([{ action: "settings_updated", doctor_id: doctor.doctorId }]);
+  });
+
+  it("un solape entre una franja de urgencia y una convencional da 400 por la clave u<día>_<franja> y no guarda nada", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    const response = await post(client, { ...VALID, u1_0_start: "13:00", u1_0_end: "15:00" }); // h1_0 es 09:00–14:00
+    expect(response.statusCode).toBe(400);
+    expect(Object.keys((response.json() as { fields: Record<string, string[]> }).fields)).toEqual(["u1_0"]);
+    expect(await rows("SELECT * FROM calendar_settings")).toEqual([]);
+    expect(await rows("SELECT * FROM calendar_hours")).toEqual([]);
+  });
+
+  it("una anticipación de urgencias fuera de 0–1440 da 400 por su campo", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    const response = await post(client, { ...VALID, urgentMinNoticeMinutes: "1441" });
+    expect(response.statusCode).toBe(400);
+    expect(Object.keys((response.json() as { fields: Record<string, string[]> }).fields)).toEqual(["urgentMinNoticeMinutes"]);
+  });
+
+  it("sin el campo de anticipación de urgencias se guarda el valor por defecto (30)", async () => {
+    const { client } = await agendaClientFor(t, pool, "doctor");
+    expect((await post(client, VALID)).statusCode).toBe(303);
+    expect(((await get(client)).json() as { settings: { urgentMinNoticeMinutes: number } }).settings.urgentMinNoticeMinutes).toBe(30);
+  });
+
+  it("recepción recibe 403 al leer y al guardar las urgencias, sin cambiar nada; sin CSRF 403", async () => {
+    const { client } = await agendaClientFor(t, pool, "reception");
+    expect((await get(client)).statusCode).toBe(403);
+    expect((await post(client, WITH_URGENT)).statusCode).toBe(403);
+    const doctor = await agendaClientFor(t, pool, "doctor");
+    expect((await post(doctor.client, WITH_URGENT, { csrf: false })).statusCode).toBe(403);
+    expect(await rows("SELECT * FROM calendar_hours WHERE kind = 'urgent'")).toEqual([]);
+  });
+
+  it("guardar las franjas de urgencia no modifica las citas ya agendadas", async () => {
+    const { client, doctor } = await agendaClientFor(t, pool, "doctor");
+    const patient = await createPatient(pool);
+    const id = await createAppointment(pool, { doctorId: doctor.doctorId, patientId: patient.patientId, startUtc: new Date("2026-07-06T15:00:00.000Z") });
+    const before = await rows("SELECT id, status, start_utc, end_utc, kind FROM appointment");
+    expect((await post(client, WITH_URGENT)).statusCode).toBe(303);
+    expect(await rows("SELECT id, status, start_utc, end_utc, kind FROM appointment")).toEqual(before);
+    expect(id).toBeGreaterThan(0);
   });
 });

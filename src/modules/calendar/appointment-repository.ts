@@ -12,13 +12,15 @@ export interface AppointmentRecord {
   startUtc: Date;
   endUtc: Date;
   status: "booked" | "cancelled";
+  /** Tipo de cita: lo único que se guarda del triaje (nunca la categoría). */
+  kind: "regular" | "urgent";
   createdByRole: "doctor" | "reception" | "patient";
   createdAt: Date;
   cancelledByRole: "doctor" | "reception" | "patient" | null;
   cancelledAt: Date | null;
 }
 
-const SELECT_APPOINTMENT = `SELECT a.id, a.patient_id, a.start_utc, a.end_utc, a.status, a.created_by_role, a.created_at,
+const SELECT_APPOINTMENT = `SELECT a.id, a.patient_id, a.start_utc, a.end_utc, a.status, a.kind, a.created_by_role, a.created_at,
        a.cancelled_by_role, a.cancelled_at
   FROM appointment a`;
 
@@ -34,6 +36,7 @@ function toRecord(row: RowDataPacket, names: ReadonlyMap<number, string>): Appoi
     startUtc: row.start_utc as Date,
     endUtc: row.end_utc as Date,
     status: row.status === "cancelled" ? "cancelled" : "booked",
+    kind: row.kind === "urgent" ? "urgent" : "regular",
     createdByRole: row.created_by_role === "reception" ? "reception" : row.created_by_role === "patient" ? "patient" : "doctor",
     createdAt: row.created_at as Date,
     cancelledByRole:
@@ -101,12 +104,12 @@ export async function findOverlappingBooked(
 export async function insertAppointment(
   ctx: TenantContext,
   connection: Executor,
-  input: { patientId: number; startUtc: Date; endUtc: Date; now: Date },
+  input: { patientId: number; startUtc: Date; endUtc: Date; now: Date; kind?: "regular" | "urgent" },
 ): Promise<number> {
   const [result] = await connection.execute<import("mysql2/promise").ResultSetHeader>(
     `INSERT INTO appointment (doctor_id, patient_id, start_utc, end_utc, status, kind, created_by_user_id, created_by_role, created_at)
-     VALUES (?, ?, ?, ?, 'booked', 'regular', ?, ?, ?)`,
-    [ctx.doctorId, input.patientId, input.startUtc, input.endUtc, ctx.actor.userId, ctx.actor.kind, input.now],
+     VALUES (?, ?, ?, ?, 'booked', ?, ?, ?, ?)`,
+    [ctx.doctorId, input.patientId, input.startUtc, input.endUtc, input.kind ?? "regular", ctx.actor.userId, ctx.actor.kind, input.now],
   );
   return result.insertId;
 }

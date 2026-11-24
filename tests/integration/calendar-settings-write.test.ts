@@ -34,10 +34,10 @@ afterAll(async () => {
   await pool.end();
 });
 
-const SETTINGS: CalendarSettings = { slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90, cancelNoticeHours: 12 };
+const SETTINGS: CalendarSettings = { slotMinutes: 30, gapMinutes: 0, timezone: "America/Tijuana", minNoticeMinutes: 60, maxAdvanceDays: 90, cancelNoticeHours: 12, urgentMinNoticeMinutes: 30 };
 const HOURS: HoursRange[] = [
-  { weekday: 1, startMinute: 540, endMinute: 840 },
-  { weekday: 2, startMinute: 600, endMinute: 720 },
+  { weekday: 1, startMinute: 540, endMinute: 840, kind: "regular" },
+  { weekday: 2, startMinute: 600, endMinute: 720, kind: "regular" },
 ];
 
 async function doctorCtx(): Promise<{ ctx: ReturnType<typeof createTenantContext>; doctorId: number; userId: number }> {
@@ -57,10 +57,38 @@ describe("saveSettings", () => {
     expect(await loadSettings(ctx, pool)).toEqual({ settings: SETTINGS, hours: HOURS, isDefault: false });
   });
 
+  it("guarda y lee de vuelta las franjas de urgencia junto con las regulares y la anticipación de urgencias", async () => {
+    const { ctx } = await doctorCtx();
+    const hours: HoursRange[] = [...HOURS, { weekday: 1, startMinute: 480, endMinute: 540, kind: "urgent" }, { weekday: 6, startMinute: 600, endMinute: 720, kind: "urgent" }];
+    await saveSettings(ctx, pool, { settings: { ...SETTINGS, urgentMinNoticeMinutes: 45 }, hours }, clock);
+    const config = await loadSettings(ctx, pool);
+    expect(config.settings.urgentMinNoticeMinutes).toBe(45);
+    expect(config.hours.filter((range) => range.kind === "urgent")).toEqual([
+      { weekday: 1, startMinute: 480, endMinute: 540, kind: "urgent" },
+      { weekday: 6, startMinute: 600, endMinute: 720, kind: "urgent" },
+    ]);
+    expect(config.hours.filter((range) => range.kind === "regular")).toHaveLength(2);
+  });
+
+  it("guardar reemplaza las franjas de AMBOS tipos en la misma transacción (si falla, no cambia nada)", async () => {
+    const { ctx, doctorId } = await doctorCtx();
+    const urgentHours: HoursRange[] = [...HOURS, { weekday: 3, startMinute: 480, endMinute: 540, kind: "urgent" }];
+    await saveSettings(ctx, pool, { settings: SETTINGS, hours: urgentHours }, clock);
+    await saveSettings(ctx, pool, { settings: SETTINGS, hours: HOURS }, clock);
+    expect(await rows("SELECT kind FROM calendar_hours WHERE doctor_id = ? AND kind = 'urgent'", [doctorId])).toEqual([]);
+    // Una franja inválida (fin menor que el inicio) hace fallar el CHECK y revierte todo: quedan las anteriores.
+    await expect(
+      saveSettings(ctx, pool, { settings: { ...SETTINGS, urgentMinNoticeMinutes: 99 }, hours: [{ weekday: 1, startMinute: 600, endMinute: 540, kind: "urgent" }] }, clock),
+    ).rejects.toBeTruthy();
+    const config = await loadSettings(ctx, pool);
+    expect(config.hours).toEqual(HOURS);
+    expect(config.settings.urgentMinNoticeMinutes).toBe(30);
+  });
+
   it("guardar de nuevo reemplaza las franjas completas (borra las que ya no están)", async () => {
     const { ctx } = await doctorCtx();
     await saveSettings(ctx, pool, { settings: SETTINGS, hours: HOURS }, clock);
-    const second: HoursRange[] = [{ weekday: 5, startMinute: 480, endMinute: 600 }];
+    const second: HoursRange[] = [{ weekday: 5, startMinute: 480, endMinute: 600, kind: "regular" }];
     await saveSettings(ctx, pool, { settings: { ...SETTINGS, slotMinutes: 60 }, hours: second }, clock);
     const config = await loadSettings(ctx, pool);
     expect(config.hours).toEqual(second);
@@ -115,7 +143,7 @@ describe("saveSettings", () => {
     await saveSettings(a.ctx, pool, { settings: SETTINGS, hours: HOURS }, clock);
     const forB = await loadSettings(b.ctx, pool);
     expect(forB.settings.slotMinutes).toBe(60);
-    expect(forB.hours).toEqual([{ weekday: 4, startMinute: 600, endMinute: 660 }]);
+    expect(forB.hours).toEqual([{ weekday: 4, startMinute: 600, endMinute: 660, kind: "regular" }]);
   });
 
   describe("no modifica ni cancela citas ni bloqueos existentes", () => {
@@ -139,7 +167,7 @@ describe("saveSettings", () => {
         ctx,
         pool,
         {
-          settings: { slotMinutes: 20, gapMinutes: 5, timezone: "America/Cancun", minNoticeMinutes: 0, maxAdvanceDays: 5, cancelNoticeHours: 72 },
+          settings: { slotMinutes: 20, gapMinutes: 5, timezone: "America/Cancun", minNoticeMinutes: 0, maxAdvanceDays: 5, cancelNoticeHours: 72, urgentMinNoticeMinutes: 30 },
           hours: [{ weekday: 6, startMinute: 0, endMinute: 60 }],
         },
         clock,
@@ -167,7 +195,7 @@ describe("saveSettings", () => {
 
   it("el límite de cancelación se guarda, se lee de vuelta y por defecto vale 24", async () => {
     const { ctx } = await doctorCtx();
-    await saveSettings(ctx, pool, { settings: { ...SETTINGS, cancelNoticeHours: 72 }, hours: HOURS }, clock);
+    await saveSettings(ctx, pool, { settings: { ...SETTINGS, cancelNoticeHours: 72, urgentMinNoticeMinutes: 30 }, hours: HOURS }, clock);
     expect((await loadSettings(ctx, pool)).settings.cancelNoticeHours).toBe(72);
     const other = await doctorCtx();
     expect((await loadSettings(other.ctx, pool)).settings.cancelNoticeHours).toBe(24);

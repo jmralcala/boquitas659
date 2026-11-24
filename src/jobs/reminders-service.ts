@@ -25,7 +25,7 @@ export async function enqueueDueReminders(db: Db, clock: Clock, batchSize = REMI
     `SELECT a.id, a.start_utc, a.created_at, COALESCE(cs.cancel_notice_hours, ?) AS cancel_notice_hours
        FROM appointment a
        LEFT JOIN calendar_settings cs ON cs.doctor_id = a.doctor_id
-      WHERE a.status = 'booked' AND a.reminder_enqueued_at IS NULL AND a.start_utc > ?
+      WHERE a.status = 'booked' AND a.kind = 'regular' AND a.reminder_enqueued_at IS NULL AND a.start_utc > ?
         AND DATE_SUB(a.start_utc, INTERVAL (COALESCE(cs.cancel_notice_hours, ?) + 6) HOUR) <= ?
         AND a.created_at <= DATE_SUB(a.start_utc, INTERVAL (COALESCE(cs.cancel_notice_hours, ?) + 6) HOUR)
       ORDER BY a.start_utc, a.id

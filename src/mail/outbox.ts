@@ -58,6 +58,12 @@ const BACKOFF_CAP_MINUTES = 60;
 /** Señal interna: la plantilla pidió cancelar el correo; se revierte la transacción y se marca como cancelado. */
 class CancelSignal extends Error {}
 
+/** Copia del payload sin las claves sensibles de la plantilla. */
+function scrubbed(payload: EmailPayload, keys: readonly string[] | undefined): EmailPayload {
+  if (!keys || keys.length === 0) return payload;
+  return Object.fromEntries(Object.entries(payload).filter(([key]) => !keys.includes(key)));
+}
+
 /**
  * Procesa los correos vencidos. Es idempotente y seguro si el cron se solapa: cada fila se reserva con una
  * actualización condicional, así que un correo solo lo envía un proceso. Las plantillas con enlace crean su
@@ -101,11 +107,13 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
     if (!row) continue;
     const attempts = Number(row.attempts) + 1;
     const templateName = String(row.template);
+    // Conocidos antes del `try` para que las ramas de cancelación y abandono puedan borrar las claves sensibles.
+    const template = deps.templates[templateName];
+    let payload: EmailPayload = {};
 
     try {
-      const template = deps.templates[templateName];
       if (!template) throw Object.assign(new Error("Plantilla desconocida"), { code: "UNKNOWN_TEMPLATE" });
-      const payload = JSON.parse(String(row.payload_ref)) as EmailPayload;
+      payload = JSON.parse(String(row.payload_ref)) as EmailPayload;
 
       await withTransaction(deps.db, async (connection) => {
         // La comprobación va DENTRO de la transacción, con bloqueo de la fila de la que depende: si en ese instante hay
@@ -124,16 +132,21 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
         }
         const rendered = await template.render({ payload, link, baseUrl: deps.baseUrl, db: deps.db, now: clock.now() });
         await deps.transport.send({ to: String(row.to_email), ...rendered });
+        // Las claves sensibles se eliminan en la MISMA transacción que marca el envío.
         await connection.execute(
-          "UPDATE email_outbox SET status = 'sent', sent_at = ?, attempts = ?, locked_until = NULL WHERE id = ?",
-          [clock.now(), attempts, id],
+          "UPDATE email_outbox SET status = 'sent', sent_at = ?, attempts = ?, locked_until = NULL, payload_ref = ? WHERE id = ?",
+          [clock.now(), attempts, JSON.stringify(scrubbed(payload, template.sensitiveKeys)), id],
         );
       });
       result.sent += 1;
     } catch (error) {
       if (error instanceof CancelSignal) {
         // La transacción ya se revirtió (no queda token ni envío): el correo se marca como cancelado.
-        await deps.db.execute("UPDATE email_outbox SET status = 'cancelled', attempts = ?, locked_until = NULL WHERE id = ?", [attempts - 1, id]);
+        await deps.db.execute("UPDATE email_outbox SET status = 'cancelled', attempts = ?, locked_until = NULL, payload_ref = ? WHERE id = ?", [
+          attempts - 1,
+          JSON.stringify(scrubbed(payload, template?.sensitiveKeys)),
+          id,
+        ]);
         result.cancelled += 1;
         deps.log?.({ event: "cancelled", id, template: templateName, attempts: attempts - 1 });
         continue;
@@ -142,10 +155,17 @@ export async function processOutbox(deps: OutboxDeps): Promise<OutboxResult> {
       const info = error as { name?: string; code?: string };
       const base = { id, template: templateName, attempts, errorName: info.name, errorCode: info.code };
       if (attempts >= maxAttempts) {
-        await deps.db.execute(
-          "UPDATE email_outbox SET status = 'failed', attempts = ?, locked_until = NULL WHERE id = ?",
-          [attempts, id],
-        );
+        // Abandonado: se eliminan las claves sensibles y, si la plantilla lo declara, se encola el aviso de respaldo sin ellas.
+        const clean = scrubbed(payload, template?.sensitiveKeys);
+        await withTransaction(deps.db, async (connection) => {
+          await connection.execute(
+            "UPDATE email_outbox SET status = 'failed', attempts = ?, locked_until = NULL, payload_ref = ? WHERE id = ?",
+            [attempts, template?.sensitiveKeys?.length ? JSON.stringify(clean) : String(row.payload_ref), id],
+          );
+          if (template?.fallbackTemplate) {
+            await enqueueEmail(connection, { template: template.fallbackTemplate, to: String(row.to_email), payload: clean }, clock);
+          }
+        });
         result.failed += 1;
         deps.log?.({ event: "gave_up", ...base });
       } else {

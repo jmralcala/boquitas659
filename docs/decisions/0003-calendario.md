@@ -63,3 +63,6 @@ Dos revisiones de solo lectura (código y seguridad) sobre el diff de la feature
 - **Riesgo del boleto de recepción, resuelto.** El vínculo médico-paciente creado por el personal con un boleto ya no es silencioso ni irrevocable: guarda `origin = 'office'` y quién lo creó, la cuenta recibe `patient_linked_by_office` y puede revocarlo desde «Mis consultorios» (cancela sus citas futuras con ese consultorio y retira el acceso al contacto). Tras revocar, el personal no puede agendar a esa cuenta (404) hasta que el propio paciente vuelva a reservar con una nueva autorización. Ver `0004-micrositio.md`.
 - **Disponibilidad.** La reserva del paciente llama a `validatePatientBookingWindow` y `listFreeSlots` (`forPatient`) y lleva su prueba de concurrencia (`booking-concurrency.test.ts`).
 - **Correos.** `appointment_created` ahora lleva dirección, enlace y `Reply-To`; la regla «sin enlaces» de este documento ya no aplica.
+
+## Nota (feature 4)
+Las franjas de urgencia y la anticipación propia de urgencias se añadieron en la feature 4; ver `0005-urgencias.md`. Las citas de urgencia comparten el bloqueo del calendario y el índice único.

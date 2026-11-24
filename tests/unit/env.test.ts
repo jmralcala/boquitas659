@@ -40,6 +40,26 @@ describe("loadEnv", () => {
     expect(message).not.toContain("corta");
   });
 
+  it("las claves de Turnstile son opcionales, van en pareja y su valor nunca aparece en el error", () => {
+    const site = "s".repeat(20);
+    const secret = "x".repeat(24);
+    const loaded = loadEnv({ ...base, TURNSTILE_SITE_KEY: site, TURNSTILE_SECRET_KEY: secret });
+    expect(loaded.TURNSTILE_SITE_KEY).toBe(site);
+    expect(loaded.TURNSTILE_SECRET_KEY).toBe(secret);
+    expect(loadEnv(base).TURNSTILE_SITE_KEY).toBeUndefined();
+    expect(loadEnv(base).TURNSTILE_SECRET_KEY).toBeUndefined();
+    for (const partial of [{ TURNSTILE_SITE_KEY: site }, { TURNSTILE_SECRET_KEY: secret }, { TURNSTILE_SITE_KEY: "corta", TURNSTILE_SECRET_KEY: secret }]) {
+      let message = "";
+      try {
+        loadEnv({ ...base, ...partial });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain("TURNSTILE");
+      for (const value of [site, secret, "corta"]) expect(message).not.toContain(value);
+    }
+  });
+
   it("TRUST_PROXY acepta false, un número de saltos o una lista de IP/CIDR, y nunca true", () => {
     expect(loadEnv({ ...base, TRUST_PROXY: "0" }).TRUST_PROXY).toBe(false);
     expect(loadEnv({ ...base, TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);

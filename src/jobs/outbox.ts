@@ -3,6 +3,7 @@ import { loadEnv } from "../config/env.js";
 import { createPool } from "../db/pool.js";
 import { systemClock } from "../lib/clock.js";
 import { enqueueDueReminders } from "./reminders-service.js";
+import { expireUrgentCategories } from "./urgent-notices.js";
 import { processOutbox } from "../mail/outbox.js";
 import { defaultTemplates } from "../mail/templates.js";
 import { createMemoryTransport, createSmtpTransport, type MailTransport } from "../mail/transport.js";
@@ -30,6 +31,9 @@ if (env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASS && env.SMTP
 
 try {
   // Primero se encolan los recordatorios que ya tocan; el envío los toma en esta misma ejecución.
+  // La categoría de una urgencia no puede pasar de 24 h en la cola: se convierte en aviso genérico antes de enviar.
+  const expired = await expireUrgentCategories(db, systemClock);
+  if (expired > 0) process.stdout.write(`Avisos de urgencia expirados (sin categoría): ${expired}.\n`);
   const reminders = await enqueueDueReminders(db, systemClock);
   if (reminders > 0) process.stdout.write(`Recordatorios encolados: ${reminders}.\n`);
   const result = await processOutbox({

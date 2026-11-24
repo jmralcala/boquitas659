@@ -13,6 +13,8 @@ export interface PatientAppointmentRow {
   startUtc: Date;
   endUtc: Date;
   status: "booked" | "cancelled";
+  /** Tipo de cita: las urgencias se cancelan sin el plazo del consultorio. */
+  kind: "regular" | "urgent";
   doctorName: string;
   officePhone: string | null;
   address: string | null;
@@ -20,7 +22,7 @@ export interface PatientAppointmentRow {
   cancelNoticeHours: number;
 }
 
-const SELECT_FOR_PATIENT = `SELECT a.id, a.doctor_id, a.patient_id, a.start_utc, a.end_utc, a.status,
+const SELECT_FOR_PATIENT = `SELECT a.id, a.doctor_id, a.patient_id, a.start_utc, a.end_utc, a.status, a.kind,
        d.full_name AS doctor_name, d.office_phone, ds.address,
        COALESCE(cs.timezone, 'America/Mexico_City') AS timezone, COALESCE(cs.cancel_notice_hours, 24) AS cancel_notice_hours
   FROM appointment a
@@ -36,6 +38,7 @@ function toPatientRow(row: RowDataPacket): PatientAppointmentRow {
     startUtc: row.start_utc as Date,
     endUtc: row.end_utc as Date,
     status: row.status === "cancelled" ? "cancelled" : "booked",
+    kind: row.kind === "urgent" ? "urgent" : "regular",
     doctorName: String(row.doctor_name),
     officePhone: row.office_phone !== null && /^\d{10}$/.test(String(row.office_phone)) ? String(row.office_phone) : null,
     address: row.address === null ? null : String(row.address),

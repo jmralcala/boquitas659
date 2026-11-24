@@ -16,6 +16,8 @@ export interface AppointmentFacts {
   doctorEmail: string;
   address: string | null;
   createdByRole: string;
+  /** Tipo de cita: lo único que se conserva del triaje (nunca su categoría). */
+  kind: string;
   officePhone: string | null;
   /** Horas antes de la cita hasta las que el paciente puede cancelar. */
   cancelNoticeHours: number;
@@ -26,7 +28,7 @@ export interface AppointmentFacts {
 
 export async function loadFacts(context: Pick<RenderContext, "payload" | "db">): Promise<AppointmentFacts> {
   const [rows] = await context.db.execute<RowDataPacket[]>(
-    `SELECT d.full_name AS doctor_name, du.email AS doctor_email, ds.address, a.created_by_role, d.office_phone,
+    `SELECT d.full_name AS doctor_name, du.email AS doctor_email, ds.address, a.created_by_role, a.kind, d.office_phone,
             a.patient_id, a.start_utc, COALESCE(cs.timezone, ?) AS timezone,
             COALESCE(cs.cancel_notice_hours, 24) AS cancel_notice_hours
        FROM appointment a
@@ -44,6 +46,7 @@ export async function loadFacts(context: Pick<RenderContext, "payload" | "db">):
     doctorEmail: String(row.doctor_email),
     address: row.address === null || row.address === undefined ? null : String(row.address),
     createdByRole: String(row.created_by_role),
+    kind: String(row.kind),
     // Se valida al registrarse (10 dígitos); aquí se vuelve a exigir por si un dato llegara por otra vía.
     officePhone: row.office_phone !== null && /^\d{10}$/.test(String(row.office_phone)) ? String(row.office_phone) : null,
     cancelNoticeHours: Number(row.cancel_notice_hours),
@@ -85,9 +88,11 @@ export const calendarTemplates: Record<string, EmailTemplate> = {
     async render(context) {
       const facts = await loadFacts(context);
       const intro =
-        facts.createdByRole === "patient"
-          ? `Tu cita con ${facts.doctorName} quedó agendada para ${facts.patientName}.`
-          : `El consultorio de ${facts.doctorName} agendó una cita para ${facts.patientName}.`;
+        facts.kind === "urgent"
+          ? `Tu cita de urgencia con ${facts.doctorName} quedó agendada para ${facts.patientName}.`
+          : facts.createdByRole === "patient"
+            ? `Tu cita con ${facts.doctorName} quedó agendada para ${facts.patientName}.`
+            : `El consultorio de ${facts.doctorName} agendó una cita para ${facts.patientName}.`;
       return {
         subject: "Tu cita dental fue agendada",
         replyTo: facts.doctorEmail,

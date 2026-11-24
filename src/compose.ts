@@ -39,7 +39,9 @@ import { registerSupportRoutes } from "./modules/support/support-routes.js";
 import { registerCalendarRoutes } from "./modules/calendar/routes.js";
 import { registerSiteDoctorRoutes } from "./modules/site/doctor-routes.js";
 import { registerSitePatientRoutes } from "./modules/site/patient-routes.js";
+import { registerUrgentRoutes } from "./modules/urgent/routes.js";
 import { registerSitePublicRoutes } from "./modules/site/public-routes.js";
+import { createDisabledVerifier, createTurnstileVerifier, createUnavailableVerifier, type CaptchaVerifier } from "./modules/urgent/captcha.js";
 import { createEntryService, type EntryService } from "./modules/site/entry-service.js";
 import { createLogoStorage, type LogoStorage } from "./modules/site/logo-storage.js";
 import { createAppointmentLinks, type AppointmentLinks } from "./modules/site/appointment-links.js";
@@ -74,6 +76,12 @@ export interface Services {
   entry: EntryService;
   /** Logos de los micrositios (directorio privado). */
   logos: LogoStorage;
+  /** Verificación anti-bots del paso de urgencia (Turnstile, o un sustituto en desarrollo y pruebas). */
+  captcha: CaptchaVerifier;
+  /** Clave pública del widget; `null` si no hay claves de Turnstile. */
+  captchaSiteKey: string | null;
+  /** ¿Hay una verificación utilizable? En producción sin claves la urgencia no se ofrece. */
+  captchaConfigured: boolean;
 }
 
 export interface ComposeOptions {
@@ -81,6 +89,8 @@ export interface ComposeOptions {
   db: Db;
   clock?: Clock;
   hasher?: PasswordHasher;
+  /** Solo para pruebas: verificador de CAPTCHA alternativo (las pruebas nunca llaman al proveedor). */
+  captcha?: CaptchaVerifier;
   /** Solo para pruebas: destino alternativo de los registros técnicos. */
   logStream?: Writable;
   /** Solo para pruebas: se invoca por cada ruta registrada (auditoría de rutas contra el contrato). */
@@ -105,6 +115,14 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   const tokens = createOneTimeTokenService(db, clock);
   const login = createLoginService({ db, sessions, hasher, throttle, devices, clock });
   const patients = createPatientRegistration({ db, hasher, legal, clock, blockProvisional });
+  // CAPTCHA: el inyectado (pruebas), Turnstile si hay claves, el desactivado en desarrollo y uno siempre no disponible en producción.
+  const captcha =
+    options.captcha ??
+    (env.TURNSTILE_SECRET_KEY !== undefined
+      ? createTurnstileVerifier({ secret: env.TURNSTILE_SECRET_KEY, log: (event) => process.stderr.write(`${JSON.stringify(event)}\n`) })
+      : env.APP_ENV === "production"
+        ? createUnavailableVerifier()
+        : createDisabledVerifier());
   const services: Services = {
     env,
     db,
@@ -132,6 +150,9 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
     links: createAppointmentLinks({ db, tokens, clock }),
     entry: createEntryService({ login, patients, sessions }),
     logos: createLogoStorage(env.LOGO_STORAGE_DIR),
+    captcha,
+    captchaSiteKey: env.TURNSTILE_SITE_KEY ?? null,
+    captchaConfigured: options.captcha !== undefined || env.TURNSTILE_SECRET_KEY !== undefined || env.APP_ENV !== "production",
   };
 
   // Garantiza que existan los textos legales (provisionales); en producción bloquean las altas hasta revisarse.
@@ -167,6 +188,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   registerCalendarRoutes(app, services);
   registerSitePublicRoutes(app, services);
   registerSitePatientRoutes(app, services);
+  registerUrgentRoutes(app, services);
   registerSiteDoctorRoutes(app, services);
 
   return { app, services };
