@@ -122,7 +122,7 @@ Cuando una cédula está registrada por error o por otra persona, soporte la **l
 
 - **FR-001**: El panel MUST ser accesible solo al personal de soporte autenticado con doble factor ya verificado en la sesión; cualquier otro rol o una sesión sin segundo factor MUST recibir acceso denegado.
 - **FR-002**: Toda acción de soporte que cambie un estado, y toda consulta de un dato sensible (documento de cédula), MUST registrar quién, qué, sobre qué objetivo, cuándo y el motivo cuando aplique, en un historial de solo lectura que ningún rol pueda editar ni borrar.
-- **FR-003**: Toda acción que cambie un estado MUST exigir un motivo (texto obligatorio, longitud limitada) y una confirmación explícita antes de aplicarse; un envío sin ambos MUST NOT cambiar nada. Excepción vigente desde la feature 1: **aprobar** no pide motivo ni casilla y **rechazar** pide motivo pero no casilla (decisión pendiente del responsable: alinearlas con esta regla cambiaría el flujo ya probado).
+- **FR-003**: Toda acción que cambie un estado MUST exigir un motivo (texto obligatorio, longitud limitada) y una confirmación explícita antes de aplicarse; un envío sin ambos MUST NOT cambiar nada. Excepción (decisión del responsable, 2026-11-24): **aprobar** exige solo la casilla de confirmación, sin motivo, porque aprobar es el curso normal de una solicitud revisada; rechazar y todas las demás acciones exigen motivo y casilla.
 - **FR-004**: Soporte MUST NOT poder iniciar sesión como un médico, recepción o paciente ni actuar en su nombre; no existe función de impersonación.
 - **FR-005**: Las rutas del panel MUST validar toda entrada, estar protegidas contra envíos entre sitios y tener límite de peticiones; las acciones de cambio MUST ser idempotentes ante doble envío.
 

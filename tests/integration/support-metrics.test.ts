@@ -210,3 +210,36 @@ describe("la reserva real alimenta los contadores", () => {
     expect(createPatientContext(w.doctor.doctorId, w.patient.user.id).doctorId).toBe(w.doctor.doctorId);
   });
 });
+
+describe("señal de abuso de urgencias", () => {
+  it("cuenta pacientes con más de una urgencia vigente y cuentas con más de 3 solicitudes en 24 h, sin identificarlos", async () => {
+    const a = await createDoctor(pool);
+    const b = await createDoctor(pool);
+    const abuser = await createPatient(pool, { fullName: "Paciente Abusivo Reconocible", email: "abusivo@example.com" });
+    const normal = await createPatient(pool);
+    // Dos urgencias vigentes del mismo paciente en consultorios distintos; una vigente de otro; una pasada.
+    await createAppointment(pool, { doctorId: a.doctorId, patientId: abuser.patientId, startUtc: new Date("2026-11-26T16:00:00.000Z"), kind: "urgent" });
+    await createAppointment(pool, { doctorId: b.doctorId, patientId: abuser.patientId, startUtc: new Date("2026-11-26T17:00:00.000Z"), kind: "urgent" });
+    await createAppointment(pool, { doctorId: a.doctorId, patientId: normal.patientId, startUtc: new Date("2026-11-26T18:00:00.000Z"), kind: "urgent" });
+    await createAppointment(pool, { doctorId: a.doctorId, patientId: normal.patientId, startUtc: new Date("2026-11-20T18:00:00.000Z"), kind: "urgent" });
+    // Una cuenta con 4 solicitudes en las últimas 24 h y otra con 3.
+    for (let index = 0; index < 4; index += 1) await pool.execute("INSERT INTO calendar_action_log (doctor_id, actor_user_id, actor_role, action, outcome, occurred_at) VALUES (?, ?, 'patient', 'urgent_requested', 'ok', ?)", [a.doctorId, abuser.user.id, new Date("2026-11-25T10:00:00.000Z")]);
+    for (let index = 0; index < 3; index += 1) await pool.execute("INSERT INTO calendar_action_log (doctor_id, actor_user_id, actor_role, action, outcome, occurred_at) VALUES (?, ?, 'patient', 'urgent_requested', 'ok', ?)", [a.doctorId, normal.user.id, new Date("2026-11-25T10:00:00.000Z")]);
+    // Solicitudes de hace más de 24 h no cuentan.
+    for (let index = 0; index < 5; index += 1) await pool.execute("INSERT INTO calendar_action_log (doctor_id, actor_user_id, actor_role, action, outcome, occurred_at) VALUES (?, ?, 'patient', 'urgent_requested', 'ok', ?)", [b.doctorId, 999, new Date("2026-11-20T10:00:00.000Z")]);
+
+    const metrics = await t.services.metrics.compute("semana");
+    expect(metrics.urgentAbuse).toEqual({ patientsWithSeveralActive: 1, accountsOverRequestLimit: 1 });
+    const response = await t.app.inject({ method: "GET", url: "/soporte/metricas", remoteAddress: uniqueIp(), headers: { cookie: support.cookie } });
+    expect(response.body).toContain("1 pacientes con más de una urgencia vigente");
+    expect(response.body).toContain("⚠ revisar");
+    expect(response.body).not.toContain("Paciente Abusivo Reconocible");
+    expect(response.body).not.toContain("abusivo@example.com");
+  });
+
+  it("sin señales muestra cero y «sin señales»", async () => {
+    expect((await t.services.metrics.compute("semana")).urgentAbuse).toEqual({ patientsWithSeveralActive: 0, accountsOverRequestLimit: 0 });
+    const response = await t.app.inject({ method: "GET", url: "/soporte/metricas", remoteAddress: uniqueIp(), headers: { cookie: support.cookie } });
+    expect(response.body).toContain("✓ sin señales");
+  });
+});

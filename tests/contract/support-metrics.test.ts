@@ -42,7 +42,7 @@ describe("GET /soporte/metricas", () => {
   it("el JSON trae las claves del contrato y metas; sin datos no hay ceros engañosos", async () => {
     const json = (await get("/soporte/metricas", support, "application/json")).json() as Record<string, unknown>;
     expect(Object.keys(json).sort()).toEqual(
-      ["activeDoctorsPerWeek", "appointmentsPerDoctorWeek", "booking", "from", "mail", "period", "sustainedUse", "targets", "to", "urgent"].sort(),
+      ["activeDoctorsPerWeek", "appointmentsPerDoctorWeek", "booking", "from", "mail", "period", "sustainedUse", "targets", "to", "urgent", "urgentAbuse"].sort(),
     );
     expect(json.targets).toEqual({ completionPercent: 70, bookingSeconds: 120, deliveredPercent: 98, sustainedUsePercent: 50 });
     expect((json.booking as { completionPercent: number | null }).completionPercent).toBeNull();

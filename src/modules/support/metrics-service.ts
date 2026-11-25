@@ -16,6 +16,8 @@ export const TARGETS = {
 } as const;
 
 const DAY_MS = 86_400_000;
+/** Tope de solicitudes de urgencia por cuenta cada 24 h (el mismo de la feature 4). */
+const URGENT_REQUESTS_PER_DAY = 3;
 const WEEK_MS = 7 * DAY_MS;
 
 /** Porcentaje entero con un decimal, o `null` si no hay datos (nunca 0 ni división por cero). */
@@ -66,6 +68,12 @@ export interface MetricsResult {
   appointmentsPerDoctorWeek: Array<{ week: string; doctorId: number; doctorName: string; count: number }>;
   /** Médicos con al menos una acción de agenda en cada semana. */
   activeDoctorsPerWeek: Array<{ week: string; count: number }>;
+  /**
+   * Señal de abuso de urgencias AHORA (no del periodo): los límites por cuenta entre consultorios son blandos (ADR 0005), así
+   * que soporte vigila cuántos pacientes tienen más de una urgencia vigente y cuántas cuentas pasaron de 3 solicitudes en 24 h.
+   * Solo conteos: no se muestra quiénes son.
+   */
+  urgentAbuse: { patientsWithSeveralActive: number; accountsOverRequestLimit: number };
   sustainedUse: { approvedDoctors: number; activeBothWeeks: number; percent: number | null; meetsTarget: boolean | null };
   targets: typeof TARGETS;
 }
@@ -111,6 +119,16 @@ export function createMetricsService(deps: { db: Db; clock?: Clock }): MetricsSe
       );
       const scheduled = Number(urgentRows.find((row) => row.outcome === "ok")?.n ?? 0);
       const noSpace = Number(urgentRows.find((row) => row.outcome === "rejected")?.n ?? 0);
+
+      // Abuso de urgencias (ahora): solo cuántos, nunca quiénes. COUNT(*) va primero: soporte no lee filas de citas.
+      const [activeUrgent] = await deps.db.execute<RowDataPacket[]>(
+        "SELECT COUNT(*) AS n, patient_id FROM appointment WHERE kind = 'urgent' AND status = 'booked' AND start_utc > ? GROUP BY patient_id HAVING n > 1",
+        [now],
+      );
+      const [overLimit] = await deps.db.execute<RowDataPacket[]>(
+        "SELECT COUNT(*) AS n, actor_user_id FROM calendar_action_log WHERE action = 'urgent_requested' AND occurred_at > ? GROUP BY actor_user_id HAVING n > ?",
+        [new Date(now.getTime() - DAY_MS), URGENT_REQUESTS_PER_DAY],
+      );
 
       // Citas por médico y semana: SOLO se cuentan (soporte no ve quién las tiene).
       const [weekRows] = await deps.db.execute<RowDataPacket[]>(
@@ -170,6 +188,7 @@ export function createMetricsService(deps: { db: Db; clock?: Clock }): MetricsSe
           count: Number(row.n),
         })),
         activeDoctorsPerWeek,
+        urgentAbuse: { patientsWithSeveralActive: activeUrgent.length, accountsOverRequestLimit: overLimit.length },
         sustainedUse: { approvedDoctors: approved, activeBothWeeks: both, percent: sustained, meetsTarget: meets(sustained, TARGETS.sustainedUsePercent, "atLeast") },
         targets: TARGETS,
       };

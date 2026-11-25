@@ -39,3 +39,9 @@ Origen: `specs/004-urgencias-y-triaje/` (spec, plan, research, data-model, contr
 - **Medición del piloto.** SC-008 solo puede comparar solicitudes «agendadas» con «sin espacio»: las señales de alarma y el CAPTCHA no disponible no se registran por diseño.
 - **Entrega a tiempo con el cron del hosting.** El aviso al médico sale en el siguiente ciclo de `jobs:outbox` (cada minuto); falta medirlo en el despliegue real (SC-003).
 - **MariaDB y Hostinger.** La migración `0013` y los escenarios de concurrencia están probados en MySQL 8; falta repetirlos en MariaDB (T052).
+
+## Tarea posterior al piloto: serializar los límites por cuenta (2-A)
+
+Los límites de una urgencia vigente por paciente y de 3 solicitudes por cuenta cada 24 h son exactos con un mismo consultorio y blandos entre consultorios (riesgo abierto arriba). **Mitigación vigente (2026-11-24):** el panel de soporte muestra, en las métricas, cuántos pacientes tienen más de una urgencia vigente y cuántas cuentas pasaron de 3 solicitudes en 24 h (solo conteos); con 3 a 5 consultorios el exceso máximo es de 3 a 5 espacios.
+
+**Solución robusta, pendiente:** un candado con nombre por cuenta (`GET_LOCK('urgent-account:<id>', 5)`, disponible en MySQL y MariaDB) que `requestUrgent` (y, igual, `reserveAsPatient` para sus límites por cuenta) tome **antes** de abrir la transacción del consultorio y suelte al terminar, siempre en el orden cuenta → médico y con tiempo de espera, para que no haya interbloqueo con los candados de fila. Costo: una conexión del pool retenida durante la solicitud y pruebas de concurrencia entre consultorios. Una restricción única en la base no sirve: las citas pasadas siguen en `booked` y bloquearían urgencias futuras legítimas. **Cuándo hacerla:** si la señal del panel muestra casos reales durante el piloto, o antes de abrir el registro a más consultorios.

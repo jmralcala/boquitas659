@@ -20,7 +20,7 @@ válida: 409 `state_changed` sin cambios ni entrada en el historial. Éxito: 303
 | `GET /soporte/medicos` | `estado` (`pending` \| `approved` \| `rejected` \| `suspended` \| `read_only` \| `all`, por defecto `pending`), `q` (≤ 100) | Lista de hasta 200 médicos con nombre, estado de aprobación, estado operativo y fecha; búsqueda por nombre o correo |
 | `GET /soporte/medicos/:id` | `id` entero positivo | Detalle (como hoy) más estado operativo, quién y cuándo lo cambió, estado del micrositio y **número** de citas futuras; botones según el estado. 404 si no existe |
 | `GET /soporte/medicos/:id/cedula` | `id` | Archivo de la cédula (como hoy); **registra `view_cedula`** |
-| `POST /soporte/medicos/:id/aprobar` · `POST /soporte/medicos/:id/rechazar` | `id`; `rechazar` exige `reason` | Como hoy; además registran en el historial |
+| `POST /soporte/medicos/:id/aprobar` · `POST /soporte/medicos/:id/rechazar` | `id`; `aprobar` exige `confirm = yes`; `rechazar` exige `reason` y `confirm = yes` | Sin la casilla (o sin motivo al rechazar): 400 y no cambia nada; además registran en el historial |
 | `GET /soporte/medicos/:id/liberar-cedula` | `id` | Pantalla de confirmación con las citas futuras (número) y el estado del micrositio; no cambia nada |
 | `POST /soporte/medicos/:id/liberar-cedula` | `id`, `reason`, `confirm` | Libera cédula y móvil, deja la cuenta `rejected`, el micrositio deja de aceptar reservas; 303 al detalle. Una cuenta **suspendida** responde 409: se reactiva antes (el usuario deshabilitado no podría reenviar la cédula) |
 | `POST /soporte/medicos/:id/suspender` | `id`, `reason`, `confirm`, `from` (`active` \| `read_only`) | `active`/`read_only` → `suspended`: el usuario médico queda deshabilitado y sus sesiones se revocan; aviso al médico |
@@ -50,7 +50,7 @@ cuenta de soporte (FR-013): el id se resuelve contra `doctor`, nunca contra `use
 
 | Método y ruta | Entrada | Resultado |
 |---------------|---------|-----------|
-| `GET /soporte/metricas` | `periodo` (`semana` \| `4semanas` \| `piloto`, por defecto `4semanas`) | Finalización de reserva, tiempo para reservar (promedio y % menor a 2 min), correos entregados, urgencias agendadas frente a sin espacio, citas por médico por semana y médicos activos por semana, cada una con su meta y cumplimiento o «sin datos». Solo conteos y porcentajes; por médico solo conteos. Sin categoría |
+| `GET /soporte/metricas` | `periodo` (`semana` \| `4semanas` \| `piloto`, por defecto `4semanas`) | Finalización de reserva, tiempo para reservar (promedio y % menor a 2 min), correos entregados, urgencias agendadas frente a sin espacio, citas por médico por semana y médicos activos por semana, cada una con su meta y cumplimiento o «sin datos». Solo conteos y porcentajes; por médico solo conteos. Incluye una señal de posible abuso de urgencias (ahora): pacientes con más de una urgencia vigente y cuentas con más de 3 solicitudes en 24 h, solo cuántos. Sin categoría |
 | `GET /soporte/historial` | `pagina`, `persona` (entero), `accion` (enum del historial), `objetivo` (id de un médico: incluye su ficha y su micrositio, no los correos), `desde`, `hasta` (`YYYY-MM-DD` reales, desde ≤ hasta) | Entradas de la más reciente a la más antigua: persona, acción, objetivo, motivo y fecha. **No existe ninguna ruta para modificar o borrar** |
 
 Respuestas JSON (`Accept: application/json`): las mismas estructuras en campos camelCase, con el destinatario ya enmascarado y

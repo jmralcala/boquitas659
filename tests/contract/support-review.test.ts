@@ -80,7 +80,7 @@ describe("lista y detalle", () => {
 describe("decisiones", () => {
   it("aprobar con CSRF válido deja la cuenta aprobada y redirige al detalle", async () => {
     const doctor = await createDoctor(pool, { status: "pending" });
-    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
+    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf, confirm: "yes" }, support.cookie);
     expect(response.statusCode).toBe(303);
     expect(response.headers.location).toBe(`/soporte/medicos/${doctor.doctorId}`);
     expect(await status(doctor.doctorId)).toBe("approved");
@@ -95,11 +95,11 @@ describe("decisiones", () => {
 
   it("rechazar exige motivo", async () => {
     const doctor = await createDoctor(pool, { status: "pending" });
-    const sinMotivo = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/rechazar`, { _csrf: support.csrf, reason: "  " }, support.cookie);
+    const sinMotivo = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/rechazar`, { _csrf: support.csrf, reason: "  ", confirm: "yes" }, support.cookie);
     expect(sinMotivo.statusCode).toBe(400);
     expect(await status(doctor.doctorId)).toBe("pending");
 
-    const conMotivo = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible" }, support.cookie);
+    const conMotivo = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible", confirm: "yes" }, support.cookie);
     expect(conMotivo.statusCode).toBe(303);
     expect(await status(doctor.doctorId)).toBe("rejected");
   });
@@ -114,7 +114,7 @@ describe("decisiones", () => {
 
   it("aprobar una cuenta ya resuelta devuelve 409", async () => {
     const doctor = await createDoctor(pool, { status: "approved" });
-    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
+    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf, confirm: "yes" }, support.cookie);
     expect(response.statusCode).toBe(409);
   });
 });
@@ -153,8 +153,8 @@ describe("historial de soporte", () => {
     const approved = await createDoctor(pool, { status: "pending" });
     const rejected = await createDoctor(pool, { status: "pending" });
     const released = await createDoctor(pool, { status: "pending" });
-    await postForm(t.app, `/soporte/medicos/${approved.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
-    await postForm(t.app, `/soporte/medicos/${rejected.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible" }, support.cookie);
+    await postForm(t.app, `/soporte/medicos/${approved.doctorId}/aprobar`, { _csrf: support.csrf, confirm: "yes" }, support.cookie);
+    await postForm(t.app, `/soporte/medicos/${rejected.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible", confirm: "yes" }, support.cookie);
     await postForm(t.app, `/soporte/medicos/${released.doctorId}/liberar-cedula`, { _csrf: support.csrf, reason: "Registrada por error", confirm: "yes" }, support.cookie);
     const [rows] = await pool.query<RowDataPacket[]>("SELECT support_user_id, action, target_type, target_id, reason, occurred_at FROM support_action_log ORDER BY id");
     expect(rows.map((row) => [row.action, row.target_id, row.reason])).toEqual([
@@ -171,8 +171,34 @@ describe("historial de soporte", () => {
 
   it("una aprobación rechazada por estado (409) no deja entrada", async () => {
     const doctor = await createDoctor(pool, { status: "approved" });
-    await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf }, support.cookie);
+    await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf, confirm: "yes" }, support.cookie);
     const [rows] = await pool.query<RowDataPacket[]>("SELECT id FROM support_action_log");
     expect(rows).toEqual([]);
+  });
+});
+
+describe("confirmación de aprobar y rechazar (FR-003)", () => {
+  it("aprobar sin la casilla, o con un valor distinto de yes, es 400 y no cambia nada", async () => {
+    const doctor = await createDoctor(pool, { status: "pending" });
+    for (const fields of [{}, { confirm: "no" }, { confirm: "" }, { confirm: "on" }] as Array<Record<string, string>>) {
+      const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/aprobar`, { _csrf: support.csrf, ...fields }, support.cookie);
+      expect(response.statusCode, JSON.stringify(fields)).toBe(400);
+    }
+    expect(await status(doctor.doctorId)).toBe("pending");
+    expect(await pool.query("SELECT id FROM support_action_log").then(([rows]) => rows)).toEqual([]);
+  });
+
+  it("rechazar con motivo pero sin la casilla es 400 y no cambia nada", async () => {
+    const doctor = await createDoctor(pool, { status: "pending" });
+    const response = await postForm(t.app, `/soporte/medicos/${doctor.doctorId}/rechazar`, { _csrf: support.csrf, reason: "Cédula ilegible" }, support.cookie);
+    expect(response.statusCode).toBe(400);
+    expect(await status(doctor.doctorId)).toBe("pending");
+  });
+
+  it("el detalle de una solicitud pendiente muestra la casilla en aprobar y en rechazar", async () => {
+    const doctor = await createDoctor(pool, { status: "pending" });
+    const body = (await t.app.inject({ method: "GET", url: `/soporte/medicos/${doctor.doctorId}`, headers: { cookie: support.cookie } })).body;
+    expect(body).toContain("Confirmo que revisé la cédula");
+    expect(body.match(/name="confirm"/g)).toHaveLength(2);
   });
 });

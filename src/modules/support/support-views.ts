@@ -148,11 +148,11 @@ ${options.errors && options.errors.length > 0 ? errorNotice(options.errors) : nu
 ${doctor.cedulaFilePath ? html`<p><a href="${action("cedula")}" target="_blank" rel="noopener">Ver archivo de la cédula</a></p>` : html`<p>Sin archivo de cédula.</p>`}
 ${
   doctor.approvalStatus === "pending"
-    ? html`<h3>Aprobar</h3><form method="post" action="${action("aprobar")}">${csrfInput(options.csrf)}<button type="submit">Aprobar</button></form>
-<h3>Rechazar</h3><form method="post" action="${action("rechazar")}">${csrfInput(options.csrf)}
-  <label>Motivo del rechazo <input type="text" name="reason" required maxlength="500"></label>
-  <button type="submit">Rechazar</button>
-</form>`
+    ? html`<h3>Aprobar</h3><form method="post" action="${action("aprobar")}">${csrfInput(options.csrf)}
+  <p><label><input type="checkbox" name="confirm" value="yes"> Confirmo que revisé la cédula y quiero aprobar esta cuenta</label></p>
+  <button type="submit">Aprobar</button>
+</form>
+<h3>Rechazar</h3>${actionForm({ action: action("rechazar"), csrf: options.csrf, button: "Rechazar" })}`
     : null
 }
 ${buttons}
@@ -249,6 +249,7 @@ export function metricsView(metrics: MetricsResult): string {
     ["Reservas en menos de 2 minutos", valueOrNone(b.underTargetPercent, " %"), "—", "—"],
     ["Correos entregados", valueOrNone(metrics.mail.deliveredPercent, " %"), `más de ${t.deliveredPercent} %`, verdict(metrics.mail.meetsTarget)],
     ["Urgencias agendadas frente a «sin espacio»", metrics.urgent.scheduled + metrics.urgent.noSpace === 0 ? "sin datos" : `${metrics.urgent.scheduled} agendadas · ${metrics.urgent.noSpace} sin espacio`, "—", "—"],
+    ["Posible abuso de urgencias (ahora)", `${metrics.urgentAbuse.patientsWithSeveralActive} pacientes con más de una urgencia vigente · ${metrics.urgentAbuse.accountsOverRequestLimit} cuentas con más de 3 solicitudes en 24 h`, "0", metrics.urgentAbuse.patientsWithSeveralActive + metrics.urgentAbuse.accountsOverRequestLimit === 0 ? "✓ sin señales" : "⚠ revisar"],
     ["Uso sostenido (médicos activos en las dos últimas semanas completas)", valueOrNone(metrics.sustainedUse.percent, " %"), `al menos ${t.sustainedUsePercent} %`, verdict(metrics.sustainedUse.meetsTarget)],
   ];
   return supportPage(

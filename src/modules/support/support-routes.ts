@@ -6,7 +6,7 @@ import { wantsJson } from "../../http/negotiation.js";
 import { parseInput } from "../../http/validate.js";
 import { requireAuth, requireRole } from "../../http/session-plugin.js";
 import type { Doctor } from "../doctors/doctor-repository.js";
-import { actionBody, idParams, pageQuery, reasonSchema, stateActionBody } from "./state-rules.js";
+import { actionBody, confirmSchema, idParams, pageQuery, stateActionBody } from "./state-rules.js";
 import { doctorDetailView, doctorListView, historyView, mailView, metricsView, releaseView, sitesView, slugFormView, supportPage } from "./support-views.js";
 import { html } from "../../lib/html.js";
 import { PERIODS } from "./metrics-service.js";
@@ -25,7 +25,8 @@ const listQuery = z
     q: z.string().max(100, "La búsqueda es demasiado larga.").default(""),
   })
   .transform((value) => ({ estado: value.estado ?? value.status ?? "pending", q: value.q.trim() }));
-const rejectBody = z.object({ reason: reasonSchema });
+// Aprobar exige solo la casilla de confirmación; rechazar, motivo y casilla (FR-003).
+const approveBody = z.object({ confirm: confirmSchema });
 const metricsQuery = z.object({ periodo: z.enum(PERIODS, { error: "Periodo inválido." }).default("4semanas") });
 const siteQuery = z.object({ estado: z.enum(["all", "published", "draft", "unpublished"], { error: "Estado inválido." }).default("all") });
 const slugBody = actionBody.extend({ slug: z.string({ error: "Escribe el nombre nuevo." }).trim().max(100, "El nombre es demasiado largo.") });
@@ -93,13 +94,14 @@ export function registerSupportRoutes(app: FastifyInstance, services: Services):
 
   app.post("/soporte/medicos/:id/aprobar", write, async (request, reply) => {
     const { id } = parseInput(idParams, request.params);
+    parseInput(approveBody, request.body ?? {});
     await services.support.approve(id, requireAuth(request).userId);
     return reply.redirect(`/soporte/medicos/${id}`, 303);
   });
 
   app.post("/soporte/medicos/:id/rechazar", write, async (request, reply) => {
     const { id } = parseInput(idParams, request.params);
-    const { reason } = parseInput(rejectBody, request.body ?? {});
+    const { reason } = parseInput(actionBody, request.body ?? {});
     await services.support.reject(id, requireAuth(request).userId, reason);
     return reply.redirect(`/soporte/medicos/${id}`, 303);
   });
