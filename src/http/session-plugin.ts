@@ -26,6 +26,9 @@ export function installSession(app: FastifyInstance, sessions: SessionService): 
   app.decorateRequest("auth", null);
   app.decorateRequest("sessionToken", null);
   app.addHook("onRequest", async (request) => {
+    // La hoja de estilos y las fuentes (`/assets/`) no dependen de la sesión: validarla costaría una lectura y una
+    // escritura en la base por cada recurso de cada página.
+    if (request.url.startsWith("/assets/")) return;
     const token = request.cookies[SESSION_COOKIE];
     if (typeof token === "string" && token.length > 0) {
       request.sessionToken = token;

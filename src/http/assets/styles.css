@@ -507,6 +507,12 @@ details { margin: 0 0 var(--space-3); }
 summary { cursor: pointer; font-weight: 600; color: var(--color-primary); min-height: var(--control-h); display: inline-flex; align-items: center; }
 td details { margin: 0; }
 
+/* Modo de alto contraste de Windows: ahí no se pintan las sombras, así que el foco se dibuja con un contorno */
+@media (forced-colors: active) {
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+  .slot:has(input:focus-visible) { outline: 2px solid CanvasText; outline-offset: 2px; }
+}
+
 /* ------------------------------------------------------------------------------- Movimiento reducido */
 
 @media (prefers-reduced-motion: reduce) {

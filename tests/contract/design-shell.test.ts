@@ -165,6 +165,24 @@ describe("estructura con sesión completa", () => {
   });
 });
 
+describe("páginas con la barra lateral", () => {
+  it("nunca se guardan en caché (llevan el token CSRF de la sesión)", async () => {
+    const client = await sessionFor(t.services, (await createPatient(pool)).user);
+    for (const url of ["/pacientes/citas", "/derechos", "/ruta-que-no-existe"]) {
+      const response = await get(url, client.cookie);
+      expect(response.body, url).toContain('class="has-shell"');
+      expect(response.headers["cache-control"], url).toBe("no-store");
+    }
+  });
+
+  it("la hoja de estilos se sirve aunque la petición lleve una cookie de sesión, sin consultar la sesión", async () => {
+    const client = await sessionFor(t.services, (await createPatient(pool)).user);
+    const response = await get("/assets/styles.css", client.cookie);
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["set-cookie"]).toBeUndefined();
+  });
+});
+
 describe("sesión a medias", () => {
   it("con el segundo factor pendiente hay logo, rol y «Salir», sin navegación", async () => {
     const support = await createSupportWithMfa(t, pool);

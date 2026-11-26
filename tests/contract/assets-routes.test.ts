@@ -56,7 +56,8 @@ describe("recursos del diseño (/assets)", () => {
 
   it("solo admite GET y HEAD", async () => {
     const response = await t.app.inject({ method: "POST", url: "/assets/styles.css", remoteAddress: uniqueIp() });
-    expect([404, 405, 403]).toContain(response.statusCode);
+    // No hay ruta POST: el filtro CSRF global responde antes (403) y nunca se sirve el archivo.
+    expect(response.statusCode).toBe(403);
   });
 
   it("la URL de la hoja que enlaza una página lleva el hash de su contenido", async () => {

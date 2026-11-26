@@ -5,7 +5,7 @@ import { accountStateOf } from "../modules/reception/tenant-resolver.js";
 import { sessionCsrfToken } from "./csrf.js";
 import { icon, logo, type IconName } from "./views/icons.js";
 import { alert } from "./views/ui.js";
-import { SHELL_CLOSE, SHELL_OPEN } from "./views/layout.js";
+import { MAIN_OPEN, SHELL_CLOSE, SHELL_OPEN } from "./views/layout.js";
 
 /**
  * Estructura común de las pantallas (contracts/ui-shell.md). `page()` deja marcas fijas y este gancho las sustituye:
@@ -103,8 +103,10 @@ export function installShell(app: FastifyInstance, csrfSecret: string | undefine
     if (!auth || csrfSecret === undefined) return payload.replace(SHELL_OPEN, "").replace(SHELL_CLOSE, "");
 
     const path = request.url.split("?")[0] ?? "";
-    // Con la sesión a medias (segundo factor pendiente o por activar en soporte) o ante los avisos por aceptar, los
-    // enlaces de la navegación redirigirían: solo se ofrece «Salir».
+    // Con la sesión a medias (segundo factor pendiente o por activar en soporte) o en la pantalla de aceptar avisos, los
+    // enlaces de la navegación redirigirían: solo se ofrece «Salir». Limitación conocida: quien tiene avisos pendientes y
+    // abre `/legal` o `/derechos` ve la navegación completa (la sesión no dice si hay avisos pendientes) y sus enlaces lo
+    // llevan a aceptarlos.
     const partial = (auth.mfaEnabled && !auth.mfaVerified) || (auth.role === "support" && !auth.mfaEnabled) || path === "/legal/aceptar";
     const csrf = sessionCsrfToken(csrfSecret, auth.csrfSecret);
     const notice =
@@ -117,7 +119,7 @@ export function installShell(app: FastifyInstance, csrfSecret: string | undefine
       .replace(/<body class="card-page[^"]*">/, '<body class="has-shell">')
       .replace(SHELL_OPEN, () => open)
       .replace(SHELL_CLOSE, "</div></div>");
-    if (notice) out = out.replace('<main id="contenido">', () => `<main id="contenido">\n${notice.toString()}`);
+    if (notice) out = out.replace(MAIN_OPEN, () => `${MAIN_OPEN}\n${notice.toString()}`);
     return out;
   });
 }
