@@ -27,17 +27,8 @@ describe("loadEnv", () => {
     expect(loadEnv({ ...base, LOGO_STORAGE_DIR: "/var/app/logos" }).LOGO_STORAGE_DIR).toBe("/var/app/logos");
   });
 
-  it("GOOGLE_MAPS_EMBED_KEY es opcional; una clave demasiado corta se rechaza sin mostrar su valor", () => {
-    expect(loadEnv(base).GOOGLE_MAPS_EMBED_KEY).toBeUndefined();
-    expect(loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "k".repeat(20) }).GOOGLE_MAPS_EMBED_KEY).toBe("k".repeat(20));
-    expect(() => loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "corta" })).toThrow("GOOGLE_MAPS_EMBED_KEY");
-    let message = "";
-    try {
-      loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "corta" });
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).not.toContain("corta");
+  it("una GOOGLE_MAPS_EMBED_KEY que quedó en el entorno se ignora: el mapa ya no se incrusta", () => {
+    expect(loadEnv({ ...base, GOOGLE_MAPS_EMBED_KEY: "k".repeat(20) })).not.toHaveProperty("GOOGLE_MAPS_EMBED_KEY");
   });
 
   it("las claves de Turnstile son opcionales, van en pareja y su valor nunca aparece en el error", () => {

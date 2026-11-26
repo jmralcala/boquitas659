@@ -4,18 +4,12 @@ import type { Services } from "../../compose.js";
 import { NotFoundError, ValidationError } from "../../http/errors.js";
 import { wantsJson } from "../../http/negotiation.js";
 import { isFullyAuthenticated, setSessionCookie } from "../../http/session-plugin.js";
-import { entryPage, firstAppointmentPage, publicSitePage, unavailableSitePage } from "../../http/views/site.js";
+import { directionsUrl, entryPage, firstAppointmentPage, publicSitePage, unavailableSitePage } from "../../http/views/site.js";
 import { setDeviceCookie, DEVICE_COOKIE } from "../auth/devices.js";
 import type { PublishedSite, SiteView } from "./site-resolver.js";
 
 /** Límite de peticiones por IP del micrositio público (120 por minuto). */
 const PUBLIC_RATE_LIMIT = { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } } as const;
-
-/** El mapa incrustado necesita que la CSP permita el marco del proveedor; se amplía solo en la página del micrositio. */
-function allowMapFrame(reply: FastifyReply): void {
-  const current = String(reply.getHeader("content-security-policy") ?? "");
-  if (current !== "" && !current.includes("frame-src")) void reply.header("content-security-policy", `${current};frame-src https://www.google.com`);
-}
 
 /** Rutas públicas del micrositio y de la entrada del paciente (contracts/http-routes.md). */
 export function registerSitePublicRoutes(app: FastifyInstance, services: Services): void {
@@ -30,8 +24,6 @@ export function registerSitePublicRoutes(app: FastifyInstance, services: Service
     // Un paciente con sesión pasa directo al calendario.
     if (isFullyAuthenticated(request.auth) && request.auth.role === "patient") return reply.redirect(`/c/${view.site.slug}/reservar`, 303);
 
-    const mapKey = services.env.GOOGLE_MAPS_EMBED_KEY ?? null;
-    const showMap = mapKey !== null && view.site.address !== null;
     if (wantsJson(request)) {
       return reply.send({
         kind: "published",
@@ -40,10 +32,9 @@ export function registerSitePublicRoutes(app: FastifyInstance, services: Service
         address: view.site.address,
         officePhone: view.site.officePhone,
         hasLogo: view.site.logoFile !== null,
-        map: showMap,
+        directionsUrl: view.site.address === null ? null : directionsUrl(view.site.address),
       });
     }
-    if (showMap) allowMapFrame(reply);
     return reply.type("text/html; charset=utf-8").send(
       publicSitePage({
         slug: view.site.slug,
@@ -51,7 +42,6 @@ export function registerSitePublicRoutes(app: FastifyInstance, services: Service
         address: view.site.address,
         officePhone: view.site.officePhone,
         hasLogo: view.site.logoFile !== null,
-        mapKey: showMap ? mapKey : null,
       }),
     );
   });

@@ -11,7 +11,7 @@ Todas las rutas HTML llevan `noindex` (meta y cabecera `X-Robots-Tag`).
 
 | Método y ruta | Rol | Entrada (zod) | Resultado |
 |---------------|-----|---------------|-----------|
-| `GET /c/:slug` | Pub | `slug` válido | Micrositio (nombre, mapa o dirección, teléfono, logo, «Primera cita» / «Ya soy paciente», pie con aviso de privacidad); con sesión de paciente, 303 a `/c/:slug/reservar`; nunca publicado: **404**; despublicado o médico no aprobado: aviso con nombre y teléfono, sin calendario |
+| `GET /c/:slug` | Pub | `slug` válido | Micrositio (nombre, dirección con enlace «Cómo llegar» —JSON: `directionsUrl`, o `null` sin dirección—, teléfono, logo, «Primera cita» / «Ya soy paciente», pie con aviso de privacidad); con sesión de paciente, 303 a `/c/:slug/reservar`; nunca publicado: **404**; despublicado o médico no aprobado: aviso con nombre y teléfono, sin calendario |
 | `GET /c/:slug/logo` | Pub | `slug` | Imagen del logo (tipo fijo por firma, `nosniff`, caché corta); 404 si no hay logo o el micrositio no está publicado |
 | `GET /c/:slug/entrar` · `POST /c/:slug/entrar` | Pub | `email`, `password` | «Ya soy paciente». Éxito: sesión y 303 a `/c/:slug/reservar`. Contraseña incorrecta: 401 `invalid_credentials` con espera creciente. Sin cuenta de paciente con ese correo (también si es de otro rol): 401 `no_account` con la opción «Primera cita». Límite 10/min por IP |
 | `GET /c/:slug/primera-cita` · `POST /c/:slug/primera-cita` | Pub | `fullName`, `birthDate`, `email`, `phone`, `password`, `acceptPrivacy` (casilla) | Crea cuenta y paciente (feature 1), registra la aceptación, inicia sesión y 303 a `/c/:slug/reservar`; correo ya registrado: mensaje con enlace a «Ya soy paciente»; sin la casilla: 400. Límite 10/min por IP |

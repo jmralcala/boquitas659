@@ -25,7 +25,7 @@ dentro de la tarea de cron que ya envía el outbox. Sin dependencias nuevas.
 **Language/Version**: TypeScript (modo estricto) sobre Node.js LTS (v24 en desarrollo); módulos ES.
 
 **Primary Dependencies**: las de las features 1 y 2 (Fastify 5 y sus plugins, zod 4, mysql2, nodemailer). **Ninguna
-dependencia nueva**: el logo se valida por firma de bytes (como la cédula), el mapa es un `<iframe>` del proveedor y las
+dependencia nueva**: el logo se valida por firma de bytes (como la cédula), la ubicación es un enlace «Cómo llegar» sin incrustar nada y las
 fechas usan `Intl` ([research.md](research.md)).
 
 **Storage**: MariaDB (InnoDB; pruebas en MySQL 8.0), horas en UTC. Migración `0011_site.sql`: `doctor_site`,
@@ -45,8 +45,7 @@ de pruebas (reservas simultáneas, aislamiento, revocación, recordatorios idemp
 de bloqueos.
 
 **Constraints**: sin procesos permanentes ni colas externas (el recordatorio va en el cron del outbox); memoria
-limitada; cero datos personales en logs técnicos; el mapa no puede ser punto único de fallo (cae a la dirección en
-texto); correos con `Reply-To` del médico y remitente de la plataforma.
+limitada; cero datos personales en logs técnicos; la página no incrusta contenido de terceros (la ubicación es un enlace «Cómo llegar»); correos con `Reply-To` del médico y remitente de la plataforma.
 
 **Scale/Scope**: piloto de 3 a 5 médicos y pocos cientos de pacientes; 2 tablas nuevas, 26 rutas HTTP nuevas (7 del médico y
 19 públicas y de paciente), 5 plantillas de correo nuevas y 2 modificadas.
@@ -60,9 +59,9 @@ texto); correos con `Reply-To` del médico y remitente de la plataforma.
 | I. Privacidad y datos de salud primero | Pasa: la spec exige casilla de autorización sin marcar, registro, aviso de privacidad en el pie y revocación. | Pasa: `data_authorization` de solo anexar (quién, consultorio, versión del aviso, cuándo); nada clínico en `appointment` ni en el micrositio; los correos no llevan datos clínicos y su asunto no lleva datos personales; revocar retira el acceso del consultorio al contacto; los registros técnicos solo llevan identificadores; el aviso al médico lleva solo el nombre. |
 | II. Aislamiento por médico | Pasa: se exige que el médico salga del micrositio resuelto en el servidor. | Pasa: el médico de cada operación pública sale de `doctor_site` por el `slug` (resuelto en servidor); el contexto de paciente (`actor: patient`) se fabrica solo en el resolutor del micrositio; las funciones de agenda del personal exigen `StaffContext` (error de compilación si se les pasa un paciente); el paciente solo toca citas de las personas de su cuenta; pruebas de aislamiento y de que ninguna ruta pública expone datos de pacientes. |
 | III. Integridad de la agenda | Pasa: la reserva debe usar el mismo bloqueo del médico. | Pasa: la reserva del paciente corre en `withCalendarLock` con la misma validación de solape de la feature 2 y las anticipaciones del servidor (`validatePatientBookingWindow`); la cancelación del paciente y la revocación también; los enlaces de correo muestran resumen y la cancelación ocurre con `POST`, sesión y CSRF, con token de un solo uso; pruebas de concurrencia (reserva contra reserva, contra bloqueo y contra cancelación) y de que abrir un enlace no cambia nada. |
-| IV. Seguridad y validación en runtime | Pasa: zod, SQL parametrizado, límites de tasa. | Pasa: esquemas zod por ruta ([contracts/http-routes.md](contracts/http-routes.md)); límites por IP y por cuenta; logo validado por firma y tamaño; el enlace de retorno tras iniciar sesión se calcula en el servidor desde el `slug` (sin redirección abierta); CSRF en todo `POST`; CSP del mapa limitada a la ruta del micrositio. |
+| IV. Seguridad y validación en runtime | Pasa: zod, SQL parametrizado, límites de tasa. | Pasa: esquemas zod por ruta ([contracts/http-routes.md](contracts/http-routes.md)); límites por IP y por cuenta; logo validado por firma y tamaño; el enlace de retorno tras iniciar sesión se calcula en el servidor desde el `slug` (sin redirección abierta); CSRF en todo `POST`; sin marcos de terceros, así que la CSP no se amplía. |
 | V. Test-First | Pasa: se listan las pruebas obligatorias. | Pasa: [quickstart.md](quickstart.md) enumera los escenarios; concurrencia, aislamiento, caducidad y uso único de tokens, límites de cancelación y registro de autorizaciones llevan pruebas que deben fallar antes de implementar. |
-| VI. Simplicidad y operación realista | Pasa con vigilancia: crece el alcance. | Pasa: sin dependencias nuevas, sin procesos nuevos (recordatorios dentro del cron del outbox), sin tablas de contadores (los límites se cuentan desde `appointment`), HTML en servidor sin JavaScript obligatorio. Riesgos abiertos: el mapa de un tercero y el límite de peticiones por IP en memoria (deuda ya anotada). |
+| VI. Simplicidad y operación realista | Pasa con vigilancia: crece el alcance. | Pasa: sin dependencias nuevas, sin procesos nuevos (recordatorios dentro del cron del outbox), sin tablas de contadores (los límites se cuentan desde `appointment`), HTML en servidor sin JavaScript obligatorio. Riesgos abiertos: el límite de peticiones por IP en memoria (deuda ya anotada). |
 
 Resultado: una desviación justificada (tipo `StaffContext`, ver Complexity Tracking); sin violaciones.
 

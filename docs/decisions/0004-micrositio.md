@@ -16,7 +16,7 @@ Origen: `specs/003-micrositio-y-reserva-del-paciente/` (spec, plan, research, da
 - **Recordatorio.** Se encola desde el job `jobs:outbox` (cron por minuto) a `inicio − (límite de cancelación + 6 h)`, una sola vez por cita (`UPDATE … WHERE reminder_enqueued_at IS NULL`), solo para citas vigentes y reservadas antes de ese momento.
 - **Correos.** Salen del remitente de la plataforma con el médico como `Reply-To`. El aviso al médico va al correo de su cuenta (no a recepción) y solo lleva el nombre del paciente. El outbox guarda solo `{ appointmentId }` (y `reason` en la revocación).
 - **Logo.** PNG, JPEG o WebP validado por firma de bytes (no por extensión ni `Content-Type`), hasta 1 MB, guardado fuera de la raíz pública (`LOGO_STORAGE_DIR`) y servido por la aplicación.
-- **Mapa.** Iframe de Google Maps Embed solo si hay `GOOGLE_MAPS_EMBED_KEY`; la CSP añade `frame-src https://www.google.com` únicamente en la página del micrositio. Sin clave se muestra la dirección en texto.
+- **Ubicación.** La dirección en texto y un enlace «Cómo llegar» a Google Maps (`target="_blank"`, `rel="noopener noreferrer"`); sin clave, sin `iframe` y sin cambios en la CSP. **Cambio 25/11/2026**: antes era un `iframe` de Google Maps Embed con `GOOGLE_MAPS_EMBED_KEY`; se retiró para evitar la clave, la facturación y la cuota de un tercero. Si algún día se quiere mapa incrustado, la alternativa sin clave es OpenStreetMap con coordenadas guardadas.
 
 ## Valores y límites
 

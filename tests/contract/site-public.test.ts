@@ -3,13 +3,11 @@ import { clearTables, createDoctor, createDoctorSite, createPatient, createPubli
 import { PNG, agendaClientFor, createTestApp, sessionFor, uniqueIp, type TestApp } from "../integration/helpers/app.js";
 
 const pool = createTestPool();
-let t: TestApp; // sin clave de mapa
-let tMap: TestApp; // con clave de mapa
+let t: TestApp;
 
 beforeAll(async () => {
   await resetDatabase(pool);
   t = await createTestApp(pool);
-  tMap = await createTestApp(pool, { GOOGLE_MAPS_EMBED_KEY: "clave-de-prueba-del-mapa" });
 });
 
 beforeEach(async () => {
@@ -18,7 +16,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await t.app.close();
-  await tMap.app.close();
   await pool.end();
 });
 
@@ -58,7 +55,7 @@ describe("GET /c/:slug publicado", () => {
   it("en JSON devuelve solo los datos públicos", async () => {
     await published();
     const response = await get(t, "/c/clinica-rios", { accept: "application/json" });
-    expect(response.json()).toEqual({ kind: "published", slug: "clinica-rios", doctorName: "Dra. Elena Ríos", address: "Calle Falsa 123, Centro", officePhone: "5598765432", hasLogo: false, map: false });
+    expect(response.json()).toEqual({ kind: "published", slug: "clinica-rios", doctorName: "Dra. Elena Ríos", address: "Calle Falsa 123, Centro", officePhone: "5598765432", hasLogo: false, directionsUrl: "https://www.google.com/maps/search/?api=1&query=Calle%20Falsa%20123%2C%20Centro" });
   });
 
   it("escapa el nombre del médico y la dirección", async () => {
@@ -71,19 +68,30 @@ describe("GET /c/:slug publicado", () => {
     expect(response.body).toContain("&lt;img");
   });
 
-  it("sin clave de mapa muestra solo la dirección en texto; con clave, un iframe del proveedor con la dirección codificada y la CSP lo permite", async () => {
+  it("muestra la dirección y un enlace «Cómo llegar» con la dirección codificada, sin incrustar nada de terceros ni ampliar la CSP", async () => {
     await published();
-    const withoutKey = await get(t, "/c/clinica-rios");
-    expect(withoutKey.body).not.toContain("<iframe");
-    expect(String(withoutKey.headers["content-security-policy"])).not.toContain("frame-src https://www.google.com");
+    const response = await get(t, "/c/clinica-rios");
+    expect(response.body).toContain('href="https://www.google.com/maps/search/?api=1&amp;query=Calle%20Falsa%20123%2C%20Centro"');
+    expect(response.body).toContain('rel="noopener noreferrer"');
+    expect(response.body).toContain("Cómo llegar");
+    expect(response.body).not.toContain("<iframe");
+    expect(String(response.headers["content-security-policy"])).not.toContain("frame-src https://www.google.com");
+  });
 
-    const withKey = await get(tMap, "/c/clinica-rios");
-    expect(withKey.body).toContain("<iframe");
-    expect(withKey.body).toContain("https://www.google.com/maps/embed/v1/place?key=clave-de-prueba-del-mapa&amp;q=Calle%20Falsa%20123%2C%20Centro");
-    expect(String(withKey.headers["content-security-policy"])).toContain("frame-src https://www.google.com");
-    expect((await get(tMap, "/c/clinica-rios", { accept: "application/json" })).json()).toMatchObject({ map: true });
-    // La CSP ampliada es solo del micrositio.
-    expect(String((await get(tMap, "/login")).headers["content-security-policy"])).not.toContain("frame-src https://www.google.com");
+  it("sin dirección no hay enlace «Cómo llegar»", async () => {
+    const doctor = await published();
+    await pool.execute("UPDATE doctor_site SET address = NULL WHERE doctor_id = ?", [doctor.doctorId]);
+    const response = await get(t, "/c/clinica-rios");
+    expect(response.body).not.toContain("Cómo llegar");
+    expect((await get(t, "/c/clinica-rios", { accept: "application/json" })).json()).toMatchObject({ address: null, directionsUrl: null });
+  });
+
+  it("una dirección con caracteres especiales se codifica en el enlace y no rompe el HTML", async () => {
+    const doctor = await published();
+    await pool.execute("UPDATE doctor_site SET address = ? WHERE doctor_id = ?", ['Av. "Juárez" 5 & 6 <b>', doctor.doctorId]);
+    const body = (await get(t, "/c/clinica-rios")).body;
+    expect(body).toContain("query=Av.%20%22Ju%C3%A1rez%22%205%20%26%206%20%3Cb%3E");
+    expect(body).not.toContain("<b>");
   });
 
   it("con sesión de paciente redirige al calendario; con sesión del personal se ve el micrositio", async () => {

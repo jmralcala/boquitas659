@@ -39,13 +39,11 @@ export interface PublicSiteView {
   address: string | null;
   officePhone: string | null;
   hasLogo: boolean;
-  /** Clave del mapa incrustado; sin ella se muestra solo la dirección en texto. */
-  mapKey: string | null;
 }
 
-/** URL del mapa incrustado de Google para una dirección (la clave se restringe por referente en el proveedor). */
-export function mapEmbedUrl(key: string, address: string): string {
-  return `https://www.google.com/maps/embed/v1/place?key=${key}&q=${encodeURIComponent(address)}`;
+/** Enlace «Cómo llegar»: abre la dirección en Google Maps. No usa clave ni incrusta nada de terceros en la página. */
+export function directionsUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
 /** Micrositio de un consultorio que acepta reservas: datos públicos y las dos puertas de entrada del paciente. */
@@ -54,7 +52,7 @@ export function publicSitePage(site: PublicSiteView): string {
   const content = html`<h1>${site.doctorName}</h1>
 ${site.hasLogo ? html`<p><img src="${base}/logo" alt="Logo de ${site.doctorName}" width="160"></p>` : null}
 ${site.address ? html`<p><strong>Dirección:</strong> ${site.address}</p>` : null}
-${site.address && site.mapKey ? html`<iframe title="Mapa del consultorio" src="${mapEmbedUrl(site.mapKey, site.address)}" width="600" height="320" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="border:0;max-width:100%"></iframe>` : null}
+${site.address ? html`<p><a href="${directionsUrl(site.address)}" target="_blank" rel="noopener noreferrer">Cómo llegar</a></p>` : null}
 ${phoneNotice(site.officePhone)}
 <h2>Agenda tu cita</h2>
 <ul>

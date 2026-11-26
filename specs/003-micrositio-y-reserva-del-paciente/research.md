@@ -121,17 +121,19 @@ Fase 0 de `/speckit-plan`. Formato Decision / Rationale / Alternatives. Esta fea
 - **Rationale**: decisión 0001 («todo sale de la plataforma, con el médico como `Reply-To`»).
 - **Alternatives**: SMTP propio de cada médico (fuera de alcance por decisión de producto).
 
-### 11. Logo y mapa
+### 11. Logo y ubicación
 - **Decision**: logo PNG, JPEG o WebP de hasta 1 MB, tipo decidido por firma de bytes, nombre aleatorio, guardado en
   `LOGO_STORAGE_DIR` (por defecto `<CEDULA_STORAGE_DIR>/logos`, fuera de la raíz pública) y servido por
   `GET /c/<nombre>/logo` con `Content-Type` fijo, `X-Content-Type-Options: nosniff` y caché corta; solo si el
-  micrositio está publicado. SVG queda excluido (puede llevar scripts). El mapa es un `<iframe>` de Google Maps Embed con
-  clave opcional `GOOGLE_MAPS_EMBED_KEY`; si falta o falla se muestra la dirección en texto. La CSP (`frame-src`) se amplía
-  solo en la ruta del micrositio. El tope de gasto se configura en el proveedor (cuota diaria y restricción de la clave
-  por referente).
-- **Rationale**: sin dependencias y sin que un tercero sea punto único de fallo.
-- **Alternatives**: mapa estático generado por el servidor (otra API de pago y almacenamiento); enlace a Google Maps
-  sin incrustar (peor experiencia).
+  micrositio está publicado. SVG queda excluido (puede llevar scripts). La ubicación es la dirección en texto más un enlace
+  «Cómo llegar» a `https://www.google.com/maps/search/?api=1&query=<dirección codificada>` (`target="_blank"`,
+  `rel="noopener noreferrer"`). No hay clave, ni `iframe`, ni cambio de la CSP. **Cambio 2026-11-25**: antes era un
+  `<iframe>` de Google Maps Embed con clave opcional `GOOGLE_MAPS_EMBED_KEY`.
+- **Rationale**: cumple lo que necesita el paciente (consultar dónde queda) sin clave, facturación ni cuota de un
+  tercero, y sin ampliar la superficie de la CSP.
+- **Alternatives**: `<iframe>` de Google Maps Embed (requiere clave, facturación y restricción por referente);
+  OpenStreetMap incrustado (pide coordenadas: geocodificar y guardar latitud y longitud, migración nueva); mapa
+  estático generado por el servidor (otra API de pago y almacenamiento).
 
 ### 12. Límites contra el abuso
 - **Decision**: por IP con `@fastify/rate-limit` (ya existe): consulta de correo 10/min, reserva 20/hora, cancelación

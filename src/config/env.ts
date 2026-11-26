@@ -51,8 +51,6 @@ const schema = z
     CEDULA_STORAGE_DIR: z.string().min(1),
     /** Logos de los micrositios (fuera de la raíz pública). Por defecto, `logos` dentro del directorio de cédulas. */
     LOGO_STORAGE_DIR: z.string().min(1).optional(),
-    /** Clave de Google Maps Embed. Sin ella el micrositio muestra la dirección en texto en lugar del mapa. */
-    GOOGLE_MAPS_EMBED_KEY: z.string().min(10).optional(),
     /** CAPTCHA del paso de urgencia (Cloudflare Turnstile). Van en pareja; sin ellas la urgencia no se ofrece en producción. */
     TURNSTILE_SITE_KEY: z.string().min(10).optional(),
     TURNSTILE_SECRET_KEY: z.string().min(10).optional(),

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Feature 3: Micrositio del médico y reserva del paciente. Cada médico aprobado publica su calendario en un micrositio público (`/c/nombre`, sin directorio, `noindex`) con ubicación y mapa, teléfono del consultorio y logo opcional. El paciente elige «Primera cita» o «Ya soy paciente», inicia sesión o crea su cuenta, elige día y horario en un calendario sin fechas pasadas y reserva (también para sus pacientes adicionales). El servidor comprueba las anticipaciones del médico y la no doble reserva. La cita queda agendada sin confirmación; el paciente recibe un correo con enlace para ver o cancelar y un recordatorio antes del límite de cancelación; puede cancelar hasta 24 h antes (configurable) y el médico recibe aviso. Abrir un enlace de correo nunca cambia el estado."
+**Input**: User description: "Feature 3: Micrositio del médico y reserva del paciente. Cada médico aprobado publica su calendario en un micrositio público (`/c/nombre`, sin directorio, `noindex`) con ubicación (dirección y enlace «Cómo llegar»), teléfono del consultorio y logo opcional. El paciente elige «Primera cita» o «Ya soy paciente», inicia sesión o crea su cuenta, elige día y horario en un calendario sin fechas pasadas y reserva (también para sus pacientes adicionales). El servidor comprueba las anticipaciones del médico y la no doble reserva. La cita queda agendada sin confirmación; el paciente recibe un correo con enlace para ver o cancelar y un recordatorio antes del límite de cancelación; puede cancelar hasta 24 h antes (configurable) y el médico recibe aviso. Abrir un enlace de correo nunca cambia el estado."
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -33,7 +33,7 @@ Un médico aprobado abre «Mi micrositio» y elige el nombre de su enlace (por e
 
 ### User Story 2 - El paciente abre el micrositio y entra a su cuenta (Priority: P1)
 
-Una persona abre el enlace del consultorio sin haber iniciado sesión y ve el nombre del médico, su ubicación con mapa, su teléfono, el logo si lo hay y dos opciones: «Primera cita» y «Ya soy paciente». Con «Ya soy paciente» escribe su correo y su contraseña. Con «Primera cita» (o si el correo que escribió no tiene cuenta) crea su cuenta de paciente con sus datos y una contraseña, aceptando el aviso de privacidad.
+Una persona abre el enlace del consultorio sin haber iniciado sesión y ve el nombre del médico, su ubicación con un enlace «Cómo llegar», su teléfono, el logo si lo hay y dos opciones: «Primera cita» y «Ya soy paciente». Con «Ya soy paciente» escribe su correo y su contraseña. Con «Primera cita» (o si el correo que escribió no tiene cuenta) crea su cuenta de paciente con sus datos y una contraseña, aceptando el aviso de privacidad.
 
 **Why this priority**: Reservar exige una cuenta de paciente; esta puerta de entrada es lo que evita pedirle registro a quien solo quiere ver el consultorio.
 
@@ -41,7 +41,7 @@ Una persona abre el enlace del consultorio sin haber iniciado sesión y ve el no
 
 **Acceptance Scenarios**:
 
-1. **Given** un micrositio publicado, **When** una persona sin sesión lo abre, **Then** ve nombre, ubicación con mapa, teléfono del consultorio, logo (si existe), las dos opciones y, en el pie, el aviso de privacidad; no ve horarios ni datos de pacientes.
+1. **Given** un micrositio publicado, **When** una persona sin sesión lo abre, **Then** ve nombre, dirección con enlace «Cómo llegar», teléfono del consultorio, logo (si existe), las dos opciones y, en el pie, el aviso de privacidad; no ve horarios ni datos de pacientes.
 2. **Given** un correo con cuenta de paciente, **When** elige «Ya soy paciente» y escribe la contraseña correcta, **Then** inicia sesión y pasa al calendario del consultorio.
 3. **Given** un correo sin cuenta, **When** elige «Ya soy paciente», **Then** el sistema le indica que no encontró esa cuenta y le ofrece «Primera cita».
 4. **Given** una contraseña incorrecta, **When** intenta entrar, **Then** recibe el mismo mensaje de error y la espera creciente de la feature 1, y puede recuperar su contraseña por correo.
@@ -155,7 +155,7 @@ El paciente abre «Mis consultorios» y ve con qué consultorios tiene relación
 
 - **Nombre del enlace**: dos médicos intentan registrar el mismo a la vez (solo uno lo obtiene); el nombre solo admite minúsculas sin acentos, números y guiones, de 3 a 40 caracteres, sin guiones al principio, al final ni dobles; un nombre reservado por un médico que luego deja de estar aprobado sigue siendo suyo.
 - **Enlace de un médico que nunca publicó**: responde como si no existiera (no revela que el nombre está tomado); uno que ya publicó y se despublicó, o cuyo médico ya no está aprobado, muestra solo un aviso con el nombre del consultorio y su teléfono, sin calendario ni reserva.
-- **Mapa no disponible o con tope de gasto agotado**: el micrositio sigue funcionando y muestra la dirección en texto.
+- **Dirección sin capturar**: el micrositio no muestra el enlace «Cómo llegar» y sigue funcionando con los demás datos.
 - **Calendario sin horarios libres** en la ventana permitida: se indica «No hay horarios disponibles» y el teléfono del consultorio.
 - **Zona horaria con cambio de hora** (frontera): los horarios se muestran en la hora del consultorio y la comprobación de anticipación usa instantes, no horas locales.
 - **Correo del paciente cambiado o cuenta desactivada** después de reservar: la cita se conserva; los avisos ya encolados conservan el destinatario con que se encolaron y los que se encolan después (por ejemplo el recordatorio) usan el correo vigente de la cuenta.
@@ -182,10 +182,10 @@ El paciente abre «Mis consultorios» y ve con qué consultorios tiene relación
 
 **Acceso público al micrositio**
 
-- **FR-007**: El micrositio MUST ser accesible sin sesión en `/c/<nombre>` solo mientras el calendario esté publicado y el médico esté aprobado. Mostrará nombre del médico, ubicación con mapa, teléfono del consultorio, logo (si existe), las opciones de reserva y, en el pie, el aviso de privacidad.
+- **FR-007**: El micrositio MUST ser accesible sin sesión en `/c/<nombre>` solo mientras el calendario esté publicado y el médico esté aprobado. Mostrará nombre del médico, dirección con un enlace «Cómo llegar», teléfono del consultorio, logo (si existe), las opciones de reserva y, en el pie, el aviso de privacidad.
 - **FR-008**: Un nombre de enlace que nunca se publicó MUST responder 404 como cualquier ruta inexistente. Uno que ya se publicó y luego se despublicó (o cuyo médico dejó de estar aprobado) MUST mostrar solo un aviso con el nombre del consultorio y su teléfono, sin calendario ni reserva.
 - **FR-009**: El micrositio MUST NOT ser indexable por buscadores, MUST NOT existir un listado ni búsqueda de consultorios, y MUST tener límite de peticiones por dirección IP.
-- **FR-010**: El mapa MUST poder mostrarse sin que un fallo o el tope de gasto del proveedor impida usar el micrositio: en ese caso se muestra la dirección en texto.
+- **FR-010**: Cuando el médico capturó su dirección, el micrositio MUST mostrarla en texto y ofrecer un enlace «Cómo llegar» que la abra en un servicio de mapas en una pestaña nueva. La página MUST NOT incrustar contenido de terceros ni depender de claves, cuotas o topes de gasto de un proveedor de mapas (decisión del responsable, 2026-11-25: sustituye al mapa incrustado).
 
 **Entrada del paciente**
 
@@ -254,7 +254,7 @@ El paciente abre «Mis consultorios» y ve con qué consultorios tiene relación
 - **SC-005**: Al menos el 98 % de los correos de confirmación y recordatorio se entregan dentro de los 5 minutos siguientes al evento (con el SMTP funcionando).
 - **SC-006**: Cada cita vigente recibe como máximo un recordatorio, y el 100 % de los recordatorios que corresponden salen dentro de los 10 minutos posteriores a su hora.
 - **SC-007**: En las pruebas, abrir cualquier enlace de correo 100 veces (incluido con un cliente automático) no cambia el estado de ninguna cita.
-- **SC-008**: El micrositio y el calendario se muestran en menos de 2 segundos para un paciente con conexión normal, incluso sin mapa.
+- **SC-008**: El micrositio y el calendario se muestran en menos de 2 segundos para un paciente con conexión normal, sin depender de ningún servicio externo.
 - **SC-009**: 0 casos en que un paciente vea o cancele citas de otra cuenta, o en que se exponga a otros pacientes desde el micrositio.
 - **SC-010**: El 100 % de las reservas, cancelaciones, autorizaciones y revocaciones quedan registradas con quién y cuándo.
 
@@ -262,7 +262,7 @@ El paciente abre «Mis consultorios» y ve con qué consultorios tiene relación
 
 - **Alcance**: esta feature cubre el micrositio, la entrada del paciente, la reserva convencional, los correos de confirmación, recordatorio y aviso al médico, «Mis citas», la cancelación por el paciente y «Mis consultorios». Quedan fuera las urgencias y el triaje (feature 4), el panel de soporte completo (el cambio de nombre del enlace lo hace soporte con una herramienta mínima o un procedimiento manual; desde la feature 5 se hace en el panel, y el nombre anterior queda reservado 90 días), WhatsApp, el cobro con Openpay (el modo «solo lectura» por falta de pago llega con el cobro (desde la feature 5 soporte puede poner una cuenta en solo lectura o suspendida a mano, y el micrositio no acepta reservas en esos estados); aquí solo se respeta que un médico no aprobado o despublicado no recibe reservas), la reprogramación y el historial clínico.
 - **Reglas del enlace**: de 3 a 40 caracteres; el nombre queda reservado para el médico aunque deje de estar aprobado; no hay lista de nombres prohibidos (el prefijo `/c/` evita choques con las rutas de la aplicación).
-- **Logo y dirección**: logo PNG, JPEG o WebP de hasta 1 MB, guardado fuera de la raíz pública y entregado con cabeceras seguras; la dirección es texto libre de hasta 300 caracteres y el mapa se muestra a partir de esa dirección.
+- **Logo y dirección**: logo PNG, JPEG o WebP de hasta 1 MB, guardado fuera de la raíz pública y entregado con cabeceras seguras; la dirección es texto libre de hasta 300 caracteres y el enlace «Cómo llegar» se construye a partir de esa dirección.
 - **Límites contra el abuso** (ajustables, a revisar con datos del piloto): consulta de correo en «Ya soy paciente» y «Primera cita», 10 por minuto por IP; reservas, 5 por hora por cuenta y 20 por hora por IP; cancelaciones, 10 por hora por cuenta; máximo de citas vigentes por paciente con un mismo consultorio, 3.
 - **Recordatorio**: sale 6 horas antes del límite de cancelación (30 h con el límite de 24 h), de modo que siempre llega mientras el paciente todavía puede cancelar; se calcula con la configuración vigente al momento de enviarlo.
 - **Aviso al médico**: se envía al correo de la cuenta del médico (no a la recepción) e incluye solo el nombre del paciente, la fecha, la hora y la etiqueta «convencional».

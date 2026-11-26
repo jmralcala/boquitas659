@@ -28,7 +28,7 @@ npm run lint · npm run typecheck · npm run test · npm run build
 7. Un nombre nunca publicado responde 404 idéntico a una ruta inexistente; despublicado, aviso con el teléfono.
 
 ### Entrada del paciente (historia 2)
-8. Sin sesión: el micrositio muestra consultorio, mapa o dirección y las dos opciones, sin horarios ni datos de pacientes.
+8. Sin sesión: el micrositio muestra consultorio, dirección con enlace «Cómo llegar» y las dos opciones, sin horarios ni datos de pacientes.
 9. «Ya soy paciente» con contraseña correcta: sesión y calendario; incorrecta: 401 con espera creciente; sin cuenta: 401 `no_account` y oferta de «Primera cita».
 10. Un correo de médico, recepción o soporte se trata como inexistente (misma respuesta que `no_account`).
 11. «Primera cita» sin la casilla de privacidad: 400; con ella, cuenta creada, aceptación registrada y sesión iniciada.
@@ -72,7 +72,7 @@ npm run lint · npm run typecheck · npm run test · npm run build
 37. Una función de agenda del personal no acepta un contexto de paciente (error de compilación: `StaffContext`); el paciente no llega a `/agenda/…` (403).
 38. Los registros técnicos de las pruebas no contienen nombres, correos ni teléfonos.
 39. `data_authorization` rechaza `UPDATE` y `DELETE`.
-40. La CSP del mapa permite el marco del proveedor solo en `/c/:slug`; sin clave del mapa, la dirección se muestra en texto.
+40. El enlace «Cómo llegar» abre la dirección en una pestaña nueva; la página no incrusta marcos de terceros y la CSP no cambia.
 
 ## Validación manual (con una persona)
 
@@ -80,4 +80,4 @@ npm run lint · npm run typecheck · npm run test · npm run build
   (confirmación, aviso al médico, recordatorio al adelantar el reloj de la base de pruebas), cancelar desde el enlace,
   revocar un vínculo. Se anota en `tasks.md` como último paso, igual que T062 de la feature 2.
 - En el despliegue (Hostinger): comprobar la migración `0011` en MariaDB, repetir los escenarios de concurrencia
-  (16), comprobar el mapa con la clave real y su cuota diaria, y que `jobs:outbox` (cron por minuto) envía los recordatorios.
+  (16), comprobar el enlace «Cómo llegar» con una dirección real, y que `jobs:outbox` (cron por minuto) envía los recordatorios.
