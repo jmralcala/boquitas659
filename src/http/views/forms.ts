@@ -54,8 +54,9 @@ export function fileInput(options: { name: string; label: string; accept?: strin
 </p>`;
 }
 
-export function submitButton(label: string): SafeHtml {
-  return html`<button type="submit">${label}</button>`;
+/** Botón de envío: primario por defecto; `danger` para acciones destructivas (cancelar, revocar) y `secondary` para las accesorias. */
+export function submitButton(label: string, variant?: "danger" | "secondary"): SafeHtml {
+  return variant ? html`<button type="submit" class="btn-${variant}">${label}</button>` : html`<button type="submit">${label}</button>`;
 }
 
 export function form(options: {

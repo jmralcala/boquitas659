@@ -6,7 +6,9 @@ import type { PatientAppointmentItem, PatientAppointmentList } from "../../modul
 import type { DayView, MonthView } from "../../modules/site/availability-view.js";
 import { weekdayOfLocalDate } from "../../lib/zoned-time.js";
 import { checkbox, csrfInput, errorList, form, passwordInput, submitButton, textInput } from "./forms.js";
-import { page } from "./layout.js";
+import { icon } from "./icons.js";
+import { page, type PageSize } from "./layout.js";
+import { alert, appointmentBadge, badgeOf, definitionList, emptyState, siteBadge, tableWrap } from "./ui.js";
 
 export { formatDate, formatDateTime, formatTime } from "./calendar.js";
 
@@ -14,8 +16,8 @@ export { formatDate, formatDateTime, formatTime } from "./calendar.js";
  * Página del micrositio y de las pantallas del paciente. El diseño base ya lleva `noindex`, el pie con el aviso de
  * privacidad y el canal de derechos; aquí se añade solo lo común del micrositio.
  */
-export function sitePage(options: { title: string; content: SafeHtml }): string {
-  return page({ title: options.title, content: options.content });
+export function sitePage(options: { title: string; content: SafeHtml; size?: PageSize }): string {
+  return page({ title: options.title, content: options.content, ...(options.size ? { size: options.size } : {}) });
 }
 
 /** Teléfono de 10 dígitos para mostrar (`55 9876 5432`); cadena vacía si no hay un número válido. */
@@ -52,12 +54,12 @@ export function publicSitePage(site: PublicSiteView): string {
   const content = html`<h1>${site.doctorName}</h1>
 ${site.hasLogo ? html`<p><img src="${base}/logo" alt="Logo de ${site.doctorName}" width="160"></p>` : null}
 ${site.address ? html`<p><strong>Dirección:</strong> ${site.address}</p>` : null}
-${site.address ? html`<p><a href="${directionsUrl(site.address)}" target="_blank" rel="noopener noreferrer">Cómo llegar</a></p>` : null}
+${site.address ? html`<p><a class="btn btn-secondary" href="${directionsUrl(site.address)}" target="_blank" rel="noopener noreferrer">${icon("pin")}Cómo llegar</a></p>` : null}
 ${phoneNotice(site.officePhone)}
 <h2>Agenda tu cita</h2>
-<ul>
-  <li><a href="${base}/primera-cita">Primera cita</a>: crea tu cuenta y reserva.</li>
-  <li><a href="${base}/entrar">Ya soy paciente</a>: inicia sesión y reserva.</li>
+<ul class="actions">
+  <li><a class="btn" href="${base}/primera-cita">Primera cita</a> <span>Crea tu cuenta y reserva.</span></li>
+  <li><a class="btn btn-secondary" href="${base}/entrar">Ya soy paciente</a> <span>Inicia sesión y reserva.</span></li>
 </ul>`;
   return sitePage({ title: site.doctorName, content });
 }
@@ -65,7 +67,7 @@ ${phoneNotice(site.officePhone)}
 /** Aviso cuando el consultorio no recibe reservas en línea (despublicado, o el médico ya no está aprobado). */
 export function unavailableSitePage(options: { doctorName: string; officePhone: string | null }): string {
   const content = html`<h1>${options.doctorName}</h1>
-<p>Este consultorio no está recibiendo reservas en línea por ahora. Confirma tu cita directamente con el consultorio por teléfono.</p>
+${alert("warning", "Este consultorio no está recibiendo reservas en línea por ahora. Confirma tu cita directamente con el consultorio por teléfono.")}
 ${phoneNotice(options.officePhone)}`;
   return sitePage({ title: options.doctorName, content });
 }
@@ -115,12 +117,12 @@ ${csrfInput(options.csrf)}
 ${errorList(errors.logo)}
 <button type="submit">Subir logo</button>
 </form>
-${site.hasLogo ? html`<form method="post" action="/medicos/micrositio/logo/quitar">${csrfInput(options.csrf)}<button type="submit">Quitar logo</button></form>` : null}`
+${site.hasLogo ? html`<form method="post" action="/medicos/micrositio/logo/quitar">${csrfInput(options.csrf)}<button type="submit" class="btn-danger">Quitar logo</button></form>` : null}`
     : null;
-  const publishSection = html`<p>Estado: <strong>${site ? (STATUS_LABEL[site.status] ?? site.status) : "Sin nombre de enlace"}</strong></p>
-${missing.length > 0 ? html`<p>Para publicar falta: ${missing.join(", ")}.</p>` : null}
+  const publishSection = html`<p>Estado: ${site ? badgeOf(siteBadge(site.status)) : html`<strong>Sin nombre de enlace</strong>`}${site ? html` <small>${STATUS_LABEL[site.status] ?? site.status}</small>` : null}</p>
+${missing.length > 0 ? alert("warning", html`Para publicar falta: ${missing.join(", ")}.`) : null}
 ${site?.status === "published"
-    ? html`<form method="post" action="/medicos/micrositio/despublicar">${csrfInput(options.csrf)}<button type="submit">Despublicar</button></form>
+    ? html`<form method="post" action="/medicos/micrositio/despublicar">${csrfInput(options.csrf)}<button type="submit" class="btn-danger">Despublicar</button></form>
 <p><small>Al despublicar, el enlace deja de aceptar reservas; las citas existentes se conservan.</small></p>`
     : html`<form method="post" action="/medicos/micrositio/publicar">${csrfInput(options.csrf)}<button type="submit"${missing.length > 0 ? html` disabled` : null}>Publicar</button></form>`}`;
   const content = html`<h1>Mi micrositio</h1>
@@ -157,7 +159,7 @@ ${form({
 })}
 <p><a href="/recuperar">¿Olvidaste tu contraseña?</a></p>
 <p><a href="/c/${options.slug}/primera-cita">Es mi primera cita</a></p>`;
-  return sitePage({ title: options.doctorName, content });
+  return sitePage({ title: options.doctorName, content, size: "narrow" });
 }
 
 /** «Primera cita»: alta de la cuenta de paciente (casilla de privacidad sin marcar). */
@@ -173,7 +175,7 @@ export function firstAppointmentPage(options: {
   const { values, errors } = options;
   const content = html`<h1>${options.doctorName}</h1>
 <h2>Primera cita</h2>
-${options.notice ? html`<p>${options.notice}</p>` : null}
+${options.notice ? alert("info", options.notice) : null}
 ${errorList(errors._)}
 ${form({
   action: `/c/${options.slug}/primera-cita`,
@@ -237,22 +239,22 @@ function monthCalendar(slug: string, month: MonthView, track?: string): SafeHtml
     const number = Number(entry.date.slice(8));
     cells.push(
       entry.enabled
-        ? html`<a href="${base}?fecha=${entry.date}${trackParam}" aria-label="${entry.date}, ${entry.freeCount} horarios libres">${number}</a>`
-        : html`<span aria-disabled="true">${number}</span>`,
+        ? html`<a class="day day--free" href="${base}?fecha=${entry.date}${trackParam}" aria-label="${entry.date}, ${entry.freeCount} horarios libres">${number}</a>`
+        : html`<span class="day day--off" aria-disabled="true">${number}</span>`,
     );
   }
   const weeks: (SafeHtml | null)[][] = [];
   for (let index = 0; index < cells.length; index += 7) weeks.push(cells.slice(index, index + 7));
   const label = monthNameFormatter.format(new Date(`${month.month}-01T00:00:00Z`));
   return html`<h2>${label}</h2>
-<p>
-  ${month.prevMonth ? html`<a href="${base}?mes=${month.prevMonth}${trackParam}">« Mes anterior</a>` : null}
-  ${month.nextMonth ? html`<a href="${base}?mes=${month.nextMonth}${trackParam}">Mes siguiente »</a>` : null}
+<p class="month-nav">
+  ${month.prevMonth ? html`<a class="btn btn-secondary" href="${base}?mes=${month.prevMonth}${trackParam}">« Mes anterior</a>` : null}
+  ${month.nextMonth ? html`<a class="btn btn-secondary" href="${base}?mes=${month.nextMonth}${trackParam}">Mes siguiente »</a>` : null}
 </p>
-<table>
+${tableWrap(html`<table class="month">
   <thead><tr>${WEEKDAY_HEADERS.map((name) => html`<th scope="col">${name}</th>`)}</tr></thead>
   <tbody>${weeks.map((week) => html`<tr>${week.map((cell) => html`<td>${cell}</td>`)}</tr>`)}</tbody>
-</table>`;
+</table>`)}`;
 }
 
 /**
@@ -264,16 +266,16 @@ export function bookingPage(options: BookingPageOptions): string {
   const { day, errors } = options;
   const dayContent = day
     ? html`<h2>Horarios del ${day.date}</h2>
-${day.slots.length === 0 ? html`<p>No hay horarios disponibles ese día. Elige otro día del calendario.</p>` : null}
+${day.slots.length === 0 ? emptyState({ title: "No hay horarios disponibles ese día", text: "Elige otro día del calendario." }) : null}
 ${day.slots.length > 0
   ? form({
       action: `${base}/reservar`,
       csrf: options.csrf,
       children: [
         html`<fieldset><legend>Horario (hora del consultorio)</legend>${errorList(errors.inicio)}
-${day.slots.map(
-  (slot) => html`<label><input type="radio" name="inicio" value="${slot.startLocal}"${options.selectedStart === slot.startLocal ? html` checked` : null} required> ${formatTime(day.timezone, slot.startUtc)}</label>`,
-)}</fieldset>`,
+<div class="slots">${day.slots.map(
+  (slot) => html`<label class="slot"><input type="radio" name="inicio" value="${slot.startLocal}"${options.selectedStart === slot.startLocal ? html` checked` : null} required> <span>${formatTime(day.timezone, slot.startUtc)}</span></label>`,
+)}</div></fieldset>`,
         html`${options.track ? html`<input type="hidden" name="abierto" value="${options.track}">` : null}<label>Paciente
   <select name="patientId" required>
     ${options.patients.map((patient) => html`<option value="${patient.id}"${options.selectedPatientId === patient.id ? html` selected` : null}>${patient.name}</option>`)}
@@ -294,11 +296,11 @@ ${day.slots.map(
 
   const content = html`<h1>${options.doctorName}</h1>
 <p>Agenda tu cita: elige un día y un horario.</p>
-${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
+${options.notice ? alert("warning", options.notice) : null}
 ${errorList(errors._)}
 ${monthCalendar(options.slug, options.month, options.track)}
 ${dayContent}
-${options.urgentOffered ? html`<p><a href="${base}/urgencia">Tengo una urgencia</a></p>` : null}
+${options.urgentOffered ? html`<p><a class="btn btn-secondary" href="${base}/urgencia">Tengo una urgencia</a></p>` : null}
 <p><a href="/pacientes/citas">Mis citas</a></p>`;
   return sitePage({ title: options.doctorName, content });
 }
@@ -343,6 +345,7 @@ export function appointmentLinkGonePage(): string {
     content: html`<h1>Este enlace ya no es válido</h1>
 <p>Puede haber vencido, o la cita ya se canceló o ya pasó. Si necesitas ayuda, comunícate directamente con el consultorio.</p>
 <p><a href="/pacientes/citas">Ver mis citas</a></p>`,
+    size: "narrow",
   });
 }
 
@@ -362,6 +365,7 @@ ${form({
   ],
 })}
 <p><a href="/recuperar">¿Olvidaste tu contraseña?</a></p>`,
+    size: "narrow",
   });
 }
 
@@ -372,23 +376,23 @@ export function appointmentLinkSummaryPage(options: { token: string; csrf: strin
   return sitePage({
     title: "Tu cita",
     content: html`<h1>Tu cita dental</h1>
-${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
-<dl>
-  <dt>Paciente</dt><dd>${summary.patientName}</dd>
-  <dt>Con</dt><dd>${summary.doctorName}</dd>
-  <dt>Fecha</dt><dd>${formatDate(summary.timezone, summary.startUtc)}</dd>
-  <dt>Hora</dt><dd>${formatTime(summary.timezone, summary.startUtc)} (hora del consultorio)</dd>
-  ${summary.address ? html`<dt>Dónde</dt><dd>${summary.address}</dd>` : null}
-</dl>
+${options.notice ? alert("info", options.notice) : null}
+${definitionList([
+  ["Paciente", summary.patientName],
+  ["Con", summary.doctorName],
+  ["Fecha", formatDate(summary.timezone, summary.startUtc)],
+  ["Hora", `${formatTime(summary.timezone, summary.startUtc)} (hora del consultorio)`],
+  ...(summary.address ? ([["Dónde", summary.address]] as const) : []),
+])}
 ${phone}
 ${summary.cancelable
   ? html`<p>Puedes cancelar hasta ${formatDate(summary.timezone, summary.cancelDeadline)}, ${formatTime(summary.timezone, summary.cancelDeadline)}.</p>
 ${form({
   action: `/citas/enlace/${encodeURIComponent(options.token)}/cancelar`,
   csrf: options.csrf,
-  children: [submitButton("Cancelar mi cita")],
+  children: [submitButton("Cancelar mi cita", "danger")],
 })}`
-  : html`<p>Ya pasó el plazo para cancelar en línea. Si no vas a poder asistir, llama al consultorio.</p>`}
+  : alert("warning", "Ya pasó el plazo para cancelar en línea. Si no vas a poder asistir, llama al consultorio.")}
 <p><a href="/pacientes/citas">Ver todas mis citas</a></p>`,
   });
 }
@@ -397,7 +401,7 @@ ${form({
 
 function appointmentRow(item: PatientAppointmentItem): SafeHtml {
   return html`<li><a href="/pacientes/citas/${item.id}">${formatDate(item.timezone, item.startUtc)}, ${formatTime(item.timezone, item.startUtc)}</a>
-  — ${item.patientName} con ${item.doctorName}${item.kind === "urgent" ? html` <strong>Urgencia</strong>` : null}${item.status === "cancelled" ? " (cancelada)" : ""}</li>`;
+  — ${item.patientName} con ${item.doctorName}${item.kind === "urgent" ? html` <strong>Urgencia</strong>` : null} ${badgeOf(appointmentBadge(item.status))}</li>`;
 }
 
 /** «Mis citas»: próximas e historial reciente de todas las personas de la cuenta, con cualquier consultorio. */
@@ -405,11 +409,11 @@ export function myAppointmentsPage(list: PatientAppointmentList, notice?: string
   return sitePage({
     title: "Mis citas",
     content: html`<h1>Mis citas</h1>
-${notice ? html`<p role="alert">${notice}</p>` : null}
+${notice ? alert("info", notice) : null}
 <h2>Próximas</h2>
-${list.upcoming.length === 0 ? html`<p>No tienes citas próximas.</p>` : html`<ul>${list.upcoming.map(appointmentRow)}</ul>`}
+${list.upcoming.length === 0 ? emptyState({ title: "No tienes citas próximas" }) : html`<ul class="appointments">${list.upcoming.map(appointmentRow)}</ul>`}
 <h2>Historial (últimos 90 días)</h2>
-${list.history.length === 0 ? html`<p>Sin citas recientes.</p>` : html`<ul>${list.history.map(appointmentRow)}</ul>`}
+${list.history.length === 0 ? emptyState({ title: "Sin citas recientes" }) : html`<ul class="appointments">${list.history.map(appointmentRow)}</ul>`}
 <p><a href="/pacientes/consultorios">Mis consultorios</a> · <a href="/pacientes/panel">Mi cuenta</a></p>`,
   });
 }
@@ -420,22 +424,22 @@ export function patientAppointmentPage(options: { item: PatientAppointmentItem; 
   return sitePage({
     title: "Mi cita",
     content: html`<h1>Mi cita</h1>
-${options.notice ? html`<p role="alert">${options.notice}</p>` : null}
-<dl>
-  <dt>Paciente</dt><dd>${item.patientName}</dd>
-  <dt>Con</dt><dd>${item.doctorName}</dd>
-  <dt>Fecha</dt><dd>${formatDate(item.timezone, item.startUtc)}</dd>
-  <dt>Hora</dt><dd>${formatTime(item.timezone, item.startUtc)} (hora del consultorio)</dd>
-  ${item.address ? html`<dt>Dónde</dt><dd>${item.address}</dd>` : null}
-  <dt>Estado</dt><dd>${item.status === "cancelled" ? "Cancelada" : "Agendada"}</dd>
-  <dt>Tipo</dt><dd>${item.kind === "urgent" ? "Urgencia" : "Convencional"}</dd>
-</dl>
+${options.notice ? alert("info", options.notice) : null}
+${definitionList([
+  ["Paciente", item.patientName],
+  ["Con", item.doctorName],
+  ["Fecha", formatDate(item.timezone, item.startUtc)],
+  ["Hora", `${formatTime(item.timezone, item.startUtc)} (hora del consultorio)`],
+  ...(item.address ? ([["Dónde", item.address]] as const) : []),
+  ["Estado", badgeOf(appointmentBadge(item.status))],
+  ["Tipo", item.kind === "urgent" ? "Urgencia" : "Convencional"],
+])}
 ${phoneNotice(item.officePhone)}
 ${item.cancelable
   ? html`<p>Puedes cancelar hasta ${formatDate(item.timezone, item.cancelDeadline)}, ${formatTime(item.timezone, item.cancelDeadline)}.</p>
-${form({ action: `/pacientes/citas/${item.id}/cancelar`, csrf: options.csrf, children: [submitButton("Cancelar mi cita")] })}`
+${form({ action: `/pacientes/citas/${item.id}/cancelar`, csrf: options.csrf, children: [submitButton("Cancelar mi cita", "danger")] })}`
   : item.live
-    ? html`<p>Ya pasó el plazo para cancelar en línea. Si no vas a poder asistir, llama al consultorio.</p>`
+    ? alert("warning", "Ya pasó el plazo para cancelar en línea. Si no vas a poder asistir, llama al consultorio.")
     : null}
 <p><a href="/pacientes/citas">Volver a mis citas</a></p>`,
   });
@@ -452,7 +456,7 @@ export function myOfficesPage(offices: readonly OfficeItem[]): string {
     content: html`<h1>Mis consultorios</h1>
 <p>Estos consultorios pueden ver el nombre y los datos de contacto (correo y teléfono) de los pacientes de tu cuenta para atender tus citas.</p>
 ${offices.length === 0
-  ? html`<p>Ningún consultorio tiene acceso a tus datos de contacto.</p>`
+  ? emptyState({ title: "Ningún consultorio tiene acceso a tus datos de contacto" })
   : html`<ul>${offices.map(
       (office) => html`<li>${office.doctorName} — ${OFFICE_ORIGIN_LABEL[office.origin]}, desde ${formatDate("America/Mexico_City", office.linkedAt)}
   · <a href="/pacientes/consultorios/${office.doctorId}/revocar">Revocar</a></li>`,
@@ -473,7 +477,7 @@ export function revokeOfficePage(options: { doctorId: number; doctorName: string
   <li>Conservará el nombre en las citas que ya pasaron.</li>
   <li>Podrás volver a reservar con este consultorio cuando quieras; se te pedirá autorizar de nuevo.</li>
 </ul>
-${form({ action: `/pacientes/consultorios/${options.doctorId}/revocar`, csrf: options.csrf, children: [submitButton("Revocar el vínculo")] })}
+${form({ action: `/pacientes/consultorios/${options.doctorId}/revocar`, csrf: options.csrf, children: [submitButton("Revocar el vínculo", "danger")] })}
 <p><a href="/pacientes/consultorios">Cancelar y volver</a></p>`,
   });
 }

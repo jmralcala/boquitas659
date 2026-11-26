@@ -21,7 +21,7 @@ const resetSchema = z.object({
 });
 
 function sendPage(reply: FastifyReply, status: number, content: ReturnType<typeof html>, title: string): FastifyReply {
-  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content }));
+  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content, size: "narrow" }));
 }
 
 function requestForm(app: FastifyInstance, request: FastifyRequest, reply: FastifyReply, email = ""): ReturnType<typeof html> {

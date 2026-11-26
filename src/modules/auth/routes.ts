@@ -58,6 +58,7 @@ ${form({
   ],
 })}
 <p><a href="/recuperar">¿Olvidaste tu contraseña?</a></p>`,
+    size: "narrow",
   });
 }
 

@@ -32,7 +32,7 @@ const emailBody = z.object({
 const EMAIL_UNAVAILABLE = "No pudimos usar ese correo. Prueba con otro.";
 
 function send(reply: FastifyReply, status: number, title: string, content: SafeHtml): FastifyReply {
-  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content }));
+  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content, size: "narrow" }));
 }
 
 export function registerAccountRoutes(app: FastifyInstance, services: Services): void {

@@ -5,6 +5,7 @@ import { wantsJson } from "../../http/negotiation.js";
 import { requireAuth } from "../../http/session-plugin.js";
 import { errorList, fileInput, form, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
+import { alert, badgeOf, doctorApprovalBadge } from "../../http/views/ui.js";
 import { html, type SafeHtml } from "../../lib/html.js";
 import type { Doctor } from "./doctor-repository.js";
 
@@ -26,14 +27,13 @@ function statusView(
   const values = options.values ?? {};
   let body: SafeHtml;
   if (doctor.approvalStatus === "pending") {
-    body = html`<p>Tu solicitud está en revisión. Te avisaremos por correo cuando soporte la resuelva.</p>`;
+    body = html`<p>${badgeOf(doctorApprovalBadge("pending"))}</p>${alert("info", "Tu solicitud está en revisión. Te avisaremos por correo cuando soporte la resuelva.")}`;
   } else if (doctor.approvalStatus === "approved") {
-    body = html`<p>Tu cuenta está aprobada. <a href="/medicos/panel">Ir a mi panel</a></p>`;
+    body = html`<p>${badgeOf(doctorApprovalBadge("approved"))}</p>${alert("success", html`Tu cuenta está aprobada. <a href="/medicos/panel">Ir a mi panel</a>`)}`;
   } else {
     const needsCedula = doctor.cedulaNormalized === null;
     const needsMobile = doctor.emergencyMobile === null;
-    body = html`<p>Tu solicitud necesita correcciones.</p>
-<p><strong>Motivo:</strong> ${doctor.rejectionReason ?? "Sin motivo indicado."}</p>
+    body = html`<p>${badgeOf(doctorApprovalBadge("rejected"))}</p>${alert("error", html`<p>Tu solicitud necesita correcciones.</p><p><strong>Motivo:</strong> ${doctor.rejectionReason ?? "Sin motivo indicado."}</p>`)}
 ${errorList(errors._)}
 ${form({
   action: "/medicos/estado/reenviar",

@@ -17,7 +17,7 @@ const codeBody = z.object({ code: z.string({ error: required }).trim().min(1, re
 const passwordBody = z.object({ currentPassword: z.string({ error: required }).min(1, required).max(256) });
 
 function send(reply: FastifyReply, status: number, title: string, content: SafeHtml): FastifyReply {
-  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content }));
+  return reply.code(status).type("text/html; charset=utf-8").send(page({ title, content, size: "narrow" }));
 }
 
 export function registerMfaRoutes(app: FastifyInstance, services: Services): void {

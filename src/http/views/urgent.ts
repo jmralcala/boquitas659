@@ -3,6 +3,7 @@ import type { EmergencyContact } from "../../modules/urgent/emergency-contact.js
 import { TRIAGE_CONTENT } from "../../modules/urgent/triage-content.js";
 import { checkbox, errorList, form, submitButton } from "./forms.js";
 import { formatPhone, sitePage } from "./site.js";
+import { alert } from "./ui.js";
 
 type FieldErrors = Readonly<Record<string, readonly string[]>>;
 
@@ -77,7 +78,7 @@ export function noSpacePage(options: { doctorName: string; contact: EmergencyCon
     title: options.doctorName,
     content: html`<h1>No encontramos espacio</h1>
 <p>No hay un espacio libre en <strong>${options.doctorName}</strong> dentro del tiempo que necesitas. No se agendó ninguna cita.</p>
-${options.hospitalNotice ? html`<p role="alert"><strong>${TRIAGE_CONTENT.hospitalNotice}</strong></p>` : null}
+${options.hospitalNotice ? alert("error", html`<strong>${TRIAGE_CONTENT.hospitalNotice}</strong>`, { prominent: true }) : null}
 <p>Comunícate directamente:</p>
 ${contactLines(options.contact)}
 <h2>Mientras tanto</h2>
@@ -90,7 +91,7 @@ export function alarmPage(options: { doctorName: string; contact: EmergencyConta
   return sitePage({
     title: options.doctorName,
     content: html`<h1>Busca atención de inmediato</h1>
-<p role="alert"><strong>${TRIAGE_CONTENT.alarmNotice}</strong></p>
+${alert("error", html`<strong>${TRIAGE_CONTENT.alarmNotice}</strong>`, { prominent: true })}
 ${contactLines(options.contact)}`,
   });
 }
@@ -100,7 +101,7 @@ export function captchaUnavailablePage(options: { slug: string; doctorName: stri
   return sitePage({
     title: options.doctorName,
     content: html`<h1>No pudimos verificar tu solicitud</h1>
-<p>En este momento no podemos asignar una urgencia en línea. Si es urgente, llama directamente:</p>
+${alert("warning", "En este momento no podemos asignar una urgencia en línea. Si es urgente, llama directamente:", { prominent: true })}
 ${contactLines(options.contact)}
 <p><a href="/c/${options.slug}/reservar">Prefiero una cita normal</a></p>`,
   });
@@ -112,7 +113,7 @@ export function callOfficePage(options: { doctorName: string; contact: Emergency
   return sitePage({
     title: options.doctorName,
     content: html`<h1>${options.doctorName}</h1>
-<p>Las urgencias en línea no están disponibles por ahora. Si es urgente, llama directamente al consultorio.</p>
+${alert("warning", "Las urgencias en línea no están disponibles por ahora. Si es urgente, llama directamente al consultorio.", { prominent: true })}
 ${office !== "" ? html`<p><strong>Teléfono del consultorio:</strong> <a href="tel:${options.contact.officePhone ?? ""}">${office}</a></p>` : null}`,
   });
 }
@@ -123,7 +124,7 @@ export function urgentUnavailablePage(options: { doctorName: string; officePhone
   return sitePage({
     title: options.doctorName,
     content: html`<h1>${options.doctorName}</h1>
-<p>Este consultorio no está recibiendo reservas en línea. Confirma directamente con el consultorio por teléfono.</p>
+${alert("warning", "Este consultorio no está recibiendo reservas en línea. Confirma directamente con el consultorio por teléfono.")}
 ${office !== "" ? html`<p><strong>Teléfono del consultorio:</strong> <a href="tel:${options.officePhone ?? ""}">${office}</a></p>` : null}`,
   });
 }
