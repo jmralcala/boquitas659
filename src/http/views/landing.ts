@@ -38,7 +38,7 @@ export function landingPage(options: { year: number; contactEmail: string }): st
 <main id="contenido">
 <section class="hero landing-section">
 <p class="hero__tag">Agenda en línea para consultorios dentales</p>
-<h1>Tu consultorio, en orden.<span class="hero__accent">Tus pacientes, a un mensaje de distancia.</span></h1>
+<h1>Tu consultorio, en orden. <span class="hero__accent">Tus pacientes, a un mensaje de distancia.</span></h1>
 <p class="hero__lead">Tus pacientes prefieren agendar como hacen todo lo demás: desde su celular, en segundos y sin llamadas. <strong>Agenda Dental</strong> les permite reservar y cancelar sus citas en línea y recibir avisos por correo, mientras tú tienes toda tu agenda bajo control.</p>
 <div class="hero__actions">
 <a class="btn" href="${REGISTER}">Regístrate aquí${icon("arrow-right")}</a>

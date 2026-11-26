@@ -511,10 +511,11 @@ td details { margin: 0; }
 
 .landing { background: var(--color-bg); }
 .landing main { background: none; border: 0; padding: 0; margin: 0; max-width: none; }
-.landing main > section { margin-bottom: 0; }
+.landing main > section:not(.cta-band) { margin-bottom: 0; }
 
 .topbar { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
 .topbar__inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); max-width: 1200px; margin: 0 auto; padding: var(--space-3) var(--space-4); min-height: 72px; }
+.topbar .brand { min-height: var(--control-h); }
 .topbar nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .topbar nav > a:not(.btn) { display: inline-flex; align-items: center; min-height: var(--control-h); padding: 0 var(--space-2); font-weight: 600; color: var(--color-text-2); }
 
@@ -540,6 +541,8 @@ td details { margin: 0; }
 .cta-band { max-width: 1152px; margin: 72px auto; padding: 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-6); background: var(--color-primary); color: var(--color-on-primary); border-radius: var(--radius-xl); }
 .cta-band h2 { margin: 0 0 var(--space-2); color: var(--color-on-primary); font-size: clamp(22px, 3vw, 32px); font-weight: 800; letter-spacing: -0.02em; }
 .cta-band p { margin: 0; max-width: 560px; color: var(--color-on-primary); }
+/* El foco global es un anillo del color primario: sobre la banda del mismo color no se vería */
+.cta-band a:focus-visible { outline: 3px solid var(--color-surface); outline-offset: 3px; box-shadow: none; }
 .btn-light { background: var(--color-surface); color: var(--color-primary-strong); min-height: 52px; padding: 0 var(--space-6); }
 .btn-light:hover { background: var(--color-mint); color: var(--color-primary-strong); }
 

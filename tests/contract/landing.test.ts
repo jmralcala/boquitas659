@@ -104,6 +104,13 @@ describe("US2: quien ya tiene cuenta entra sin buscar el enlace", () => {
     expect(response.body).toContain("Tu consultorio, en orden.");
   });
 
+  it("soporte sin el segundo factor activo es llevado a activarlo antes que a su área (filtro global)", async () => {
+    const client = await sessionFor(t.services, await createUser(pool, { role: "support" }));
+    const response = await get("/", client.cookie);
+    expect(response.statusCode).toBe(303);
+    expect(response.headers.location).toBe("/cuenta/mfa/alta");
+  });
+
   it("con avisos legales pendientes el filtro global lleva a aceptarlos antes que a su área", async () => {
     const patient = await sessionFor(t.services, (await createPatient(pool)).user);
     await t.services.legal.publish({ type: "patient_privacy", title: "Aviso nuevo", body: "texto nuevo", isProvisional: false });
@@ -139,10 +146,13 @@ describe("US3: se lee bien en el celular y es accesible", () => {
   });
 
   it("HEAD responde sin cuerpo y con las mismas cabeceras", async () => {
+    const full = await get("/");
     const response = await get("/", undefined, t, "HEAD");
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe("");
     expect(String(response.headers["content-type"])).toContain("text/html");
+    expect(response.headers["cache-control"]).toBe(full.headers["cache-control"]);
+    expect(response.headers["content-security-policy"]).toBe(full.headers["content-security-policy"]);
   });
 });
 

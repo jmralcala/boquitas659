@@ -5,7 +5,10 @@ import { landingPage } from "../../src/http/views/landing.js";
 function visibleText(): string {
   const html = landingPage({ year: 2026, contactEmail: "soporte@innvend.com" });
   const body = /<body[\s\S]*<\/body>/.exec(html)?.[0] ?? html;
-  return body
+  // El título y la descripción de la página también son texto que ve el público (buscadores, pestañas, al compartir).
+  const title = /<title>([\s\S]*?)<\/title>/.exec(html)?.[1] ?? "";
+  const description = /<meta name="description" content="([^"]*)">/.exec(html)?.[1] ?? "";
+  return `${body} ${title} ${description}`
     .replace(/<svg[\s\S]*?<\/svg>/g, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&[a-z#0-9]+;/g, " ")
@@ -18,7 +21,7 @@ function visibleText(): string {
 /** Términos que prometerían lo que el piloto no tiene (contracts/page-content.md). */
 const FORBIDDEN_SUBSTRINGS = [
   "reprogram", "whatsapp", "mensajer", "rentabil", "ganancia", "ingreso", "precio", "costo", "gratis",
-  "descuento", "oferta", "garant", "satisfech", "testimonio", "lider",
+  "descuento", "oferta", "garant", "satisfech", "testimonio", "lider", "#1",
 ];
 const FORBIDDEN_WORDS = ["plan", "planes"];
 

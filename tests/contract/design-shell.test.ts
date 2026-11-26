@@ -51,8 +51,9 @@ function expectDesigned(body: string, label: string): void {
   expect(body, `${label}: noindex`).toContain('name="robots" content="noindex"');
   expect(body, `${label}: salto`).toMatch(/<a class="skip-link" href="#contenido">/);
   expect(body, `${label}: main`).toContain('<main id="contenido">');
-  // La portada de la raíz tiene su propio pie, con el aviso de privacidad de médicos.
-  expect(body, `${label}: pie legal`).toMatch(/href="\/legal(\/doctor_privacy)?"/);
+  // La portada de la raíz tiene su propio pie, con el aviso de privacidad de médicos; todas las demás usan el pie común.
+  if (body.includes('<body class="landing">')) expect(body, `${label}: pie de la portada`).toContain('href="/legal/doctor_privacy"');
+  else expect(body, `${label}: pie legal`).toContain('href="/legal"');
   expect(body, `${label}: style=`).not.toMatch(/\sstyle\s*=/);
   expect(body, `${label}: marcas sin resolver`).not.toContain("<!--shell:");
 }
