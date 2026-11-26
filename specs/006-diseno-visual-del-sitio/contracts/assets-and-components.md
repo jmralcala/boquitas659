@@ -10,7 +10,8 @@
 
 Reglas:
 
-- Solo `GET` y `HEAD`; el nombre se compara contra una **lista cerrada** (los archivos existentes al arrancar), nunca se construye una ruta de disco con el valor recibido.
+- Solo `GET` y `HEAD`. Cada archivo es una **ruta literal** (la lista cerrada de `asset-url.ts`): cualquier otro nombre cae en el 404 uniforme de la aplicación y nunca se construye una ruta de disco con el valor recibido. Un camino con `..` que se normaliza a uno de los tres archivos legítimos (por ejemplo `/assets/fonts/../styles.css`) sirve ese archivo, igual que lo haría cualquier servidor.
+- Las rutas de `/assets/` están exentas de los filtros de avisos legales pendientes y de activación del segundo factor de soporte: sin ellas la propia pantalla de aceptación o de alta se vería sin estilo.
 - Límite de peticiones propio: **600 por minuto por IP** (el global de 300 no aplica a esta ruta). Superarlo responde 429 como el resto.
 - No lleva cookies, no requiere sesión y no se registra el contenido.
 - Los archivos se leen **relativos al propio módulo** (`src/http/asset-url.ts`), así que funcionan igual desde `src/` (pruebas y desarrollo) y desde `dist/` (producción); `assetUrl(name)` vive en ese módulo y lo usan la ruta y la plantilla.
@@ -42,7 +43,9 @@ Funciones puras que devuelven `SafeHtml` (el texto del usuario se escapa como ho
 | `definitionList` | `definitionList(rows)` | `<dl>` con filas etiqueta-valor |
 | `icon` | `icon(name)` | `<svg aria-hidden="true" …>` de trazo (`currentColor`) |
 
-Mapeos de estado (puros, con prueba unitaria): `appointmentBadge`, `doctorApprovalBadge`, `doctorAccountBadge`, `siteBadge`, `mailBadge`, `metricBadge` según la tabla de [data-model.md](../data-model.md) §3.
+Mapeos de estado (puros, con prueba unitaria): `appointmentBadge`, `doctorApprovalBadge`, `doctorAccountBadge`, `siteBadge`, `mailBadge`, `metricBadge` según la tabla de [data-model.md](../data-model.md) §3. Devuelven `{ variant, text }`; `badgeOf(spec)` los convierte en la insignia.
+
+**Excepción de CSP del formulario de urgencia**: `src/modules/urgent/csp.ts` amplía `script-src` y `frame-src` con `https://challenges.cloudflare.com` solo en esa pantalla (CAPTCHA Turnstile de la feature 4). No cambia.
 
 ## Clases públicas de la hoja (lo que el marcado puede usar)
 

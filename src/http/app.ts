@@ -9,13 +9,14 @@ import { html } from "../lib/html.js";
 import type { SessionService } from "../modules/auth/sessions.js";
 import type { LegalService } from "../modules/legal/legal-service.js";
 import { installLegalGate } from "../modules/legal/legal-gate.js";
-import { accountStateOf } from "../modules/reception/tenant-resolver.js";
-import { installCsrf, sessionCsrfToken } from "./csrf.js";
+import { installCsrf } from "./csrf.js";
 import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
 import { wantsJson } from "./negotiation.js";
 import { installSession } from "./session-plugin.js";
+import { installShell } from "./shell.js";
 import { installSupportMfa } from "./support-mfa.js";
+import { page } from "./views/layout.js";
 
 export interface AppOptions {
   appEnv: "development" | "production";
@@ -59,12 +60,9 @@ function sendError(
   const items = fields
     ? Object.entries(fields).flatMap(([name, messages]) => messages.map((m) => html`<li>${name}: ${m}</li>`))
     : [];
-  const page = html`<!doctype html>
-<html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Error</title></head>
-<body><main><h1>${message}</h1>${items.length > 0 ? html`<ul>${items}</ul>` : null}</main></body>
-</html>`;
-  return reply.type("text/html; charset=utf-8").send(page.toString());
+  // Las páginas de error también usan el diseño común (hoja, pie legal y, con sesión, la barra lateral).
+  const content = html`<h1>${message}</h1>${items.length > 0 ? html`<ul class="errors">${items}</ul>` : null}`;
+  return reply.type("text/html; charset=utf-8").send(page({ title: "Error", content, size: "narrow" }));
 }
 
 /**
@@ -77,7 +75,26 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     trustProxy: toFastifyTrustProxy(options.trustProxy),
   });
 
-  await app.register(helmet);
+  // CSP solo con recursos propios: el navegador impide cualquier hoja, fuente o imagen de terceros (FR-016, SC-005).
+  // `useDefaults` conserva el valor actual de las demás directivas (por ejemplo `upgrade-insecure-requests`); aquí se
+  // sobrescriben las que por defecto admitían cualquier origen `https:` y los estilos en línea.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  });
   await app.register(cookie);
   await app.register(formbody);
   // Los archivos llegan como Buffer dentro de `request.body` (así el CSRF y zod ven todos los campos).
@@ -117,23 +134,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (path.startsWith("/soporte")) void reply.header("cache-control", "no-store");
   });
 
-  // Botón «Salir» en toda página HTML de quien tiene sesión (incluida la de quien aún debe verificar el doble factor).
-  // Se inserta aquí y no en cada vista para que ninguna pantalla se quede sin él; el token CSRF es el de la sesión.
-  const logoutCsrfSecret = options.csrfSecret;
-  app.addHook("onSend", async (request, reply, payload) => {
-    if (logoutCsrfSecret === undefined || !request.auth || typeof payload !== "string") return payload;
-    if (!String(reply.getHeader("content-type") ?? "").startsWith("text/html")) return payload;
-    const token = sessionCsrfToken(logoutCsrfSecret, request.auth.csrfSecret);
-    const form = `<body>\n<nav aria-label="Sesión"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="${token}"><button type="submit">Salir</button></form></nav>`;
-    return payload.replace("<body>", () => form);
-  });
-
-  // Cuenta en solo lectura (feature 5): las páginas del médico y de su recepción lo avisan arriba del contenido.
-  app.addHook("onSend", async (request, reply, payload) => {
-    if (accountStateOf(request) !== "read_only" || typeof payload !== "string") return payload;
-    if (!String(reply.getHeader("content-type") ?? "").startsWith("text/html")) return payload;
-    return payload.replace("<main>", `<main>\n<p role="status"><strong>Tu cuenta está en solo lectura:</strong> puedes consultar tu agenda, pero no modificarla.</p>`);
-  });
+  // Estructura común del diseño: barra lateral con la navegación del rol y «Salir» cuando hay sesión, tarjeta centrada
+  // cuando no, y el aviso de solo lectura (feature 5) arriba del contenido. Ver shell.ts.
+  installShell(app, options.csrfSecret);
 
   // Las páginas pueden contener códigos de recuperación, secretos TOTP, enlaces con token o datos de pacientes:
   // no deben quedar en cachés ni reaparecer con «atrás» tras cerrar sesión.

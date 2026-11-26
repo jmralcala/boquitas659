@@ -7,10 +7,11 @@ Esta feature **no añade ni cambia datos persistentes** (sin migraciones, sin ta
 | Grupo | Tokens | Valores de referencia |
 |---|---|---|
 | Color de marca | `--color-primary`, `--color-primary-hover`, `--color-primary-strong`, `--color-mint`, `--color-mint-2` | `#0B7A72`, `#08635D`, `#0A6B64`, `#E3F4F1`, `#CFE9E5` |
-| Color de estado | `--color-sky` / `--color-sky-text`, `--color-amber` / `--color-amber-text`, `--color-red` / `--color-red-text` | `#E5F0FA`/`#1E5A8C`, `#FFF3E0`/`#8A4B00`, `#FDECEC`/`#A12727` |
+| Color de estado | `--color-sky` / `--color-sky-text`, `--color-amber` / `--color-amber-text`, `--color-red` / `--color-red-text`, `--color-neutral` / `--color-neutral-text` | `#E5F0FA`/`#1E5A8C`, `#FFF3E0`/`#8A4B00`, `#FDECEC`/`#A12727`, `#F1F4F4`/`#4F6B6F` |
+| Compuestos | `--color-on-primary` (texto sobre el primario), `--color-nav-hover` | `#FFFFFF`, `#EEF5F4` |
 | Texto | `--color-text`, `--color-text-2`, `--color-text-muted`, `--color-nav` | `#0F2A2E`, `#24403F`, `#4F6B6F`, `#3E5A5E` |
 | Superficies | `--color-bg`, `--color-surface`, `--color-surface-2`, `--color-border`, `--color-border-input`, `--color-divider` | `#F4F8F8`, `#FFFFFF`, `#F8FBFB`, `#DCE7E7`, `#C9DADA`, `#EDF3F3` |
-| Triaje (nuevo; el dato `tone` 1 a 5 reemplaza al campo `color` de `triage-content.ts`) | `--triage-1` … `--triage-5` (+ su color de texto) | tonos que sustituyen a `#c0392b`, `#e67e22`, `#d4ac0d`, `#7dcea0`, `#27ae60`; se fijan en la implementación cumpliendo el contraste |
+| Triaje (nuevo; el dato `tone` 1 a 5 reemplaza al campo `color` de `triage-content.ts`) | `--triage-N` (borde), `--triage-N-bg` (fondo suave) y `--triage-N-text` (texto), para N = 1 a 5 | bordes `#C0392B`, `#E67E22`, `#D4AC0D`, `#7DCEA0`, `#27AE60` (los de antes); fondos y textos con contraste ≥ 4.5:1 |
 | Tipografía | `--font-body`, `--font-heading` | Inter y Manrope con pila de respaldo del sistema |
 | Forma | `--radius-sm` 9px, `--radius-md` 10px, `--radius-lg` 14px, `--radius-xl` 16px, `--radius-pill` 999px | |
 | Espaciado | `--space-1` … `--space-8` (4 px a 32 px) | |

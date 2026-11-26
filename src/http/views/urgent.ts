@@ -47,7 +47,7 @@ ${TRIAGE_CONTENT.alarmSignals.map((signal) => html`<label><input type="checkbox"
 ${errorList(errors.senales)}</fieldset>`,
     html`<fieldset><legend>¿Qué describe mejor lo que sientes?</legend>
 ${TRIAGE_CONTENT.categories.map(
-  (category) => html`<label style="border-left:8px solid ${category.color};padding-left:8px;display:block"><input type="radio" name="categoria" value="${category.id}" required> <strong>${category.label}.</strong> ${category.optionText}</label>`,
+  (category) => html`<label class="triage triage--${category.tone}"><input type="radio" name="categoria" value="${category.id}" required> <strong>${category.label}.</strong> ${category.optionText}</label>`,
 )}
 ${errorList(errors.categoria)}</fieldset>`,
     html`<label>¿Para quién es la cita?

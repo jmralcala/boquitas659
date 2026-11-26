@@ -103,7 +103,10 @@ describe("GET /citas/enlace/:token", () => {
     responses.push(await get(`/citas/enlace/${b.token}`)); // la cita ya empezó
 
     for (const response of responses) expect(response.statusCode).toBe(410);
-    const bodies = new Set(responses.map((response) => response.body));
+    // La respuesta de la cuenta ajena lleva además la barra lateral de su propia sesión (diseño común); lo que no puede
+    // distinguirse es el contenido de la pantalla, que es el mismo 410 para todos los casos.
+    const contentOf = (body: string): string => /<main id="contenido">([\s\S]*?)<\/main>/.exec(body)?.[1] ?? body;
+    const bodies = new Set(responses.map((response) => contentOf(response.body)));
     expect(bodies.size).toBe(1);
     const [body] = [...bodies];
     expect(body).not.toContain("Mario Quintana");

@@ -35,16 +35,12 @@ export function formatDateTime(zone: string, instant: Date): string {
 
 // --- Diseño común de las pantallas de agenda ------------------------------------------------------------------------
 
-/** Página de agenda con la navegación común. Solo el médico ve el enlace a la configuración (recepción no la cambia). */
+/**
+ * Página de agenda. La navegación (Agenda, Bloqueos y, solo para el médico, Configuración) la arma ahora la barra
+ * lateral común (`shell.ts`); `canConfigure` se conserva en la firma porque los llamadores ya lo pasan.
+ */
 export function calendarLayout(options: { title: string; content: SafeHtml; canConfigure: boolean }): string {
-  return page({
-    title: options.title,
-    content: html`<nav aria-label="Agenda">
-  <a href="/agenda">Agenda</a> ·
-  <a href="/agenda/bloqueos">Bloqueos</a>${options.canConfigure ? html` · <a href="/agenda/configuracion">Configuración</a>` : null}
-</nav>
-${options.content}`,
-  });
+  return page({ title: options.title, content: options.content });
 }
 
 // --- Configuración del calendario ------------------------------------------------------------------------------------

@@ -12,22 +12,9 @@ import { SLUG_RESERVATION_DAYS } from "../site/change-slug.js";
 /** Aviso fijo junto a cada motivo: el historial es interno, pero no debe guardar datos de pacientes. */
 export const REASON_WARNING = "No escribas datos de pacientes: el motivo queda en el historial.";
 
-const NAV: ReadonlyArray<readonly [string, string]> = [
-  ["/soporte", "Inicio"],
-  ["/soporte/medicos", "Médicos"],
-  ["/soporte/micrositios", "Micrositios"],
-  ["/soporte/correos", "Correos"],
-  ["/soporte/metricas", "Métricas"],
-  ["/soporte/historial", "Historial"],
-];
-
-export function nav(): SafeHtml {
-  return html`<nav aria-label="Panel de soporte">${NAV.map(([href, label], index) => html`${index > 0 ? " · " : null}<a href="${href}">${label}</a>`)}</nav>`;
-}
-
-/** Página del panel: navegación común más el contenido de la pantalla. */
+/** Página del panel. La navegación del panel la arma la barra lateral común (`shell.ts`). */
 export function supportPage(title: string, content: SafeHtml): string {
-  return page({ title, content: html`${nav()}${content}` });
+  return page({ title, content });
 }
 
 /** Mensaje de error (400 o 409) que se muestra sobre la pantalla desde la que se envió el formulario. */

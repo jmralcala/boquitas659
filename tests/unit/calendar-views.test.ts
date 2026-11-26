@@ -35,14 +35,13 @@ describe("calendarLayout", () => {
     expect(out).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 
-  it("el médico ve el enlace a la configuración y recepción no", () => {
-    expect(calendarLayout({ title: "t", content: html`<p>x</p>`, canConfigure: true })).toContain('href="/agenda/configuracion"');
-    expect(calendarLayout({ title: "t", content: html`<p>x</p>`, canConfigure: false })).not.toContain("/agenda/configuracion");
-  });
-
-  it("siempre enlaza a la agenda y a los bloqueos", () => {
-    const out = calendarLayout({ title: "t", content: html`<p>x</p>`, canConfigure: false });
-    expect(out).toContain('href="/agenda"');
-    expect(out).toContain('href="/agenda/bloqueos"');
+  it("ya no arma su propia navegación: la barra lateral común (shell) la añade según el rol", () => {
+    // Que el médico vea «Configuración» y recepción no lo comprueba tests/contract/design-shell.test.ts.
+    for (const canConfigure of [true, false]) {
+      const out = calendarLayout({ title: "t", content: html`<p>x</p>`, canConfigure });
+      expect(out).not.toContain("<nav");
+      expect(out).not.toContain("/agenda/configuracion");
+      expect(out).toContain('<main id="contenido">');
+    }
   });
 });

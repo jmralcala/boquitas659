@@ -6,7 +6,8 @@ import type { LegalService } from "./legal-service.js";
 /** Rutas que deben seguir disponibles para quien tiene avisos pendientes: textos, derechos, aceptar, entrar y salir. */
 function isExempt(url: string | undefined): boolean {
   if (url === undefined) return true; // sin ruta (404): no hay nada que proteger
-  return url === "/derechos" || url === "/logout" || url === "/login" || url.startsWith("/legal");
+  // `/assets/` son la hoja de estilos y las fuentes: sin ellas la propia pantalla de aceptación se vería sin estilo.
+  return url === "/derechos" || url === "/logout" || url === "/login" || url.startsWith("/legal") || url.startsWith("/assets/");
 }
 
 /**

@@ -30,7 +30,7 @@ describe("contenido del triaje", () => {
     for (const category of TRIAGE_CONTENT.categories) {
       expect(category.label.trim()).not.toBe("");
       expect(category.optionText.trim()).not.toBe("");
-      expect(category.color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect([1, 2, 3, 4, 5]).toContain(category.tone);
     }
     for (const signal of TRIAGE_CONTENT.alarmSignals) expect(signal.label.trim()).not.toBe("");
     expect(TRIAGE_CONTENT.hospitalNotice.trim()).not.toBe("");

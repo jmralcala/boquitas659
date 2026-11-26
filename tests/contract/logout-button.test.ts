@@ -31,7 +31,9 @@ describe("botón «Salir»", () => {
     expect(body).toContain('<form method="post" action="/logout">');
     expect(body).toContain(`name="_csrf" value="${client.csrf}"`);
     expect(body).toContain(">Salir</button>");
-    expect(body.indexOf("Salir")).toBeLessThan(body.indexOf("<main>"));
+    // «Salir» vive en la tarjeta de usuario de la barra lateral, antes del contenido.
+    expect(body.indexOf("Salir")).toBeLessThan(body.indexOf('<main id="contenido">'));
+    expect(body).toContain('<div class="user-card">');
   });
 
   it("también lo ven el personal de soporte y el médico", async () => {

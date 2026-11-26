@@ -41,6 +41,7 @@ const CONTRACT_FILES = [
   "specs/003-micrositio-y-reserva-del-paciente/contracts/http-routes.md",
   "specs/004-urgencias-y-triaje/contracts/http-routes.md",
   "specs/005-panel-de-soporte/contracts/http-routes.md",
+  "specs/006-diseno-visual-del-sitio/contracts/assets-and-components.md",
 ];
 
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
@@ -80,6 +81,10 @@ const PUBLIC_GET = new Set([
   "/citas/enlace/:token",
   // Feature 4: la urgencia redirige (303) sin sesión.
   "/c/:slug/urgencia",
+  // Feature 6: la hoja de estilos y las fuentes propias del diseño son públicas (sin ellas ninguna pantalla tendría estilo).
+  "/assets/styles.css",
+  "/assets/fonts/inter-var-latin.woff2",
+  "/assets/fonts/manrope-var-latin.woff2",
 ]);
 
 describe("las rutas registradas coinciden con el contrato", () => {

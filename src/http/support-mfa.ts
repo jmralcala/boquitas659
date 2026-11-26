@@ -11,7 +11,8 @@ function isExempt(url: string | undefined): boolean {
     url === "/logout" ||
     url === "/login" ||
     url === "/derechos" ||
-    url.startsWith("/legal")
+    url.startsWith("/legal") ||
+    url.startsWith("/assets/") // hoja de estilos y fuentes de la propia pantalla de alta
   );
 }
 

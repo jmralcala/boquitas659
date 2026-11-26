@@ -21,8 +21,8 @@ export interface TriageCategory {
   id: CategoryId;
   /** Nombre del semáforo (es lo que lee el médico en su aviso). */
   label: string;
-  /** Color del semáforo, solo para la pantalla. */
-  color: string;
+  /** Tono del semáforo (1 a 5, de rojo a verde): elige el color de la hoja de estilos; solo para la pantalla. */
+  tone: 1 | 2 | 3 | 4 | 5;
   /** Texto de la opción que ve el paciente. */
   optionText: string;
   /** Tiempo máximo que puede esperar este nivel para que se le asigne un espacio. */
@@ -56,7 +56,7 @@ export const TRIAGE_CONTENT: TriageContent = {
     {
       id: "rojo",
       label: "Rojo",
-      color: "#c0392b",
+      tone: 1,
       optionText: "Sangrado que no se detiene, golpe fuerte en la cara o la boca, o un diente caído por un golpe.",
       windowHours: 2,
       requiresHospitalNotice: true,
@@ -64,7 +64,7 @@ export const TRIAGE_CONTENT: TriageContent = {
     {
       id: "naranja",
       label: "Naranja",
-      color: "#e67e22",
+      tone: 2,
       optionText: "Dolor muy intenso que no cede con analgésicos, o una inflamación o absceso.",
       windowHours: 12,
       requiresHospitalNotice: true,
@@ -72,7 +72,7 @@ export const TRIAGE_CONTENT: TriageContent = {
     {
       id: "amarillo",
       label: "Amarillo",
-      color: "#d4ac0d",
+      tone: 3,
       optionText: "Diente o muela rota con dolor, o un empaste o corona que se salió con dolor.",
       windowHours: 24,
       requiresHospitalNotice: false,
@@ -80,7 +80,7 @@ export const TRIAGE_CONTENT: TriageContent = {
     {
       id: "verde_claro",
       label: "Verde claro",
-      color: "#7dcea0",
+      tone: 4,
       optionText: "Dolor moderado o sensibilidad fuerte que molesta al comer o al dormir.",
       windowHours: 48,
       requiresHospitalNotice: false,
@@ -88,7 +88,7 @@ export const TRIAGE_CONTENT: TriageContent = {
     {
       id: "verde",
       label: "Verde",
-      color: "#27ae60",
+      tone: 5,
       optionText: "Molestia leve, aparato que lastima o una pieza floja sin dolor intenso.",
       windowHours: 72,
       requiresHospitalNotice: false,
