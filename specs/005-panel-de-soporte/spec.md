@@ -188,3 +188,5 @@ Cuando una cédula está registrada por error o por otra persona, soporte la **l
 - **Entorno**: hosting compartido con cron por minuto; las métricas se calculan al abrir el tablero sobre datos ya guardados, sin procesos permanentes ni servicios externos.
 - **Datos de pacientes**: el panel no muestra ninguno (FR-022); puede ampliarse después del piloto con una decisión nueva.
 - **Dependencias**: la feature 4 debe estar cerrada (T050 a T053) porque esta feature lee la cola de correos y el estado de las urgencias.
+
+> **Nota (26/11/2026, feature 6)**: el panel ya no trae su propio `<nav>`: la navegación la arma la barra lateral común y los estados se muestran como insignias (`specs/006-diseno-visual-del-sitio/`). El comportamiento funcional no cambió.

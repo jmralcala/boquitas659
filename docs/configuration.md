@@ -141,3 +141,13 @@ Variable nueva (ya en la tabla de arriba): `LOGO_STORAGE_DIR`. El micrositio mue
 - [ ] Suspender, poner en solo lectura y reactivar una cuenta de prueba; ver llegar los tres avisos con SMTP real, sin el motivo.
 - [ ] Revisar la cola de correos y reintentar un fallido real; comprobar que no aparece contenido ni destinatario completo.
 - [ ] Comparar las métricas de la primera semana del piloto con un conteo manual.
+
+### Diseño visual (feature 6)
+- Sin variables de entorno, migraciones ni cron nuevos. La hoja de estilos y las fuentes (`src/http/assets/`) se copian a `dist/` con `npm run build` (`scripts/copy-assets.mjs`) y se sirven en `/assets/` con caché de un año; la URL de la hoja lleva `?v=<hash>`, así que un despliegue nuevo invalida la caché solo.
+- La política de seguridad de contenido admite solo recursos propios; el único origen externo permitido es el de Turnstile, y solo en el formulario de urgencia.
+- Decisión y riesgos: `docs/decisions/0007-diseno-visual.md`. Revisión visual: `docs/design-review.md`.
+
+### Humo de despliegue del diseño (pendiente)
+- [ ] `https://agendadental.innvend.com/assets/styles.css` y las dos fuentes responden 200 con `cache-control: public, max-age=31536000, immutable`.
+- [ ] En la pestaña de red del navegador, ninguna petición sale del dominio (salvo Turnstile en la urgencia).
+- [ ] Repetir los escenarios 1, 2 y 11 de `specs/006-diseno-visual-del-sitio/quickstart.md` a 390 px y 1440 px.

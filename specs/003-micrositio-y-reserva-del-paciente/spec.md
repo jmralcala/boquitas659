@@ -275,3 +275,5 @@ El paciente abre «Mis consultorios» y ve con qué consultorios tiene relación
 - **Métricas de uso**: SC-001 (tiempo para reservar), SC-002 (finalización) y SC-005 (entrega de correos en 5 minutos) se miden en el piloto con usuarios reales; no se prueban de forma automática.
 - **Dependencias**: feature 1 (cuentas, menores, consentimientos, correo y recuperación), feature 2 (configuración, horarios libres, anticipaciones, no doble reserva, cancelación del consultorio) y el outbox por cron.
 - **Constitución**: sujeta a los principios I (privacidad y consentimiento), II (aislamiento por médico), III (integridad y enlaces que no cambian estado) y IV (validación en servidor y límites de tasa).
+
+> **Nota (26/11/2026, feature 6)**: la navegación propia del área y la presentación de las pantallas descritas aquí pasaron al sistema visual común (`specs/006-diseno-visual-del-sitio/`); el comportamiento funcional no cambió.
