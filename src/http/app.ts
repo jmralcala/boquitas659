@@ -10,7 +10,7 @@ import type { SessionService } from "../modules/auth/sessions.js";
 import type { LegalService } from "../modules/legal/legal-service.js";
 import { installLegalGate } from "../modules/legal/legal-gate.js";
 import { accountStateOf } from "../modules/reception/tenant-resolver.js";
-import { installCsrf } from "./csrf.js";
+import { installCsrf, sessionCsrfToken } from "./csrf.js";
 import { AppError, NotFoundError, TooManyAttemptsError } from "./errors.js";
 import { loggerOptions } from "./logger.js";
 import { wantsJson } from "./negotiation.js";
@@ -115,6 +115,17 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     }
     // El panel de soporte nunca se cachea, ni en HTML ni en JSON.
     if (path.startsWith("/soporte")) void reply.header("cache-control", "no-store");
+  });
+
+  // Botón «Salir» en toda página HTML de quien tiene sesión (incluida la de quien aún debe verificar el doble factor).
+  // Se inserta aquí y no en cada vista para que ninguna pantalla se quede sin él; el token CSRF es el de la sesión.
+  const logoutCsrfSecret = options.csrfSecret;
+  app.addHook("onSend", async (request, reply, payload) => {
+    if (logoutCsrfSecret === undefined || !request.auth || typeof payload !== "string") return payload;
+    if (!String(reply.getHeader("content-type") ?? "").startsWith("text/html")) return payload;
+    const token = sessionCsrfToken(logoutCsrfSecret, request.auth.csrfSecret);
+    const form = `<body>\n<nav aria-label="Sesión"><form method="post" action="/logout"><input type="hidden" name="_csrf" value="${token}"><button type="submit">Salir</button></form></nav>`;
+    return payload.replace("<body>", () => form);
   });
 
   // Cuenta en solo lectura (feature 5): las páginas del médico y de su recepción lo avisan arriba del contenido.

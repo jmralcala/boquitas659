@@ -21,7 +21,6 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 | `SUPPORT_EMAIL` | no (`soporte@innvend.com`) | Destino del aviso de nuevas solicitudes de médicos | `soporte@innvend.com` |
 | `CEDULA_STORAGE_DIR` | sí | Directorio privado, **fuera de la raíz pública**, para los archivos de cédula | `./storage/cedulas` |
 | `LOGO_STORAGE_DIR` | no (`<CEDULA_STORAGE_DIR>/logos`) | Directorio privado, **fuera de la raíz pública**, para los logos de los micrositios | `./storage/logos` |
-| `GOOGLE_MAPS_EMBED_KEY` | no | Clave de Google Maps Embed para el mapa del micrositio. Sin ella se muestra solo la dirección en texto. Restringirla por referente (`PUBLIC_BASE_URL`) y fijar una cuota diaria en la consola del proveedor (tope de gasto) | (la entrega Google) |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | no (van en pareja) | Claves de Cloudflare Turnstile para el CAPTCHA del paso de urgencia. Sin ellas la urgencia **no se ofrece en producción**; en desarrollo el paso del CAPTCHA se omite. Para probar con el widget real usa las claves de prueba oficiales de Turnstile (la clave de sitio `1x00000000000000000000AA` y el secreto `1x0000000000000000000000000000000AA` siempre pasan). El secreto nunca se registra | (las entrega Cloudflare) |
 | `RIGHTS_CONTACT_EMAIL` | no (`soporte@innvend.com`) | Canal para derechos ARCO (provisional hasta revisión legal) | `soporte@innvend.com` |
 | `RIGHTS_RESPONSE_DAYS` | no (`20`) | Plazo de respuesta a derechos ARCO en días hábiles (provisional hasta revisión legal) | `20` |
@@ -60,7 +59,7 @@ Todo esto queda **pendiente hasta desplegar**; ninguno de estos puntos se ha pod
 
 | # | Comprobación | Cómo | Resultado |
 |---|--------------|------|-----------|
-| 1 | Carga del módulo nativo `argon2` | `npm run build` y arrancar la app con `PASSWORD_HASHER=argon2`; crear un usuario con `npm run support:create` e iniciar sesión. Si falla la carga, usar `PASSWORD_HASHER=bcrypt` (ya soportado) | pendiente |
+| 1 | Carga del módulo nativo `argon2` | `npm run build` y arrancar la app con `PASSWORD_HASHER=argon2`; crear un usuario con `npm run support:create` e iniciar sesión. Si falla la carga, usar `PASSWORD_HASHER=bcrypt` (ya soportado) | **Falló en Hostinger (26/11/2026, `ERR_DLOPEN_FAILED` en `POST /login`)**: se usa `PASSWORD_HASHER=bcrypt` |
 | 2 | Disparadores de solo anexar | Con el usuario real de la base de datos, ejecutar `npm run migrate`. Si `CREATE TRIGGER` falla (log binario sin `SUPER`), aplicar el plan B de `research.md` (riesgo 5) | pendiente |
 | 3 | Pruebas de integración contra MariaDB | Repetir `npm run test` apuntando `TEST_DATABASE_URL` a una base MariaDB de pruebas (hoy solo se corrieron con MySQL 8.0) | pendiente |
 | 4 | Latencia real del cron de un minuto | Programar `npm run jobs:outbox` cada minuto y medir cuánto tarda en salir un correo de recuperación | pendiente |
@@ -94,7 +93,7 @@ La agenda no añade variables de entorno. Se usa `SESSION_SECRET` para firmar lo
 
 ## Micrositio y reserva del paciente (feature 003)
 
-Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_EMBED_KEY`. Sin la clave del mapa el micrositio muestra solo la dirección en texto. Restringe la clave por referente (`PUBLIC_BASE_URL`) y fija una cuota diaria en la consola de Google (tope de gasto).
+Variable nueva (ya en la tabla de arriba): `LOGO_STORAGE_DIR`. El micrositio muestra la dirección y un enlace «Cómo llegar» a Google Maps: no necesita clave ni cuota (la antigua `GOOGLE_MAPS_EMBED_KEY` se retiró el 25/11/2026; si queda en el entorno, se ignora).
 
 - **Migraciones**: `0011_site.sql` (micrositio, autorización de datos, vínculo con origen y revocación, límite de cancelación, recordatorios) y `0012_site_support_actor.sql` (rol `support` en el registro de acciones). Como las anteriores, los disparadores requieren `log_bin_trust_function_creators = 1` en el servidor local si el registro binario está activo.
 - **Cron**: `npm run jobs:outbox` (cada minuto) ahora también encola los recordatorios (30 h antes con el límite de 24 h) antes de enviar los correos; no hay tareas nuevas.
@@ -106,7 +105,7 @@ Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_E
 - [ ] `npm run migrate` aplica `0011` y `0012` en MariaDB (disparadores, enumeraciones y llaves nuevas).
 - [ ] Repetir contra MariaDB las pruebas de concurrencia de reservas, cancelaciones y revocación.
 - [ ] Publicar un micrositio de prueba, entrar como paciente nuevo y existente, reservar, y ver llegar la confirmación (con enlace y `Reply-To`) y el aviso al médico con SMTP real.
-- [ ] Comprobar que el cron de `jobs:outbox` envía el recordatorio y que el mapa carga con la clave real y respeta la cuota.
+- [ ] Comprobar que el cron de `jobs:outbox` envía el recordatorio y que el enlace «Cómo llegar» abre la dirección (el mapa incrustado se retiró el 25/11/2026).
 - [ ] Cancelar desde el enlace del correo y revocar un vínculo; comprobar los avisos.
 - [ ] Medir en el piloto: tiempo para reservar (SC-001), finalización (SC-002) y entrega de correos en 5 minutos (SC-005).
 
@@ -127,6 +126,14 @@ Variables nuevas (ya en la tabla de arriba): `LOGO_STORAGE_DIR` y `GOOGLE_MAPS_E
 - Migración `0014_support_panel.sql` (estado de cuenta del médico, historial de solo anexar, reserva de enlaces, contadores del piloto, código de fallo de correos). Sin variables de entorno nuevas ni cron nuevo.
 - El panel vive en `/soporte` y exige el doble factor de soporte. Las cuentas de soporte se siguen creando con `scripts/create-support-user.ts`.
 - `scripts/change-site-slug.ts` se conserva y usa el mismo servicio que el panel (con reserva del enlace anterior por 90 días).
+
+### Despliegue en Hostinger (`agendadental.innvend.com`, 25–26/11/2026)
+- App Node 22 (Business Web Hosting), entrada `dist/src/index.js`, base MariaDB propia con las 14 migraciones aplicadas. Las variables viven en el panel de Node.js **y** en `~/storage/agendadental/app.env` (permisos 600, fuera de la carpeta web y de los despliegues): los cron no ven las del panel, así que se cargan con `node --env-file=$HOME/storage/agendadental/app.env`. Si rotas una clave, cámbiala en los dos sitios.
+- **`PASSWORD_HASHER=bcrypt`**: el módulo nativo `argon2` no carga en el hosting.
+- **Sin `await` de nivel superior en `src/index.ts`**: el cargador del hosting usa `require()` y Node lo rechaza (`ERR_REQUIRE_ASYNC_MODULE`).
+- Cron (`/opt/alt/alt-nodejs22/root/bin/node --env-file=… ~/domains/innvend.com/agendadental/hbuilds/current/nodejs/dist/src/jobs/outbox.js`): `jobs:outbox` cada minuto y `jobs:cleanup` cada hora. Los cron de Hostinger envuelven el comando en `timeout`: no pueden empezar con `cd`, `VAR=` ni `umask` (usar rutas absolutas y `env VAR=`); el comando admite 255 caracteres y solo se captura stderr.
+- Cuenta de soporte: `PASSWORD_HASHER=bcrypt node --env-file=… dist/scripts/create-support-user.js` por SSH (interactivo; la contraseña no pasa por argumentos).
+- Todas las pantallas llevan un botón «Salir» (`POST /logout`) que se inserta en la respuesta HTML de quien tiene sesión.
 
 ### Humo de despliegue del panel de soporte (pendiente)
 - [ ] `npm run migrate` aplica `0014` en MariaDB (disparadores de solo anexar incluidos).
