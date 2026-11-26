@@ -3,6 +3,7 @@ import { formatLocalInstant, localToUtc, utcToLocal } from "../../lib/zoned-time
 import type { AgendaDay, AgendaWeek } from "../../modules/calendar/agenda-service.js";
 import { csrfInput, errorList } from "./forms.js";
 import { page } from "./layout.js";
+import { alert, appointmentBadge, badge, badgeOf, definitionList, emptyState, tableWrap, type BadgeVariant } from "./ui.js";
 
 // --- Formato en la zona del consultorio (las horas se guardan en UTC y solo se muestran convertidas) ---------------
 
@@ -144,11 +145,11 @@ export function configurationPage(options: {
     return html`<li><strong>${name}</strong> ${slots}</li>`;
   });
   const content = html`<h1>Configuración del calendario</h1>
-${options.saved ? html`<p role="status">Configuración guardada. Las citas ya agendadas no cambian.</p>` : null}
-${options.isDefault ? html`<p>Todavía no guardas tu configuración: se usan los valores por defecto y no hay horario de atención, así que aún no hay espacios.</p>` : null}
+${options.saved ? alert("success", "Configuración guardada. Las citas ya agendadas no cambian.") : null}
+${options.isDefault ? alert("info", "Todavía no guardas tu configuración: se usan los valores por defecto y no hay horario de atención, así que aún no hay espacios.") : null}
 <form method="post" action="/agenda/configuracion">
 ${csrfInput(options.csrf)}
-<h2>Citas</h2>
+<fieldset><legend>Citas</legend>
 ${numberField("slotMinutes", "Duración de cada cita (minutos)", values, errors, "De 15 a 180, en pasos de 5.")}
 ${numberField("gapMinutes", "Pausa entre citas (minutos)", values, errors, "De 0 a 60, en pasos de 5. Los espacios empiezan cada duración + pausa.")}
 <p>
@@ -159,18 +160,22 @@ ${numberField("gapMinutes", "Pausa entre citas (minutos)", values, errors, "De 0
   </label>
   ${errorList(errors.timezone)}
 </p>
-<h2>Reservas de pacientes</h2>
+</fieldset>
+<fieldset><legend>Reservas de pacientes</legend>
 ${numberField("minNoticeHours", "Anticipación mínima (horas)", values, errors, "De 0 a 168 horas (7 días).")}
 ${numberField("maxAdvanceDays", "Anticipación máxima (días)", values, errors, "De 1 a 365 días hacia adelante.")}
 ${numberField("cancelNoticeHours", "Límite para que el paciente cancele (horas antes de la cita)", values, errors, "De 0 a 168 horas; 24 por defecto. Pasado el límite, el paciente debe llamar al consultorio.")}
-<h2>Horario de atención</h2>
+</fieldset>
+<fieldset><legend>Horario de atención</legend>
 <p>Hasta 4 franjas por día en formato 24 horas (HH:MM, minutos de 5 en 5). Deja vacío un día sin atención.</p>
-<ul>${dayRows}</ul>
-<h2>Urgencias</h2>
+<ul class="hours">${dayRows}</ul>
+</fieldset>
+<fieldset><legend>Urgencias</legend>
 <p>Horarios que reservas solo para urgencias: no aparecen en el calendario de tus pacientes. Hasta 2 franjas por día, sin solaparse con tu horario de atención ni entre sí. Los espacios usan la misma duración y pausa de tus citas.</p>
 ${numberField("urgentMinNoticeMinutes", "Anticipación mínima de una urgencia (minutos)", values, errors, "De 0 a 1440 minutos; 30 por defecto.")}
-<ul>${urgentRows}</ul>
-<button type="submit">Guardar configuración</button>
+<ul class="hours">${urgentRows}</ul>
+</fieldset>
+<div class="form-actions"><button type="submit">Guardar configuración</button></div>
 </form>`;
   return calendarLayout({ title: "Configuración del calendario", content, canConfigure: true });
 }
@@ -182,6 +187,13 @@ const STATE_LABELS: Readonly<Record<string, string>> = {
   booked: "Ocupado",
   blocked: "Bloqueado",
   past: "Pasado",
+};
+
+const STATE_VARIANTS: Readonly<Record<string, BadgeVariant>> = {
+  free: "neutral",
+  booked: "confirmed",
+  blocked: "pending",
+  past: "neutral",
 };
 
 /** Fecha larga de un día local (se formatea el mediodía local, que existe en cualquier zona). */
@@ -199,15 +211,15 @@ function appointmentName(day: AgendaDay, appointmentId: number | undefined): Saf
 /** Acciones de un espacio libre: agendar (enlace) y bloquearlo (formulario con CSRF). */
 function freeSlotActions(day: AgendaDay, slot: AgendaDay["slots"][number], csrf: string): SafeHtml {
   const startLocal = formatLocalInstant(day.timezone, slot.startUtc);
-  return html`<a href="/agenda/citas/nueva?inicio=${encodeURIComponent(startLocal)}">Agendar</a>
-  <form method="post" action="/agenda/bloqueos/espacio">${csrfInput(csrf)}<input type="hidden" name="inicio" value="${startLocal}"><button type="submit">Bloquear</button></form>`;
+  return html`<a class="btn" href="/agenda/citas/nueva?inicio=${encodeURIComponent(startLocal)}">Agendar</a>
+  <form method="post" action="/agenda/bloqueos/espacio" class="inline">${csrfInput(csrf)}<input type="hidden" name="inicio" value="${startLocal}"><button type="submit" class="btn-secondary">Bloquear</button></form>`;
 }
 
 function slotRows(day: AgendaDay, csrf: string): SafeHtml[] {
   return day.slots.map(
     (slot) => html`<tr>
   <td>${formatTime(day.timezone, slot.startUtc)} – ${formatTime(day.timezone, slot.endUtc)}${slot.kind === "urgent" ? html` <strong>Urgencia</strong>` : null}</td>
-  <td>${STATE_LABELS[slot.state] ?? slot.state}</td>
+  <td>${badge(STATE_VARIANTS[slot.state] ?? "neutral", STATE_LABELS[slot.state] ?? slot.state)}</td>
   <td>${appointmentName(day, slot.appointmentId)}</td>
   <td>${slot.state === "free" ? freeSlotActions(day, slot, csrf) : null}</td>
 </tr>`,
@@ -221,7 +233,7 @@ function outOfScheduleSection(day: AgendaDay): SafeHtml | null {
 <p>Estas citas se conservan, pero ya no coinciden con tu configuración actual.</p>
 <ul>${outside.map(
     (appointment) => html`<li>${formatTime(day.timezone, appointment.startUtc)} – ${formatTime(day.timezone, appointment.endUtc)}
-  <a href="/agenda/citas/${appointment.id}">${appointment.patientName}</a> (fuera del horario actual)</li>`,
+  <a href="/agenda/citas/${appointment.id}">${appointment.patientName}</a> ${badge("pending", "Fuera del horario actual")}</li>`,
   )}</ul>`;
 }
 
@@ -230,7 +242,7 @@ function blocksSection(day: AgendaDay, csrf: string): SafeHtml | null {
   return html`<h3>Bloqueos</h3>
 <ul>${day.blocks.map(
     (block) => html`<li>${formatDateTime(day.timezone, block.startUtc)} – ${formatDateTime(day.timezone, block.endUtc)}${block.reason ? html` · ${block.reason}` : null}
-  <form method="post" action="/agenda/bloqueos/${block.id}/eliminar">${csrfInput(csrf)}<button type="submit">Quitar bloqueo</button></form></li>`,
+  <form method="post" action="/agenda/bloqueos/${block.id}/eliminar" class="inline">${csrfInput(csrf)}<button type="submit" class="btn-danger">Quitar bloqueo</button></form></li>`,
   )}</ul>`;
 }
 
@@ -239,11 +251,11 @@ function daySection(day: AgendaDay, headingLevel: "h1" | "h2", csrf: string): Sa
   const heading = headingLevel === "h1" ? html`<h1>${label}</h1>` : html`<h2><a href="/agenda/dia/${day.date}">${label}</a></h2>`;
   return html`${heading}
 ${day.slots.length === 0
-    ? html`<p>Sin espacios este día.</p>`
-    : html`<table>
-  <thead><tr><th>Horario</th><th>Estado</th><th>Paciente</th><th>Acciones</th></tr></thead>
+    ? emptyState({ title: "Sin espacios este día" })
+    : tableWrap(html`<table>
+  <thead><tr><th scope="col">Horario</th><th scope="col">Estado</th><th scope="col">Paciente</th><th scope="col">Acciones</th></tr></thead>
   <tbody>${slotRows(day, csrf)}</tbody>
-</table>`}
+</table>`)}
 ${outOfScheduleSection(day)}
 ${blocksSection(day, csrf)}`;
 }
@@ -251,11 +263,11 @@ ${blocksSection(day, csrf)}`;
 /** Vista de un día. */
 export function dayPage(options: { day: AgendaDay; csrf: string; canConfigure: boolean }): string {
   const { day } = options;
-  const content = html`<p>
-  <a href="/agenda/dia/${day.previousDate}">← Día anterior</a> ·
-  <a href="/agenda">Hoy</a> ·
-  <a href="/agenda/dia/${day.nextDate}">Día siguiente →</a> ·
-  <a href="/agenda/semana/${day.date}">Ver la semana</a>
+  const content = html`<p class="date-nav">
+  <a class="btn btn-secondary" href="/agenda/dia/${day.previousDate}">← Día anterior</a>
+  <a class="btn btn-secondary" href="/agenda">Hoy</a>
+  <a class="btn btn-secondary" href="/agenda/dia/${day.nextDate}">Día siguiente →</a>
+  <a class="btn btn-secondary" href="/agenda/semana/${day.date}">Ver la semana</a>
 </p>
 ${daySection(day, "h1", options.csrf)}`;
   return calendarLayout({ title: `Agenda del ${day.date}`, content, canConfigure: options.canConfigure });
@@ -267,10 +279,10 @@ export function weekPage(options: { week: AgendaWeek; csrf: string; canConfigure
   const first = week.days[0];
   const last = week.days[6];
   const content = html`<h1>Semana del ${first ? dateLabel(week.timezone, first.date) : week.startDate} al ${last ? dateLabel(week.timezone, last.date) : ""}</h1>
-<p>
-  <a href="/agenda/semana/${week.previousDate}">← Semana anterior</a> ·
-  <a href="/agenda">Hoy</a> ·
-  <a href="/agenda/semana/${week.nextDate}">Semana siguiente →</a>
+<p class="date-nav">
+  <a class="btn btn-secondary" href="/agenda/semana/${week.previousDate}">← Semana anterior</a>
+  <a class="btn btn-secondary" href="/agenda">Hoy</a>
+  <a class="btn btn-secondary" href="/agenda/semana/${week.nextDate}">Semana siguiente →</a>
 </p>
 ${week.days.map((day) => html`<section>${daySection(day, "h2", options.csrf)}</section>`)}`;
   return calendarLayout({ title: `Agenda de la semana del ${week.startDate}`, content, canConfigure: options.canConfigure });
@@ -298,7 +310,7 @@ export function newAppointmentPage(options: {
 }): string {
   const linked =
     options.linkedPatients.length === 0
-      ? html`<p>Todavía no tienes pacientes vinculados. Busca la cuenta por su correo.</p>`
+      ? alert("info", "Todavía no tienes pacientes vinculados. Busca la cuenta por su correo.")
       : html`<form method="post" action="/agenda/citas">
 ${csrfInput(options.csrf)}
 <input type="hidden" name="inicio" value="${options.startLocal}">
@@ -315,7 +327,7 @@ ${csrfInput(options.csrf)}
   const results = !lookup
     ? null
     : lookup.patients.length === 0
-      ? html`<p role="status">No encontramos una cuenta con ese correo.</p>`
+      ? alert("warning", "No encontramos una cuenta con ese correo.")
       : html`<h3>Pacientes de esa cuenta</h3>
 ${lookup.patients.map(
   (patient) => html`<form method="post" action="/agenda/citas">
@@ -323,7 +335,7 @@ ${csrfInput(options.csrf)}
 <input type="hidden" name="inicio" value="${options.startLocal}">
 <input type="hidden" name="patientId" value="${patient.patientId}">
 <input type="hidden" name="ticket" value="${patient.ticket}">
-<button type="submit">Agendar a ${patient.fullName}</button>
+<button type="submit" class="btn-secondary">Agendar a ${patient.fullName}</button>
 </form>`,
 )}`;
 
@@ -336,7 +348,7 @@ ${linked}
 ${csrfInput(options.csrf)}
 <input type="hidden" name="inicio" value="${options.startLocal}">
 <p><label>Correo de la cuenta <input type="email" name="email" value="${lookup?.email ?? ""}" required maxlength="254"></label></p>
-<button type="submit">Buscar</button>
+<button type="submit" class="btn-secondary">Buscar</button>
 </form>
 ${results}
 <p><a href="/agenda/dia/${options.startLocal.slice(0, 10)}">Volver a la agenda</a></p>`;
@@ -362,20 +374,22 @@ export function appointmentDetailPage(options: {
 }): string {
   const roleLabel = (role: "doctor" | "reception" | "patient"): string => (role === "doctor" ? "el médico" : role === "reception" ? "recepción" : "el paciente");
   const content = html`<h1>Cita</h1>
-<dl>
-  <dt>Paciente</dt><dd>${options.patientName} · <a href="/agenda/pacientes/${options.patientId}">Ver datos de contacto</a></dd>
-  <dt>Fecha</dt><dd>${formatDate(options.timezone, options.startUtc)}</dd>
-  <dt>Horario</dt><dd>${formatTime(options.timezone, options.startUtc)} – ${formatTime(options.timezone, options.endUtc)}</dd>
-  <dt>Estado</dt><dd>${options.status === "booked" ? "Agendada" : "Cancelada"}</dd>
-  <dt>Tipo</dt><dd>${options.kind === "urgent" ? "Urgencia" : "Convencional"}</dd>
-  <dt>Agendada por</dt><dd>${roleLabel(options.createdByRole)}</dd>
-  ${options.cancelledAt && options.cancelledByRole ? html`<dt>Cancelada por</dt><dd>${roleLabel(options.cancelledByRole)}, ${formatDateTime(options.timezone, options.cancelledAt)}</dd>` : null}
-</dl>
+${definitionList([
+  ["Paciente", html`${options.patientName} · <a href="/agenda/pacientes/${options.patientId}">Ver datos de contacto</a>`],
+  ["Fecha", formatDate(options.timezone, options.startUtc)],
+  ["Horario", `${formatTime(options.timezone, options.startUtc)} – ${formatTime(options.timezone, options.endUtc)}`],
+  ["Estado", badgeOf(appointmentBadge(options.status))],
+  ["Tipo", options.kind === "urgent" ? "Urgencia" : "Convencional"],
+  ["Agendada por", roleLabel(options.createdByRole)],
+  ...(options.cancelledAt && options.cancelledByRole
+    ? ([["Cancelada por", `${roleLabel(options.cancelledByRole)}, ${formatDateTime(options.timezone, options.cancelledAt)}`]] as const)
+    : []),
+])}
 ${options.cancelable
     ? html`<form method="post" action="/agenda/citas/${options.id}/cancelar">
 ${csrfInput(options.csrf)}
 <p>Al cancelar, el espacio queda libre y el paciente recibe un aviso por correo.</p>
-<button type="submit">Cancelar cita</button>
+<button type="submit" class="btn-danger">Cancelar cita</button>
 </form>`
     : null}
 <p><a href="/agenda/dia/${utcDateHint(options.timezone, options.startUtc)}">Volver a la agenda</a></p>`;
@@ -415,11 +429,11 @@ export function blocksPage(options: {
   const errors = options.errors ?? {};
   const list =
     options.blocks.length === 0
-      ? html`<p>No hay bloqueos vigentes ni futuros.</p>`
-      : html`<ul>${options.blocks.map(
+      ? emptyState({ title: "No hay bloqueos vigentes ni futuros" })
+      : html`<ul class="appointments">${options.blocks.map(
           (block) => html`<li>${formatDateTime(options.timezone, block.startUtc)} – ${formatDateTime(options.timezone, block.endUtc)}${block.reason ? html` · ${block.reason}` : null}
   (${block.createdByRole === "doctor" ? "médico" : "recepción"})
-  <form method="post" action="/agenda/bloqueos/${block.id}/eliminar">${csrfInput(options.csrf)}<button type="submit">Quitar bloqueo</button></form></li>`,
+  <form method="post" action="/agenda/bloqueos/${block.id}/eliminar" class="inline">${csrfInput(options.csrf)}<button type="submit" class="btn-danger">Quitar bloqueo</button></form></li>`,
         )}</ul>`;
   const content = html`<h1>Bloqueos de horario</h1>
 <p>Solo se pueden bloquear horarios sin citas. Si el horario incluye citas, cancélalas primero (el paciente recibe un aviso) y vuelve a intentar.</p>
@@ -451,8 +465,8 @@ export function blockConflictPage(options: {
   canConfigure: boolean;
 }): string {
   const content = html`<h1>No se bloqueó el horario</h1>
-<p>Ese horario incluye ${options.total === 1 ? "una cita" : `${options.total} citas`}. Cancela estas citas y vuelve a intentar.</p>
-<ul>${options.appointments.map(
+${alert("warning", `Ese horario incluye ${options.total === 1 ? "una cita" : `${options.total} citas`}. Cancela estas citas y vuelve a intentar.`)}
+<ul class="appointments">${options.appointments.map(
     (appointment) => html`<li>${formatDateTime(options.timezone, appointment.startUtc)} – ${formatTime(options.timezone, appointment.endUtc)}
   <a href="/agenda/citas/${appointment.id}">${appointment.patientName}</a></li>`,
   )}</ul>

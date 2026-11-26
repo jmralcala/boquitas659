@@ -8,7 +8,7 @@ import { weekdayOfLocalDate } from "../../lib/zoned-time.js";
 import { checkbox, csrfInput, errorList, form, passwordInput, submitButton, textInput } from "./forms.js";
 import { icon } from "./icons.js";
 import { page, type PageSize } from "./layout.js";
-import { alert, appointmentBadge, badgeOf, definitionList, emptyState, siteBadge, tableWrap } from "./ui.js";
+import { alert, appointmentBadge, badge, badgeOf, definitionList, emptyState, siteBadge, tableWrap } from "./ui.js";
 
 export { formatDate, formatDateTime, formatTime } from "./calendar.js";
 
@@ -119,7 +119,7 @@ ${errorList(errors.logo)}
 </form>
 ${site.hasLogo ? html`<form method="post" action="/medicos/micrositio/logo/quitar">${csrfInput(options.csrf)}<button type="submit" class="btn-danger">Quitar logo</button></form>` : null}`
     : null;
-  const publishSection = html`<p>Estado: ${site ? badgeOf(siteBadge(site.status)) : html`<strong>Sin nombre de enlace</strong>`}${site ? html` <small>${STATUS_LABEL[site.status] ?? site.status}</small>` : null}</p>
+  const publishSection = html`<p>Estado: ${site ? badgeOf(siteBadge(site.status)) : badge("neutral", "Sin nombre de enlace")}${site ? html` <small>${STATUS_LABEL[site.status] ?? site.status}</small>` : null}</p>
 ${missing.length > 0 ? alert("warning", html`Para publicar falta: ${missing.join(", ")}.`) : null}
 ${site?.status === "published"
     ? html`<form method="post" action="/medicos/micrositio/despublicar">${csrfInput(options.csrf)}<button type="submit" class="btn-danger">Despublicar</button></form>

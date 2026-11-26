@@ -6,6 +6,7 @@ import { parseInput } from "../../http/validate.js";
 import { requireAuth, requireRole, setSessionCookie } from "../../http/session-plugin.js";
 import { checkbox, csrfInput, errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
+import { alert, emptyState, tableWrap } from "../../http/views/ui.js";
 import { html, type SafeHtml } from "../../lib/html.js";
 import { findDoctorById } from "../doctors/doctor-repository.js";
 import { listPatientsForDoctor } from "../patients/patient-repository.js";
@@ -53,11 +54,11 @@ export function registerReceptionRoutes(app: FastifyInstance, services: Services
     const [members, pending] = await Promise.all([services.memberships.listActive(doctor.id), services.memberships.listPending(doctor.id)]);
     const memberItems = members.map(
       (m) => html`<li>${m.fullName ?? m.email} (${m.email})
-  <form method="post" action="/medicos/recepcion/${m.membershipId}/retirar">${csrfInput(csrf)}<button type="submit">Retirar acceso</button></form></li>`,
+  <form method="post" action="/medicos/recepcion/${m.membershipId}/retirar">${csrfInput(csrf)}<button type="submit" class="btn-danger">Retirar acceso</button></form></li>`,
     );
     const pendingItems = pending.map(
       (i) => html`<li>${i.email} — pendiente, vence el ${i.expiresAt.toISOString().slice(0, 10)}
-  <form method="post" action="/medicos/recepcion/invitaciones/${i.id}/revocar">${csrfInput(csrf)}<button type="submit">Revocar invitación</button></form></li>`,
+  <form method="post" action="/medicos/recepcion/invitaciones/${i.id}/revocar">${csrfInput(csrf)}<button type="submit" class="btn-danger">Revocar invitación</button></form></li>`,
     );
     return send(
       reply,
@@ -66,9 +67,9 @@ export function registerReceptionRoutes(app: FastifyInstance, services: Services
       html`<h1>Mi personal de recepción</h1>
 <p>Puedes tener hasta ${MAX_RECEPTION_PER_DOCTOR} personas (las invitaciones pendientes cuentan). Recepción ve tu agenda y los datos de contacto de tus pacientes, pero no cambia tu configuración, pagos, móvil de emergencias ni cédula, ni invita a otras personas.</p>
 <h2>Con acceso</h2>
-${members.length > 0 ? html`<ul>${memberItems}</ul>` : html`<p>Todavía no hay nadie.</p>`}
+${members.length > 0 ? html`<ul class="appointments">${memberItems}</ul>` : emptyState({ title: "Todavía no hay nadie" })}
 <h2>Invitaciones pendientes</h2>
-${pending.length > 0 ? html`<ul>${pendingItems}</ul>` : html`<p>No hay invitaciones pendientes.</p>`}
+${pending.length > 0 ? html`<ul class="appointments">${pendingItems}</ul>` : emptyState({ title: "No hay invitaciones pendientes" })}
 <h2>Invitar a una persona</h2>
 ${errorList(errors._)}
 ${form({
@@ -131,7 +132,7 @@ ${form({
   action: `/recepcion/invitacion/${token}`,
   csrf: app.csrf.tokenFor(request, reply),
   children: [
-    summary.existingAccount ? html`<p>Ya tienes una cuenta de recepción: solo falta que aceptes los avisos.</p>` : null,
+    summary.existingAccount ? alert("info", "Ya tienes una cuenta de recepción: solo falta que aceptes los avisos.") : null,
     summary.existingAccount ? null : textInput({ name: "fullName", label: "Tu nombre completo", value: text(values, "fullName"), autocomplete: "name", required: true, errors: errors.fullName }),
     summary.existingAccount ? null : passwordInput({ name: "password", label: "Contraseña (mínimo 10 caracteres)", autocomplete: "new-password", required: true, errors: errors.password }),
     checkbox({
@@ -199,7 +200,7 @@ ${form({
       reply,
       200,
       "Elegir médico",
-      html`<h1>¿Con qué médico trabajas ahora?</h1>${doctors.length > 0 ? html`<ul>${items}</ul>` : html`<p>Todavía no tienes ningún médico vinculado.</p>`}`,
+      html`<h1>¿Con qué médico trabajas ahora?</h1>${doctors.length > 0 ? html`<ul class="appointments">${items}</ul>` : emptyState({ title: "Todavía no tienes ningún médico vinculado" })}`,
     );
   });
 
@@ -215,7 +216,7 @@ ${form({
     if (auth.activeDoctorId === null) {
       const doctors = await services.memberships.doctorsFor(auth.userId);
       if (doctors.length === 0) {
-        return send(reply, 200, "Panel de recepción", html`<h1>Panel de recepción</h1><p>Todavía no tienes ningún médico vinculado.</p>`);
+        return send(reply, 200, "Panel de recepción", html`<h1>Panel de recepción</h1>${emptyState({ title: "Todavía no tienes ningún médico vinculado" })}`);
       }
       const only = doctors[0];
       if (doctors.length > 1 || !only) return reply.redirect("/recepcion/medico-activo", 303);
@@ -236,7 +237,7 @@ ${form({
       html`<h1>Panel de recepción</h1>
 <p>Trabajas con ${doctor?.fullName ?? "tu médico"}. <a href="/recepcion/medico-activo">Cambiar de médico</a></p>
 <h2>Pacientes (datos de contacto)</h2>
-${patients.length > 0 ? html`<table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Correo</th></tr></thead><tbody>${rows}</tbody></table>` : html`<p>Todavía no hay pacientes.</p>`}`,
+${patients.length > 0 ? tableWrap(html`<table><thead><tr><th scope="col">Nombre</th><th scope="col">Teléfono</th><th scope="col">Correo</th></tr></thead><tbody>${rows}</tbody></table>`) : emptyState({ title: "Todavía no hay pacientes" })}`,
     );
   });
 }

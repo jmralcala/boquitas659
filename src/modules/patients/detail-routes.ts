@@ -5,6 +5,7 @@ import { NotFoundError } from "../../http/errors.js";
 import { wantsJson } from "../../http/negotiation.js";
 import { parseInput } from "../../http/validate.js";
 import { page } from "../../http/views/layout.js";
+import { definitionList } from "../../http/views/ui.js";
 import { calculateAge, todayInZone } from "../../lib/age.js";
 import { html } from "../../lib/html.js";
 import { logPatientAccess } from "../audit/access-log.js";
@@ -60,19 +61,19 @@ export function registerPatientDetailRoutes(app: FastifyInstance, services: Serv
       page({
         title: patient.fullName,
         content: html`<h1>${patient.fullName}</h1>
-<dl>
-  <dt>Edad</dt><dd>${ageLabel(age)}</dd>
-  <dt>Teléfono</dt><dd>${patient.phone ?? "—"}</dd>
-  <dt>Correo</dt><dd>${patient.email ?? "—"}</dd>
-</dl>
+${definitionList([
+  ["Edad", ageLabel(age)],
+  ["Teléfono", patient.phone ?? "—"],
+  ["Correo", patient.email ?? "—"],
+])}
 ${
   tutor
     ? html`<h2>Tutor</h2>
-<dl>
-  <dt>Nombre</dt><dd>${tutor.fullName}</dd>
-  <dt>Teléfono</dt><dd>${tutor.phone ?? "—"}</dd>
-  <dt>Correo</dt><dd>${tutor.email ?? "—"}</dd>
-</dl>`
+${definitionList([
+  ["Nombre", tutor.fullName],
+  ["Teléfono", tutor.phone ?? "—"],
+  ["Correo", tutor.email ?? "—"],
+])}`
     : null
 }`,
       }),

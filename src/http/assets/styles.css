@@ -481,6 +481,32 @@ tbody tr:hover { background: var(--color-surface-2); }
 .slot:has(input:checked) { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
 .slot:has(input:focus-visible) { box-shadow: var(--focus-ring); }
 
+/* ------------------------------------------------------------------------- Agenda del médico y recepción */
+
+.date-nav { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+form.inline { display: inline; margin: 0; }
+form.inline p { margin: 0; }
+td form.inline button, li form.inline button { min-height: 36px; padding: 0 var(--space-4); }
+
+.hours { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.hours li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.hours li > strong { min-width: 90px; }
+.hours input:not([type="checkbox"]):not([type="radio"]) { display: inline-block; width: 88px; margin-top: 0; }
+.hours span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+.form-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--color-divider); }
+
+main > section { margin-bottom: var(--space-6); }
+
+/* Panel de soporte */
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pager { display: flex; gap: var(--space-2); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+details { margin: 0 0 var(--space-3); }
+summary { cursor: pointer; font-weight: 600; color: var(--color-primary); min-height: var(--control-h); display: inline-flex; align-items: center; }
+td details { margin: 0; }
+
 /* ------------------------------------------------------------------------------- Movimiento reducido */
 
 @media (prefers-reduced-motion: reduce) {

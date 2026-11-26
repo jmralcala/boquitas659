@@ -1,6 +1,7 @@
 import { html, type SafeHtml } from "../../lib/html.js";
 import { csrfInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
+import { alert, badge, definitionList, doctorAccountBadge, doctorApprovalBadge, emptyState, mailBadge, siteBadge, tableWrap } from "../../http/views/ui.js";
 import type { Doctor } from "../doctors/doctor-repository.js";
 import type { DoctorOverview } from "./support-service.js";
 import type { MailQueueSummary } from "./mail-queue-service.js";
@@ -31,6 +32,8 @@ export interface ActionFormOptions {
   /** Campos extra de solo lectura (por ejemplo, el nombre nuevo del enlace). */
   extra?: SafeHtml;
   errors?: readonly string[];
+  /** `danger` para acciones que quitan acceso o descartan algo; `secondary` para las accesorias. */
+  variant?: "danger" | "secondary";
 }
 
 /** Formulario de una acción que cambia algo: motivo, casilla de confirmación y, si aplica, el estado visto. */
@@ -40,9 +43,10 @@ ${csrfInput(options.csrf)}
 ${options.from ? html`<input type="hidden" name="from" value="${options.from}">` : null}
 ${options.extra ?? null}
 ${options.errors && options.errors.length > 0 ? errorNotice(options.errors) : null}
-<p><label>Motivo <input type="text" name="reason" required maxlength="500"></label><br><small>${REASON_WARNING}</small></p>
+<p><label>Motivo <input type="text" name="reason" required maxlength="500"></label></p>
+${alert("warning", REASON_WARNING)}
 <p><label><input type="checkbox" name="confirm" value="yes"> Confirmo que quiero hacerlo</label></p>
-<p><button type="submit">${options.button}</button></p>
+<p><button type="submit"${options.variant ? html` class="btn-${options.variant}"` : null}>${options.button}</button></p>
 </form>`;
 }
 
@@ -54,9 +58,9 @@ export function pager(basePath: string, query: Readonly<Record<string, string | 
       if (value !== undefined && value !== "" && key !== "pagina") params.set(key, String(value));
     }
     params.set("pagina", String(pageNumber));
-    return html`<a href="${basePath}?${params.toString()}">${label}</a>`;
+    return html`<a class="btn btn-secondary" href="${basePath}?${params.toString()}">${label}</a>`;
   };
-  return html`<p class="pager">${current > 1 ? link(current - 1, "← Anterior") : null}${current > 1 && hasNext ? " · " : null}${hasNext ? link(current + 1, "Siguiente →") : null}</p>`;
+  return html`<p class="pager">${current > 1 ? link(current - 1, "← Anterior") : null}${hasNext ? link(current + 1, "Siguiente →") : null}</p>`;
 }
 
 /** Fecha y hora en UTC, tal como se guarda (soporte no depende de la zona de un consultorio). */
@@ -64,11 +68,23 @@ export function formatUtc(date: Date): string {
   return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
+/** Filtros como opciones tipo chip; la elegida se marca. */
+function chips(options: ReadonlyArray<readonly [value: string, label: string]>, selected: string, href: (value: string) => string): SafeHtml {
+  return html`<p class="chips">${options.map(
+    ([value, label]) => html`<a class="chip${value === selected ? " is-selected" : ""}"${value === selected ? html` aria-current="true"` : null} href="${href(value)}">${label}</a>`,
+  )}</p>`;
+}
+
 // --- Médicos --------------------------------------------------------------------------------------------------------
 
 export const APPROVAL_LABEL = { pending: "Pendiente", approved: "Aprobada", rejected: "Rechazada" } as const;
 export const STATE_LABEL = { active: "Activa", suspended: "Suspendida", read_only: "Solo lectura" } as const;
 export const SITE_LABEL = { draft: "Borrador", published: "Publicado", unpublished: "Despublicado" } as const;
+
+/** Insignias de soporte: la variante sale del mapeo común; el texto conserva el género de «solicitud» y «cuenta». */
+const approvalBadge = (status: keyof typeof APPROVAL_LABEL): SafeHtml => badge(doctorApprovalBadge(status).variant, APPROVAL_LABEL[status]);
+const accountBadge = (state: keyof typeof STATE_LABEL): SafeHtml => badge(doctorAccountBadge(state).variant, STATE_LABEL[state]);
+const siteStatusBadge = (status: keyof typeof SITE_LABEL): SafeHtml => badge(siteBadge(status).variant, SITE_LABEL[status]);
 
 const FILTERS: ReadonlyArray<readonly [string, string]> = [
   ["pending", "Pendientes"],
@@ -82,19 +98,20 @@ const FILTERS: ReadonlyArray<readonly [string, string]> = [
 
 export function doctorListView(options: { doctors: readonly Doctor[]; estado: string; q: string }): string {
   const rows = options.doctors.map(
-    (d) => html`<tr><td><a href="/soporte/medicos/${d.id}">${d.fullName}</a></td><td>${APPROVAL_LABEL[d.approvalStatus]}</td><td>${d.approvalStatus === "approved" ? STATE_LABEL[d.accountState] : "—"}</td><td>${d.createdAt.toISOString().slice(0, 10)}</td></tr>`,
+    (d) => html`<tr><td><a href="/soporte/medicos/${d.id}">${d.fullName}</a></td><td>${approvalBadge(d.approvalStatus)}</td><td>${d.approvalStatus === "approved" ? accountBadge(d.accountState) : "—"}</td><td>${d.createdAt.toISOString().slice(0, 10)}</td></tr>`,
   );
   return supportPage(
     "Médicos",
     html`<h1>Médicos</h1>
-<p>${FILTERS.map(([value, label], index) => html`${index > 0 ? " · " : null}<a href="/soporte/medicos?estado=${value}">${label}</a>`)}</p>
+${chips(FILTERS, options.estado, (value) => `/soporte/medicos?estado=${value}`)}
 <form method="get" action="/soporte/medicos">
 <input type="hidden" name="estado" value="${options.estado}">
 <label>Buscar por nombre o correo del médico <input type="search" name="q" value="${options.q}" maxlength="100"></label>
 <button type="submit">Buscar</button>
 </form>
-<table><thead><tr><th>Médico</th><th>Aprobación</th><th>Estado de la cuenta</th><th>Alta</th></tr></thead><tbody>${rows}</tbody></table>
-${options.doctors.length === 0 ? html`<p>No hay médicos en este filtro.</p>` : null}`,
+${options.doctors.length === 0
+    ? emptyState({ title: "No hay médicos en este filtro" })
+    : tableWrap(html`<table><thead><tr><th scope="col">Médico</th><th scope="col">Aprobación</th><th scope="col">Estado de la cuenta</th><th scope="col">Alta</th></tr></thead><tbody>${rows}</tbody></table>`)}`,
   );
 }
 
@@ -106,10 +123,10 @@ export function doctorDetailView(options: { overview: DoctorOverview; csrf: stri
   const buttons: SafeHtml[] = [];
   if (approved) {
     if (state === "active") {
-      buttons.push(html`<h3>Poner en solo lectura</h3><p>El médico consulta su agenda, pero no cambia nada y su micrositio no acepta reservas nuevas.</p>${actionForm({ action: action("solo-lectura"), csrf: options.csrf, button: "Poner en solo lectura", from: state })}`);
+      buttons.push(html`<h3>Poner en solo lectura</h3><p>El médico consulta su agenda, pero no cambia nada y su micrositio no acepta reservas nuevas.</p>${actionForm({ action: action("solo-lectura"), csrf: options.csrf, button: "Poner en solo lectura", from: state, variant: "danger" })}`);
     }
     if (state !== "suspended") {
-      buttons.push(html`<h3>Suspender</h3><p>El médico pierde el acceso y su micrositio no acepta reservas. Sus citas agendadas se conservan.</p>${actionForm({ action: action("suspender"), csrf: options.csrf, button: "Suspender", from: state })}`);
+      buttons.push(html`<h3>Suspender</h3><p>El médico pierde el acceso y su micrositio no acepta reservas. Sus citas agendadas se conservan.</p>${actionForm({ action: action("suspender"), csrf: options.csrf, button: "Suspender", from: state, variant: "danger" })}`);
     }
     if (state !== "active") {
       buttons.push(html`<h3>Reactivar</h3>${actionForm({ action: action("reactivar"), csrf: options.csrf, button: "Reactivar", from: state })}`);
@@ -120,17 +137,19 @@ export function doctorDetailView(options: { overview: DoctorOverview; csrf: stri
     html`<h1>${doctor.fullName}</h1>
 <p><a href="/soporte/medicos">← Volver a la lista</a></p>
 ${options.errors && options.errors.length > 0 ? errorNotice(options.errors) : null}
-<dl>
-  <dt>Aprobación</dt><dd>${APPROVAL_LABEL[doctor.approvalStatus]}</dd>
-  ${approved ? html`<dt>Estado de la cuenta</dt><dd>${STATE_LABEL[state]}${doctor.accountStateChangedAt ? html` (cambio del ${formatUtc(doctor.accountStateChangedAt)})` : null}</dd>` : null}
-  <dt>Correo</dt><dd>${doctor.email}</dd>
-  <dt>Cédula</dt><dd>${doctor.cedulaNumber ?? "(liberada)"}</dd>
-  <dt>Móvil de emergencias</dt><dd>${doctor.emergencyMobile ?? "(liberado)"}</dd>
-  <dt>Teléfono del consultorio</dt><dd>${doctor.officePhone ?? "—"}</dd>
-  <dt>Micrositio</dt><dd>${site ? html`${SITE_LABEL[site.status]} · /c/${site.slug}` : "Sin micrositio"}</dd>
-  <dt>Citas futuras</dt><dd>${futureAppointments}</dd>
-  <dt>Motivo de rechazo</dt><dd>${doctor.rejectionReason ?? "—"}</dd>
-</dl>
+${definitionList([
+  ["Aprobación", approvalBadge(doctor.approvalStatus)],
+  ...(approved
+    ? ([["Estado de la cuenta", html`${accountBadge(state)}${doctor.accountStateChangedAt ? html` <small>(cambio del ${formatUtc(doctor.accountStateChangedAt)})</small>` : null}`]] as const)
+    : []),
+  ["Correo", doctor.email],
+  ["Cédula", doctor.cedulaNumber ?? "(liberada)"],
+  ["Móvil de emergencias", doctor.emergencyMobile ?? "(liberado)"],
+  ["Teléfono del consultorio", doctor.officePhone ?? "—"],
+  ["Micrositio", site ? html`${siteStatusBadge(site.status)} <small>/c/${site.slug}</small>` : "Sin micrositio"],
+  ["Citas futuras", futureAppointments],
+  ["Motivo de rechazo", doctor.rejectionReason ?? "—"],
+])}
 <p><a href="/soporte/historial?objetivo=${doctor.id}">Ver historial de esta cuenta</a></p>
 ${doctor.cedulaFilePath ? html`<p><a href="${action("cedula")}" target="_blank" rel="noopener">Ver archivo de la cédula</a></p>` : html`<p>Sin archivo de cédula.</p>`}
 ${
@@ -139,7 +158,7 @@ ${
   <p><label><input type="checkbox" name="confirm" value="yes"> Confirmo que revisé la cédula y quiero aprobar esta cuenta</label></p>
   <button type="submit">Aprobar</button>
 </form>
-<h3>Rechazar</h3>${actionForm({ action: action("rechazar"), csrf: options.csrf, button: "Rechazar" })}`
+<h3>Rechazar</h3>${actionForm({ action: action("rechazar"), csrf: options.csrf, button: "Rechazar", variant: "danger" })}`
     : null
 }
 ${buttons}
@@ -159,15 +178,16 @@ const SITE_FILTERS: ReadonlyArray<readonly [string, string]> = [
 
 export function sitesView(options: { list: SiteList; filter: string }): string {
   const rows = options.list.rows.map(
-    (site) => html`<tr><td><a href="/soporte/medicos/${site.doctorId}">${site.doctorName}</a></td><td>/c/${site.slug}</td><td>${SITE_LABEL[site.status]}</td><td>${site.publishedAt ? formatUtc(site.publishedAt) : "—"}</td><td><a href="/soporte/micrositios/${site.doctorId}/enlace">Cambiar enlace</a></td></tr>`,
+    (site) => html`<tr><td><a href="/soporte/medicos/${site.doctorId}">${site.doctorName}</a></td><td>/c/${site.slug}</td><td>${siteStatusBadge(site.status)}</td><td>${site.publishedAt ? formatUtc(site.publishedAt) : "—"}</td><td><a href="/soporte/micrositios/${site.doctorId}/enlace">Cambiar enlace</a></td></tr>`,
   );
   return supportPage(
     "Micrositios",
     html`<h1>Micrositios</h1>
 <p>Publicados: ${options.list.counts.published} · Borradores: ${options.list.counts.draft} · Despublicados: ${options.list.counts.unpublished}</p>
-<p>${SITE_FILTERS.map(([value, label], index) => html`${index > 0 ? " · " : null}<a href="/soporte/micrositios?estado=${value}">${label}</a>`)}</p>
-<table><thead><tr><th>Médico</th><th>Enlace</th><th>Estado</th><th>Última publicación</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-${options.list.rows.length === 0 ? html`<p>No hay micrositios en este filtro.</p>` : null}`,
+${chips(SITE_FILTERS, options.filter, (value) => `/soporte/micrositios?estado=${value}`)}
+${options.list.rows.length === 0
+    ? emptyState({ title: "No hay micrositios en este filtro" })
+    : tableWrap(html`<table><thead><tr><th scope="col">Médico</th><th scope="col">Enlace</th><th scope="col">Estado</th><th scope="col">Última publicación</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>${rows}</tbody></table>`)}`,
   );
 }
 
@@ -198,10 +218,11 @@ const ERROR_LABEL: Readonly<Record<string, string>> = {
 export function mailView(options: { summary: MailQueueSummary; csrf: string; now: Date }): string {
   const { summary } = options;
   const age = summary.oldestQueuedAt ? `${Math.max(0, Math.round((options.now.getTime() - summary.oldestQueuedAt.getTime()) / 60_000))} min` : "ninguno";
+  const failed = mailBadge("failed");
   const rows = summary.failed.map(
-    (mail) => html`<tr><td>${mail.id}</td><td>${mail.template}</td><td>${mail.maskedTo}</td><td>${formatUtc(mail.createdAt)}</td><td>${mail.attempts}</td><td>${mail.errorCode ? (ERROR_LABEL[mail.errorCode] ?? "Otro error") : "—"}</td><td>${
+    (mail) => html`<tr><td>${mail.id}</td><td>${badge(failed.variant, failed.text)}</td><td>${mail.template}</td><td>${mail.maskedTo}</td><td>${formatUtc(mail.createdAt)}</td><td>${mail.attempts}</td><td>${mail.errorCode ? (ERROR_LABEL[mail.errorCode] ?? "Otro error") : "—"}</td><td>${
       mail.retryable
-        ? html`<details><summary>Reintentar o cancelar</summary>${actionForm({ action: `/soporte/correos/${mail.id}/reintentar`, csrf: options.csrf, button: "Reintentar" })}${actionForm({ action: `/soporte/correos/${mail.id}/cancelar`, csrf: options.csrf, button: "Cancelar el correo" })}</details>`
+        ? html`<details><summary>Reintentar o cancelar</summary>${actionForm({ action: `/soporte/correos/${mail.id}/reintentar`, csrf: options.csrf, button: "Reintentar", variant: "secondary" })}${actionForm({ action: `/soporte/correos/${mail.id}/cancelar`, csrf: options.csrf, button: "Cancelar el correo", variant: "danger" })}</details>`
         : html`Aviso gestionado por la cola`
     }</td></tr>`,
   );
@@ -211,8 +232,9 @@ export function mailView(options: { summary: MailQueueSummary; csrf: string; now
 <p>En cola: ${summary.counts.queued} · Enviados: ${summary.counts.sent} · Fallidos: ${summary.counts.failed} · Cancelados: ${summary.counts.cancelled}</p>
 <p>Antigüedad del pendiente más viejo: ${age}</p>
 <h2>Fallidos</h2>
-<table><thead><tr><th>Id</th><th>Tipo</th><th>Destinatario</th><th>Fecha</th><th>Intentos</th><th>Motivo</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-${summary.failed.length === 0 ? html`<p>No hay correos fallidos.</p>` : null}
+${summary.failed.length === 0
+    ? emptyState({ title: "No hay correos fallidos" })
+    : tableWrap(html`<table><thead><tr><th scope="col">Id</th><th scope="col">Estado</th><th scope="col">Tipo</th><th scope="col">Destinatario</th><th scope="col">Fecha</th><th scope="col">Intentos</th><th scope="col">Motivo</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>${rows}</tbody></table>`)}
 ${pager("/soporte/correos", {}, summary.page, summary.hasNext)}`,
   );
 }
@@ -221,8 +243,10 @@ ${pager("/soporte/correos", {}, summary.page, summary.hasNext)}`,
 
 const PERIOD_LABEL: Readonly<Record<string, string>> = { semana: "Última semana", "4semanas": "Últimas 4 semanas", piloto: "Todo el piloto" };
 
-function verdict(ok: boolean | null): string {
-  return ok === null ? "sin datos" : ok ? "✓ se cumple" : "✗ no se cumple";
+/** Veredicto con insignia: el texto de siempre, ahora también con color (nunca solo color). */
+function verdict(ok: boolean | null): SafeHtml {
+  if (ok === null) return badge("neutral", "sin datos");
+  return ok ? badge("confirmed", "✓ se cumple") : badge("cancelled", "✗ no se cumple");
 }
 
 const valueOrNone = (value: number | null, suffix = ""): string => (value === null ? "sin datos" : `${value}${suffix}`);
@@ -230,25 +254,26 @@ const valueOrNone = (value: number | null, suffix = ""): string => (value === nu
 export function metricsView(metrics: MetricsResult): string {
   const t = metrics.targets;
   const b = metrics.booking;
-  const rows: Array<[string, string, string, string]> = [
+  const noSignals = metrics.urgentAbuse.patientsWithSeveralActive + metrics.urgentAbuse.accountsOverRequestLimit === 0;
+  const rows: Array<[string, string, string, SafeHtml | string]> = [
     ["Finalización de reserva", valueOrNone(b.completionPercent, " %"), `más de ${t.completionPercent} %`, verdict(b.meetsCompletion)],
     ["Tiempo para reservar (promedio)", valueOrNone(b.averageSeconds, " s"), `menos de ${t.bookingSeconds} s`, verdict(b.meetsTime)],
     ["Reservas en menos de 2 minutos", valueOrNone(b.underTargetPercent, " %"), "—", "—"],
     ["Correos entregados", valueOrNone(metrics.mail.deliveredPercent, " %"), `más de ${t.deliveredPercent} %`, verdict(metrics.mail.meetsTarget)],
     ["Urgencias agendadas frente a «sin espacio»", metrics.urgent.scheduled + metrics.urgent.noSpace === 0 ? "sin datos" : `${metrics.urgent.scheduled} agendadas · ${metrics.urgent.noSpace} sin espacio`, "—", "—"],
-    ["Posible abuso de urgencias (ahora)", `${metrics.urgentAbuse.patientsWithSeveralActive} pacientes con más de una urgencia vigente · ${metrics.urgentAbuse.accountsOverRequestLimit} cuentas con más de 3 solicitudes en 24 h`, "0", metrics.urgentAbuse.patientsWithSeveralActive + metrics.urgentAbuse.accountsOverRequestLimit === 0 ? "✓ sin señales" : "⚠ revisar"],
+    ["Posible abuso de urgencias (ahora)", `${metrics.urgentAbuse.patientsWithSeveralActive} pacientes con más de una urgencia vigente · ${metrics.urgentAbuse.accountsOverRequestLimit} cuentas con más de 3 solicitudes en 24 h`, "0", noSignals ? badge("confirmed", "✓ sin señales") : badge("pending", "⚠ revisar")],
     ["Uso sostenido (médicos activos en las dos últimas semanas completas)", valueOrNone(metrics.sustainedUse.percent, " %"), `al menos ${t.sustainedUsePercent} %`, verdict(metrics.sustainedUse.meetsTarget)],
   ];
   return supportPage(
     "Métricas del piloto",
     html`<h1>Métricas del piloto</h1>
-<p>${Object.entries(PERIOD_LABEL).map(([value, label], index) => html`${index > 0 ? " · " : null}<a href="/soporte/metricas?periodo=${value}">${label}</a>`)}</p>
+${chips(Object.entries(PERIOD_LABEL), metrics.period, (value) => `/soporte/metricas?periodo=${value}`)}
 <p>Periodo: ${PERIOD_LABEL[metrics.period]} (${metrics.from.toISOString().slice(0, 10)} a ${metrics.to.toISOString().slice(0, 10)}). Solo conteos y porcentajes: sin datos de pacientes.</p>
-<table><thead><tr><th>Métrica</th><th>Valor</th><th>Meta</th><th>Cumplimiento</th></tr></thead><tbody>${rows.map(([name, value, target, ok]) => html`<tr><td>${name}</td><td>${value}</td><td>${target}</td><td>${ok}</td></tr>`)}</tbody></table>
+${tableWrap(html`<table><thead><tr><th scope="col">Métrica</th><th scope="col">Valor</th><th scope="col">Meta</th><th scope="col">Cumplimiento</th></tr></thead><tbody>${rows.map(([name, value, target, ok]) => html`<tr><td>${name}</td><td>${value}</td><td>${target}</td><td>${ok}</td></tr>`)}</tbody></table>`)}
 <h2>Citas por médico y semana</h2>
-${metrics.appointmentsPerDoctorWeek.length === 0 ? html`<p>sin datos</p>` : html`<table><thead><tr><th>Semana (lunes)</th><th>Médico</th><th>Citas</th></tr></thead><tbody>${metrics.appointmentsPerDoctorWeek.map((row) => html`<tr><td>${row.week}</td><td>${row.doctorName}</td><td>${row.count}</td></tr>`)}</tbody></table>`}
+${metrics.appointmentsPerDoctorWeek.length === 0 ? emptyState({ title: "sin datos" }) : tableWrap(html`<table><thead><tr><th scope="col">Semana (lunes)</th><th scope="col">Médico</th><th scope="col">Citas</th></tr></thead><tbody>${metrics.appointmentsPerDoctorWeek.map((row) => html`<tr><td>${row.week}</td><td>${row.doctorName}</td><td>${row.count}</td></tr>`)}</tbody></table>`)}
 <h2>Médicos activos por semana</h2>
-${metrics.activeDoctorsPerWeek.length === 0 ? html`<p>sin datos</p>` : html`<table><thead><tr><th>Semana (lunes)</th><th>Médicos activos</th></tr></thead><tbody>${metrics.activeDoctorsPerWeek.map((row) => html`<tr><td>${row.week}</td><td>${row.count}</td></tr>`)}</tbody></table>`}`,
+${metrics.activeDoctorsPerWeek.length === 0 ? emptyState({ title: "sin datos" }) : tableWrap(html`<table><thead><tr><th scope="col">Semana (lunes)</th><th scope="col">Médicos activos</th></tr></thead><tbody>${metrics.activeDoctorsPerWeek.map((row) => html`<tr><td>${row.week}</td><td>${row.count}</td></tr>`)}</tbody></table>`)}`,
   );
 }
 
@@ -283,8 +308,9 @@ export function historyView(options: { page: HistoryPage; filters: Readonly<Reco
 <label>Hasta <input type="date" name="hasta" value="${filters.hasta ?? ""}"></label>
 <button type="submit">Filtrar</button>
 </form>
-<table><thead><tr><th>Fecha</th><th>Persona</th><th>Acción</th><th>Objetivo</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table>
-${data.rows.length === 0 ? html`<p>No hay acciones con estos filtros.</p>` : null}
+${data.rows.length === 0
+    ? emptyState({ title: "No hay acciones con estos filtros" })
+    : tableWrap(html`<table><thead><tr><th scope="col">Fecha</th><th scope="col">Persona</th><th scope="col">Acción</th><th scope="col">Objetivo</th><th scope="col">Motivo</th></tr></thead><tbody>${rows}</tbody></table>`)}
 ${pager("/soporte/historial", filters, data.page, data.hasNext)}`,
   );
 }
@@ -297,13 +323,13 @@ export function releaseView(options: { overview: DoctorOverview; csrf: string })
     "Liberar la cédula",
     html`<h1>Liberar la cédula de ${doctor.fullName}</h1>
 <p><a href="/soporte/medicos/${doctor.id}">← Volver al médico</a></p>
-<p>Al liberar la cédula y el móvil de emergencias, la cuenta queda rechazada: el médico pierde el acceso a sus funciones y su micrositio deja de aceptar reservas hasta que registre otra cédula y se apruebe de nuevo. Se le avisa con un texto fijo.</p>
-<dl>
-  <dt>Cuenta</dt><dd>${APPROVAL_LABEL[doctor.approvalStatus]}</dd>
-  <dt>Micrositio</dt><dd>${site ? html`${SITE_LABEL[site.status]} · /c/${site.slug}` : "Sin micrositio"}</dd>
-  <dt>Citas futuras</dt><dd>${futureAppointments}</dd>
-</dl>
+${alert("warning", "Al liberar la cédula y el móvil de emergencias, la cuenta queda rechazada: el médico pierde el acceso a sus funciones y su micrositio deja de aceptar reservas hasta que registre otra cédula y se apruebe de nuevo. Se le avisa con un texto fijo.")}
+${definitionList([
+  ["Cuenta", approvalBadge(doctor.approvalStatus)],
+  ["Micrositio", site ? html`${siteStatusBadge(site.status)} <small>/c/${site.slug}</small>` : "Sin micrositio"],
+  ["Citas futuras", futureAppointments],
+])}
 <p>Las citas agendadas se conservan; sus pacientes pueden cancelarlas.</p>
-${actionForm({ action: `/soporte/medicos/${doctor.id}/liberar-cedula`, csrf: options.csrf, button: "Liberar cédula y móvil" })}`,
+${actionForm({ action: `/soporte/medicos/${doctor.id}/liberar-cedula`, csrf: options.csrf, button: "Liberar cédula y móvil", variant: "danger" })}`,
   );
 }

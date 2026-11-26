@@ -7,6 +7,7 @@ import { parseInput } from "../../http/validate.js";
 import { requireAuth, requireRole } from "../../http/session-plugin.js";
 import { errorList, form, passwordInput, submitButton, textInput } from "../../http/views/forms.js";
 import { page } from "../../http/views/layout.js";
+import { alert } from "../../http/views/ui.js";
 import { html, type SafeHtml } from "../../lib/html.js";
 import { normalizeMxPhone } from "../../lib/normalize.js";
 import { enqueueEmail } from "../../mail/outbox.js";
@@ -28,7 +29,7 @@ export function registerDoctorAccountRoutes(app: FastifyInstance, services: Serv
   function view(request: FastifyRequest, reply: FastifyReply, errors: FieldErrors = {}, done = false): SafeHtml {
     return html`<h1>Móvil de emergencias</h1>
 <p>Es el número al que avisamos en una urgencia. Cambiarlo exige tu contraseña actual y se notifica a tu correo.</p>
-${done ? html`<p role="status">Tu móvil de emergencias fue actualizado.</p>` : null}
+${done ? alert("success", "Tu móvil de emergencias fue actualizado.") : null}
 ${errorList(errors._)}
 ${form({
   action: "/cuenta/movil-emergencia",
