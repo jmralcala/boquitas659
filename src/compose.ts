@@ -41,6 +41,7 @@ import { registerPatientDetailRoutes } from "./modules/patients/detail-routes.js
 import { registerLegalRoutes } from "./modules/legal/routes.js";
 import { registerSupportRoutes } from "./modules/support/support-routes.js";
 import { registerAssetRoutes } from "./http/assets-routes.js";
+import { registerHomeRoutes } from "./modules/home/home-routes.js";
 import { registerCalendarRoutes } from "./modules/calendar/routes.js";
 import { registerSiteDoctorRoutes } from "./modules/site/doctor-routes.js";
 import { registerSitePatientRoutes } from "./modules/site/patient-routes.js";
@@ -186,6 +187,7 @@ export async function composeApp(options: ComposeOptions): Promise<{ app: Fastif
   }
 
   registerAssetRoutes(app);
+  registerHomeRoutes(app, services);
   registerAuthRoutes(app, services);
   registerRecoveryRoutes(app, services);
   registerAccountRoutes(app, services);

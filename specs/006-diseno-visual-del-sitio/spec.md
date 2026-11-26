@@ -162,3 +162,5 @@ Cualquier persona, con teclado, lector de pantalla o celular, puede usar todas l
 - Se despliega en el mismo hosting (feature en producción en `agendadental.innvend.com`), y los recursos estáticos del diseño forman parte del despliegue.
 - **Limitación conocida**: la sesión no incluye el estado de aprobación del médico, así que un médico aún no aprobado o suspendido ve la navegación completa del médico; sus enlaces dan el 403 o la pantalla de estado de siempre, ya con el diseño común. Evitarlo exigiría una consulta por página y queda fuera de esta feature.
 - En la tabla de triaje (feature 4) el campo `color` pasa a un valor `tone` (1 a 5) que elige el color dentro del sistema; es un cambio de presentación que no altera el texto, el orden ni las categorías sujetas a la validación del dentista.
+
+> **Nota (26/11/2026, feature 7)**: la portada de la raíz (`/`) no usa la barra lateral ni la tarjeta centrada: tiene su propia cabecera y su propio pie, que enlaza el aviso de privacidad de médicos; el resto del sistema visual (hoja, fuentes, componentes y reglas de privacidad) sí se aplica (`specs/007-pagina-de-inicio-publica/`).

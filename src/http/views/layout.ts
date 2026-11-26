@@ -11,23 +11,33 @@ export const MAIN_OPEN = '<main id="contenido">';
 export type PageSize = "narrow" | "normal";
 
 /**
+ * `<head>` común de todo documento del sitio: codificación, viewport, `noindex` (decisión del piloto), título, descripción
+ * opcional, precarga de las fuentes propias y la hoja de estilos. Lo usan `page()` y la portada (`landing.ts`) para que
+ * ninguna pantalla duplique ni desincronice estas líneas.
+ */
+export function documentHead(options: { title: string; description?: string }): string {
+  const description = options.description ? `\n<meta name="description" content="${escapeHtml(options.description)}">` : "";
+  return `<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${escapeHtml(options.title)}</title>${description}
+<link rel="preload" href="${FONT_INTER.url}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="${FONT_MANROPE.url}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="${stylesheetUrl()}">
+</head>`;
+}
+
+/**
  * Página HTML completa en español, con el diseño común, el aviso de privacidad y el canal de derechos siempre en el pie.
  * Todo lo que pasa por aquí hereda hoja de estilos, fuentes propias, salto al contenido y la estructura con barra lateral
- * cuando hay sesión (ver `shell.ts`). Ninguna pantalla debe armar su propio `<html>`.
+ * cuando hay sesión (ver `shell.ts`). Ninguna pantalla de trabajo debe armar su propio `<html>`.
  */
 export function page(options: { title: string; content: SafeHtml; size?: PageSize }): string {
   const size = options.size === "narrow" ? " card-page--narrow" : "";
   return `<!doctype html>
 <html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>${escapeHtml(options.title)}</title>
-<link rel="preload" href="${FONT_INTER.url}" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="${FONT_MANROPE.url}" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="${stylesheetUrl()}">
-</head>
+${documentHead({ title: options.title })}
 <body class="card-page${size}">
 <a class="skip-link" href="#contenido">Saltar al contenido</a>
 ${SHELL_OPEN}

@@ -151,3 +151,12 @@ Variable nueva (ya en la tabla de arriba): `LOGO_STORAGE_DIR`. El micrositio mue
 - [ ] `https://agendadental.innvend.com/assets/styles.css` y las dos fuentes responden 200 con `cache-control: public, max-age=31536000, immutable`.
 - [ ] En la pestaña de red del navegador, ninguna petición sale del dominio (salvo Turnstile en la urgencia).
 - [ ] Repetir los escenarios 1, 2 y 11 de `specs/006-diseno-visual-del-sitio/quickstart.md` a 390 px y 1440 px.
+
+### Página de inicio (feature 7)
+- Sin variables de entorno, migraciones ni cron nuevos. La portada de la raíz usa `RIGHTS_CONTACT_EMAIL` para el enlace «Contacto» (el buzón público; el interno de nuevos médicos es `SUPPORT_EMAIL` y no se publica).
+- Decisión, dependencia (registro bloqueado por la revisión legal) y riesgos: `docs/decisions/0008-pagina-de-inicio.md`.
+
+### Humo de despliegue de la página de inicio (pendiente)
+- [ ] `https://agendadental.innvend.com/` responde 200 con la portada; «Registrarme» y los dos «Regístrate aquí» abren el registro; «Iniciar sesión» y «Ya tengo cuenta» abren el inicio de sesión.
+- [ ] Con la sesión iniciada, la raíz redirige al área del rol.
+- [ ] Ninguna petición sale del dominio y no se establece ninguna cookie.

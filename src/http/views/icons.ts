@@ -24,6 +24,12 @@ const PATHS = {
   warning: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
   error: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
   inbox: '<path d="M3 13l3-8h12l3 8v6a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M3 13h5l1 3h6l1-3h5"/>',
+  // Portada (feature 7)
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+  bell: '<path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 004 0"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  "arrow-right": '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  "log-in": '<path d="M15 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4M10 8l4 4-4 4M14 12H3"/>',
 } as const;
 
 export type IconName = keyof typeof PATHS;
