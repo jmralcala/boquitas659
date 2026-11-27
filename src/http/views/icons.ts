@@ -30,6 +30,9 @@ const PATHS = {
   shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   "arrow-right": '<path d="M5 12h14M13 6l6 6-6 6"/>',
   "log-in": '<path d="M15 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4M10 8l4 4-4 4M14 12H3"/>',
+  // Páginas informativas (feature 8)
+  check: '<path d="M5 12l4 4 10-10"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/>',
 } as const;
 
 export type IconName = keyof typeof PATHS;

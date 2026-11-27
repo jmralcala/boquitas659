@@ -43,6 +43,7 @@ const CONTRACT_FILES = [
   "specs/005-panel-de-soporte/contracts/http-routes.md",
   "specs/006-diseno-visual-del-sitio/contracts/assets-and-components.md",
   "specs/007-pagina-de-inicio-publica/contracts/http-routes.md",
+  "specs/008-paginas-informativas-publicas/contracts/http-routes.md",
 ];
 
 /** Rutas del contrato: filas de tabla con `GET /ruta`, `POST /ruta` o `GET/POST /ruta` entre comillas invertidas. */
@@ -88,6 +89,10 @@ const PUBLIC_GET = new Set([
   "/assets/fonts/manrope-var-latin.woff2",
   // Feature 7: la portada de la raíz es pública (con sesión completa redirige al área del rol).
   "/",
+  // Feature 8: páginas informativas públicas (se ven con o sin sesión, sin redirigir).
+  "/como-funciona",
+  "/planes",
+  "/nosotros",
 ]);
 
 describe("las rutas registradas coinciden con el contrato", () => {

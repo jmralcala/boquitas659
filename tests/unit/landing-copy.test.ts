@@ -8,7 +8,8 @@ function visibleText(): string {
   // El título y la descripción de la página también son texto que ve el público (buscadores, pestañas, al compartir).
   const title = /<title>([\s\S]*?)<\/title>/.exec(html)?.[1] ?? "";
   const description = /<meta name="description" content="([^"]*)">/.exec(html)?.[1] ?? "";
-  return `${body} ${title} ${description}`
+  // La barra superior es la única de todo el sitio público y su menú lleva «Planes»: no es contenido de la portada.
+  return `${body.replace(/<header[\s\S]*?<\/header>/, "")} ${title} ${description}`
     .replace(/<svg[\s\S]*?<\/svg>/g, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&[a-z#0-9]+;/g, " ")

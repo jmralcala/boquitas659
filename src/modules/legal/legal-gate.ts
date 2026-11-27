@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { wantsJson } from "../../http/negotiation.js";
 import { isFullyAuthenticated } from "../../http/session-plugin.js";
+import { PUBLIC_INFO_PATHS } from "../../http/public-paths.js";
 import type { LegalService } from "./legal-service.js";
 
 /** Rutas que deben seguir disponibles para quien tiene avisos pendientes: textos, derechos, aceptar, entrar y salir. */
 function isExempt(url: string | undefined): boolean {
   if (url === undefined) return true; // sin ruta (404): no hay nada que proteger
   // `/assets/` son la hoja de estilos y las fuentes: sin ellas la propia pantalla de aceptación se vería sin estilo.
+  // Las páginas informativas (feature 8) se ven con o sin sesión, también con avisos pendientes.
+  if (PUBLIC_INFO_PATHS.includes(url)) return true;
   return url === "/derechos" || url === "/logout" || url === "/login" || url.startsWith("/legal") || url.startsWith("/assets/");
 }
 

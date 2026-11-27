@@ -23,6 +23,27 @@ const stylesOutsideRoot = styles.replace(/:root\s*\{[^}]*\}/, "");
 /** Código que genera HTML: vistas y rutas con HTML en línea. Excluye pruebas y los recursos estáticos. */
 const htmlSources = filesUnder(SRC, /\.ts$/).filter((file) => !file.includes(`${join("http", "assets")}`));
 
+
+/**
+ * Direcciones externas que una vista o la hoja no debería contener. Excepciones deliberadas: los ejemplos de dominio propio
+ * de los textos legales (`example.`), el espacio de nombres SVG, los mapas («Cómo llegar»), el CAPTCHA de Turnstile del
+ * formulario de urgencia (feature 4) y, desde la feature 8, **solo** `https://www.innvend.com` en la vista «Nosotros».
+ */
+function externalOffenders(file: string, source: string): string[] {
+  const allowedMaps = /https:\/\/www\.google\.com\/maps\/search\//;
+  const external = /https?:\/\/(?!localhost)[a-z0-9.-]+/gi;
+  const text = source.replace(allowedMaps, "");
+  const withoutComments = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const offenders: string[] = [];
+  for (const match of withoutComments.matchAll(external)) {
+    if (/example\.|w3\.org/.test(match[0])) continue;
+    if (match[0].toLowerCase() === "https://www.innvend.com" && file.endsWith(join("views", "about.ts"))) continue;
+    if (match[0] === "https://challenges.cloudflare.com" && file.endsWith(join("views", "urgent.ts"))) continue;
+    offenders.push(match[0]);
+  }
+  return offenders;
+}
+
 describe("guardias del sistema visual (FR-002, FR-016, FR-017, SC-005, SC-006)", () => {
   it("la hoja define sus colores solo en :root", () => {
     expect(styles).toMatch(/:root\s*\{/);
@@ -36,21 +57,21 @@ describe("guardias del sistema visual (FR-002, FR-016, FR-017, SC-005, SC-006)",
   });
 
   it("ni la hoja ni las vistas piden recursos a dominios externos", () => {
-    const allowed = /https:\/\/www\.google\.com\/maps\/search\//;
-    const external = /https?:\/\/(?!localhost)[a-z0-9.-]+/gi;
     const offenders: string[] = [];
-    for (const file of [join(ASSETS, "styles.css"), ...htmlSources.filter((f) => /views|layout|shell|-routes\.ts$/.test(f))]) {
-      const text = readFileSync(file, "utf8").replace(allowed, "");
-      // Se ignoran comentarios de código y el ejemplo de dominio propio de los textos legales.
-      const withoutComments = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-      for (const match of withoutComments.matchAll(external)) {
-        if (/example\.|innvend\.com|w3\.org/.test(match[0])) continue;
-        // Única excepción deliberada: el CAPTCHA de Turnstile del formulario de urgencia (feature 4, constitución IV).
-        if (match[0] === "https://challenges.cloudflare.com" && file.endsWith(join("views", "urgent.ts"))) continue;
-        offenders.push(`${relative(ROOT, file)}: ${match[0]}`);
-      }
+    for (const file of [join(ASSETS, "styles.css"), ...htmlSources.filter((f) => /views|layout|shell|-routes.ts$/.test(f))]) {
+      offenders.push(...externalOffenders(file, readFileSync(file, "utf8")).map((match) => `${relative(ROOT, file)}: ${match}`));
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("la excepción de innvend.com está acotada a https://www.innvend.com en la vista «Nosotros» (feature 8)", () => {
+    const about = join("views", "about.ts");
+    expect(externalOffenders(about, 'enlace a "https://www.innvend.com"')).toEqual([]);
+    // En cualquier otro archivo el mismo enlace falla, y cualquier otro dominio parecido falla también.
+    expect(externalOffenders(join("views", "landing.ts"), 'enlace a "https://www.innvend.com"')).toEqual(["https://www.innvend.com"]);
+    expect(externalOffenders(about, 'enlace a "https://otro-innvend.com"')).toEqual(["https://otro-innvend.com"]);
+    expect(externalOffenders(about, 'enlace a "https://innvend.com.malo.net"')).toEqual(["https://innvend.com.malo.net"]);
+    expect(externalOffenders(about, 'imagen "https://cdn.example.org/x.png"')).toEqual([]);
   });
 
   it("la hoja y las fuentes pesan menos de 300 KB en total", () => {

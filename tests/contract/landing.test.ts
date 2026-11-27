@@ -72,6 +72,16 @@ describe("US1: el médico conoce el servicio y empieza su registro", () => {
   });
 });
 
+describe("barra de menú única (feature 8)", () => {
+  it("la portada lleva el menú compartido y marca «Inicio»", async () => {
+    const body = (await get("/")).body;
+    const nav = /<nav aria-label="Principal">[\s\S]*?<\/nav>/.exec(body)?.[0] ?? "";
+    expect([...nav.matchAll(/<a [^>]*href="([^"]+)"/g)].map((match) => match[1])).toEqual(["/", "/como-funciona", "/planes", "/nosotros", "/medicos/registro", "/login"]);
+    expect(nav).toContain('<a href="/" aria-current="page">Inicio</a>');
+    expect(nav.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+});
+
 describe("US2: quien ya tiene cuenta entra sin buscar el enlace", () => {
   it("hay exactamente dos enlaces al inicio de sesión: «Iniciar sesión» y «Ya tengo cuenta»", async () => {
     expect(linksTo((await get("/")).body, "/login")).toEqual(["Iniciar sesión", "Ya tengo cuenta"]);

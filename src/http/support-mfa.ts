@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { wantsJson } from "./negotiation.js";
+import { PUBLIC_INFO_PATHS } from "./public-paths.js";
 import { isFullyAuthenticated } from "./session-plugin.js";
 
 /** Lo único que soporte puede usar mientras no tenga el doble factor activo: alta del doble factor, avisos y salir. */
 function isExempt(url: string | undefined): boolean {
   if (url === undefined) return true; // sin ruta (404)
+  if (PUBLIC_INFO_PATHS.includes(url)) return true; // páginas informativas públicas (feature 8)
   return (
     url === "/cuenta/mfa" ||
     url.startsWith("/cuenta/mfa/") ||
