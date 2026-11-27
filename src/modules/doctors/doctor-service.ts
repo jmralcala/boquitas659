@@ -36,12 +36,14 @@ const registrationSchema = z.object({
   acceptPrivacy: z.literal("yes", { error: "Debes aceptar el aviso de privacidad para continuar." }),
   acceptTerms: z.literal("yes", { error: "Debes aceptar los términos y condiciones para continuar." }),
   cedulaFile: z.instanceof(Buffer, { error: "Adjunta la foto o el PDF de tu cédula." }),
+  idFile: z.instanceof(Buffer, { error: "Adjunta la foto o el PDF de tu identificación oficial." }),
 });
 
 const resubmitSchema = z.object({
   cedulaNumber: z.string().trim().optional(),
   emergencyMobile: z.string().trim().optional(),
   cedulaFile: z.instanceof(Buffer).optional(),
+  idFile: z.instanceof(Buffer).optional(),
 });
 
 export type ResubmitInput = z.input<typeof resubmitSchema>;
@@ -50,6 +52,12 @@ const FILE_MESSAGES = {
   empty: "Adjunta la foto o el PDF de tu cédula.",
   size: "El archivo es demasiado grande (máximo 5 MB).",
   type: "El archivo debe ser una imagen JPEG, PNG o un PDF.",
+} as const;
+
+const ID_FILE_MESSAGES = {
+  empty: "Adjunta la foto o el PDF de tu identificación oficial.",
+  size: FILE_MESSAGES.size,
+  type: FILE_MESSAGES.type,
 } as const;
 
 const DUPLICATE_MESSAGES: Record<string, { field: string; message: string }> = {
@@ -127,6 +135,9 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
       const fileCheck = detectCedulaFileType(input.cedulaFile);
       if (!fileCheck.ok) fields.cedulaFile = [FILE_MESSAGES[fileCheck.reason]];
 
+      const idCheck = detectCedulaFileType(input.idFile);
+      if (!idCheck.ok) fields.idFile = [ID_FILE_MESSAGES[idCheck.reason]];
+
       if (Object.keys(fields).length > 0 || email === null || mobile === null || cedula === null) {
         throw new ValidationError(fields);
       }
@@ -137,6 +148,13 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
       const passwordHash = await deps.hasher.hash(input.password);
       // El archivo se guarda solo después de validar y de que el médico aceptó los avisos.
       const saved = await deps.cedulaStorage.save(input.cedulaFile);
+      let savedId: { name: string; sha256: string };
+      try {
+        savedId = await deps.cedulaStorage.save(input.idFile);
+      } catch (error) {
+        await removeQuietly(saved.name);
+        throw error;
+      }
       try {
         return await withTransaction(deps.db, async (connection) => {
           const now = clock.now();
@@ -151,6 +169,8 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
             cedulaNormalized: cedula,
             cedulaFilePath: saved.name,
             cedulaFileSha256: saved.sha256,
+            idFilePath: savedId.name,
+            idFileSha256: savedId.sha256,
             emergencyMobile: mobile,
             officePhone,
             createdAt: now,
@@ -167,6 +187,7 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
         });
       } catch (error) {
         await removeQuietly(saved.name);
+        await removeQuietly(savedId.name);
         return rethrowDuplicate(error);
       }
     },
@@ -189,11 +210,24 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
         const fileCheck = detectCedulaFileType(input.cedulaFile);
         if (!fileCheck.ok) fields.cedulaFile = [FILE_MESSAGES[fileCheck.reason]];
       }
+      if (input.idFile && input.idFile.length > 0) {
+        const idCheck = detectCedulaFileType(input.idFile);
+        if (!idCheck.ok) fields.idFile = [ID_FILE_MESSAGES[idCheck.reason]];
+      }
       if (Object.keys(fields).length > 0) throw new ValidationError(fields);
 
       const newFile =
         input.cedulaFile && input.cedulaFile.length > 0 ? await deps.cedulaStorage.save(input.cedulaFile) : null;
-      const replaced: { oldFile: string | null } = { oldFile: null };
+      let newId: { name: string; sha256: string } | null = null;
+      if (input.idFile && input.idFile.length > 0) {
+        try {
+          newId = await deps.cedulaStorage.save(input.idFile);
+        } catch (error) {
+          if (newFile) await removeQuietly(newFile.name);
+          throw error;
+        }
+      }
+      const replaced: { oldFile: string | null; oldId: string | null } = { oldFile: null, oldId: null };
       try {
         await withTransaction(deps.db, async (connection) => {
           const doctor = await findDoctorByUserId(connection, userId, true);
@@ -206,17 +240,20 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
             cedulaNumber: cedula ?? doctor.cedulaNumber,
             cedulaNormalized: cedula ?? doctor.cedulaNormalized,
             filePath: newFile?.name ?? doctor.cedulaFilePath,
+            idPath: newId?.name ?? doctor.idFilePath,
             mobile: mobile ?? doctor.emergencyMobile,
           };
           const missing: Record<string, string[]> = {};
           if (merged.cedulaNormalized === null) missing.cedulaNumber = [required];
           if (merged.filePath === null) missing.cedulaFile = ["Adjunta la foto o el PDF de tu cédula."];
+          if (merged.idPath === null) missing.idFile = [ID_FILE_MESSAGES.empty];
           if (merged.mobile === null) missing.emergencyMobile = [required];
           if (Object.keys(missing).length > 0) throw new ValidationError(missing);
 
           await connection.execute(
             `UPDATE doctor SET cedula_number = ?, cedula_normalized = ?, cedula_file_path = ?,
-                    cedula_file_sha256 = COALESCE(?, cedula_file_sha256), emergency_mobile = ?,
+                    cedula_file_sha256 = COALESCE(?, cedula_file_sha256), id_file_path = ?,
+                    id_file_sha256 = COALESCE(?, id_file_sha256), emergency_mobile = ?,
                     approval_status = 'pending', rejection_reason = NULL
               WHERE id = ?`,
             [
@@ -224,11 +261,14 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
               merged.cedulaNormalized,
               merged.filePath,
               newFile?.sha256 ?? null,
+              merged.idPath,
+              newId?.sha256 ?? null,
               merged.mobile,
               doctor.id,
             ],
           );
           replaced.oldFile = newFile && doctor.cedulaFilePath !== newFile.name ? doctor.cedulaFilePath : null;
+          replaced.oldId = newId && doctor.idFilePath !== newId.name ? doctor.idFilePath : null;
           await enqueueEmail(
             connection,
             { template: "support_new_doctor", to: deps.supportEmail, payload: { doctorId: doctor.id } },
@@ -237,9 +277,11 @@ export function createDoctorService(deps: DoctorServiceDeps): DoctorService {
         });
       } catch (error) {
         if (newFile) await removeQuietly(newFile.name);
+        if (newId) await removeQuietly(newId.name);
         return rethrowDuplicate(error);
       }
       if (replaced.oldFile) await removeQuietly(replaced.oldFile);
+      if (replaced.oldId) await removeQuietly(replaced.oldId);
     },
   };
 }

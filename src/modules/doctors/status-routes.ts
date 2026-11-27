@@ -8,6 +8,7 @@ import { page } from "../../http/views/layout.js";
 import { alert, badgeOf, doctorApprovalBadge } from "../../http/views/ui.js";
 import { html, type SafeHtml } from "../../lib/html.js";
 import type { Doctor } from "./doctor-repository.js";
+import { CEDULA_HINT, ID_HINT } from "./registration-routes.js";
 
 type FieldErrors = Readonly<Record<string, readonly string[]>>;
 
@@ -53,7 +54,14 @@ ${form({
       value: text(values, "emergencyMobile"),
       errors: errors.emergencyMobile,
     }),
-    fileInput({ name: "cedulaFile", label: "Foto o PDF de tu cédula (máximo 5 MB)", accept: "image/jpeg,image/png,application/pdf", errors: errors.cedulaFile }),
+    fileInput({ name: "cedulaFile", label: "Foto o PDF de tu cédula (máximo 5 MB)", accept: "image/jpeg,image/png,application/pdf", errors: errors.cedulaFile, hint: CEDULA_HINT }),
+    fileInput({
+      name: "idFile",
+      label: doctor.idFilePath === null ? "Foto o PDF de tu identificación oficial (máximo 5 MB)" : "Foto o PDF de tu identificación oficial (déjala vacía para conservar la actual)",
+      accept: "image/jpeg,image/png,application/pdf",
+      errors: errors.idFile,
+      hint: ID_HINT,
+    }),
     submitButton("Reenviar solicitud"),
   ],
 })}`;
@@ -89,6 +97,7 @@ export function registerDoctorStatusRoutes(app: FastifyInstance, services: Servi
           cedulaNumber: typeof body.cedulaNumber === "string" ? body.cedulaNumber : undefined,
           emergencyMobile: typeof body.emergencyMobile === "string" ? body.emergencyMobile : undefined,
           cedulaFile: Buffer.isBuffer(body.cedulaFile) ? body.cedulaFile : undefined,
+          idFile: Buffer.isBuffer(body.idFile) ? body.idFile : undefined,
         });
         return reply.redirect("/medicos/estado", 303);
       } catch (error) {

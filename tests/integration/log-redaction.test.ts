@@ -96,7 +96,7 @@ describe("el registro técnico no contiene datos personales ni secretos", () => 
         t.app,
         "/medicos/registro",
         { fullName: SECRETS.name, email, password: SECRETS.password, cedulaNumber: SECRETS.cedula, emergencyMobile: SECRETS.phone, acceptPrivacy: "yes", acceptTerms: "yes", _csrf: form.token },
-        [{ field: "cedulaFile", filename: "cedula-privada.jpg", content: JPEG, contentType: "image/jpeg" }],
+        [{ field: "cedulaFile", filename: "cedula-privada.jpg", content: JPEG, contentType: "image/jpeg" }, { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }],
         form.cookie,
       );
     };

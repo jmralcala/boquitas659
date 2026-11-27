@@ -15,6 +15,8 @@ export interface Doctor {
   cedulaNumber: string | null;
   cedulaNormalized: string | null;
   cedulaFilePath: string | null;
+  /** Identificación oficial subida por el médico (nula en cuentas anteriores a su exigencia). */
+  idFilePath: string | null;
   emergencyMobile: string | null;
   officePhone: string | null;
   approvalStatus: ApprovalStatus;
@@ -28,7 +30,7 @@ export interface Doctor {
   createdAt: Date;
 }
 
-const SELECT = `SELECT d.id, d.user_id, u.email, d.full_name, d.cedula_number, d.cedula_normalized, d.cedula_file_path,
+const SELECT = `SELECT d.id, d.user_id, u.email, d.full_name, d.cedula_number, d.cedula_normalized, d.cedula_file_path, d.id_file_path,
        d.emergency_mobile, d.office_phone, d.approval_status, d.rejection_reason, d.approved_at,
        d.trial_started_at, d.trial_ends_at, d.created_at,
        d.account_state, d.account_state_changed_at, d.account_state_changed_by
@@ -43,6 +45,7 @@ function toDoctor(row: RowDataPacket): Doctor {
     cedulaNumber: row.cedula_number === null ? null : String(row.cedula_number),
     cedulaNormalized: row.cedula_normalized === null ? null : String(row.cedula_normalized),
     cedulaFilePath: row.cedula_file_path === null ? null : String(row.cedula_file_path),
+    idFilePath: row.id_file_path === null ? null : String(row.id_file_path),
     emergencyMobile: row.emergency_mobile === null ? null : String(row.emergency_mobile),
     officePhone: row.office_phone === null ? null : String(row.office_phone),
     approvalStatus: row.approval_status as ApprovalStatus,
@@ -125,6 +128,8 @@ export async function insertDoctor(
     cedulaNormalized: string;
     cedulaFilePath: string;
     cedulaFileSha256: string;
+    idFilePath: string;
+    idFileSha256: string;
     emergencyMobile: string;
     officePhone: string | null;
     createdAt: Date;
@@ -132,8 +137,8 @@ export async function insertDoctor(
 ): Promise<number> {
   const [result] = await executor.execute<ResultSetHeader>(
     `INSERT INTO doctor (user_id, full_name, cedula_number, cedula_normalized, cedula_file_path, cedula_file_sha256,
-                         emergency_mobile, office_phone, approval_status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+                         id_file_path, id_file_sha256, emergency_mobile, office_phone, approval_status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
     [
       input.userId,
       input.fullName,
@@ -141,6 +146,8 @@ export async function insertDoctor(
       input.cedulaNormalized,
       input.cedulaFilePath,
       input.cedulaFileSha256,
+      input.idFilePath,
+      input.idFileSha256,
       input.emergencyMobile,
       input.officePhone,
       input.createdAt,

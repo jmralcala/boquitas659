@@ -51,7 +51,7 @@ async function register(overrides: Record<string, string | undefined> = {}, file
     t.app,
     "/medicos/registro",
     fields,
-    file ? [{ field: "cedulaFile", filename: "cedula.jpg", content: JPEG, contentType: "image/jpeg" }] : [],
+    file ? [{ field: "cedulaFile", filename: "cedula.jpg", content: JPEG, contentType: "image/jpeg" }, { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }] : [{ field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }],
     cookie,
   );
 }
@@ -134,11 +134,40 @@ describe("POST /medicos/registro", () => {
       t.app,
       "/medicos/registro",
       { ...valid, _csrf: token },
-      [{ field: "cedulaFile", filename: "cedula.jpg", content: Buffer.from("<script>alert(1)</script>"), contentType: "image/jpeg" }],
+      [{ field: "cedulaFile", filename: "cedula.jpg", content: Buffer.from("<script>alert(1)</script>"), contentType: "image/jpeg" }, { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }],
       cookie,
     );
     expect(response.statusCode).toBe(400);
     expect(await count("doctor")).toBe(0);
+  });
+
+  it("pide la identificación oficial con su ayuda de información, y sin ella no se crea la cuenta", async () => {
+    const page = (await t.app.inject({ method: "GET", url: "/medicos/registro" })).body;
+    expect(page).toContain('name="idFile"');
+    expect(page.match(/<details class="info-hint">/g)).toHaveLength(2);
+    expect(page).toContain("usurpación de identidad");
+    expect(page).toContain("protegemos a los pacientes");
+    expect(page).toContain("se valida en el Registro Nacional de Profesionistas");
+    const response = await register({}, false);
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain("identificación oficial");
+    expect(await count("doctor")).toBe(0);
+  });
+
+  it("guarda la identificación y rechaza una que no es JPEG, PNG ni PDF", async () => {
+    expect((await register()).statusCode).toBe(303);
+    const [rows] = await pool.query<RowDataPacket[]>("SELECT id_file_path FROM doctor");
+    expect(rows[0]?.id_file_path).toMatch(/^[a-f0-9]{32}\.jpg$/);
+    const bad = await anonymousForm(t.app, "/medicos/registro");
+    const response = await postMultipart(
+      t.app,
+      "/medicos/registro",
+      { ...valid, email: "otra@example.com", cedulaNumber: "7654321", emergencyMobile: "5599990000", _csrf: bad.token },
+      [{ field: "cedulaFile", filename: "cedula.jpg", content: JPEG, contentType: "image/jpeg" }, { field: "idFile", filename: "id.jpg", content: Buffer.from("no es imagen"), contentType: "image/jpeg" }],
+      bad.cookie,
+    );
+    expect(response.statusCode).toBe(400);
+    expect(await count("doctor")).toBe(1);
   });
 
   it("acepta PDF", async () => {
@@ -147,7 +176,7 @@ describe("POST /medicos/registro", () => {
       t.app,
       "/medicos/registro",
       { ...valid, _csrf: token },
-      [{ field: "cedulaFile", filename: "cedula.pdf", content: PDF, contentType: "application/pdf" }],
+      [{ field: "cedulaFile", filename: "cedula.pdf", content: PDF, contentType: "application/pdf" }, { field: "idFile", filename: "identificacion.pdf", content: PDF, contentType: "application/pdf" }],
       cookie,
     );
     expect(response.statusCode).toBe(303);
@@ -159,7 +188,7 @@ describe("POST /medicos/registro", () => {
       t.app,
       "/medicos/registro",
       { ...valid, _csrf: token },
-      [{ field: "cedulaFile", filename: "cedula.jpg", content: Buffer.concat([JPEG, Buffer.alloc(5 * 1024 * 1024)]), contentType: "image/jpeg" }],
+      [{ field: "cedulaFile", filename: "cedula.jpg", content: Buffer.concat([JPEG, Buffer.alloc(5 * 1024 * 1024)]), contentType: "image/jpeg" }, { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }],
       cookie,
     );
     expect(response.statusCode).toBe(413);
@@ -219,6 +248,7 @@ describe("POST /medicos/registro", () => {
   it("exige token CSRF", async () => {
     const response = await postMultipart(t.app, "/medicos/registro", { ...valid }, [
       { field: "cedulaFile", filename: "c.jpg", content: JPEG, contentType: "image/jpeg" },
+      { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" },
     ]);
     expect(response.statusCode).toBe(403);
     expect(await count("user")).toBe(0);

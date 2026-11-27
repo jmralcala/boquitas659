@@ -8,6 +8,11 @@ import { html } from "../../lib/html.js";
 
 type FieldErrors = Readonly<Record<string, readonly string[]>>;
 
+export const CEDULA_HINT =
+  "Tu cédula profesional es obligatoria para evitar la usurpación de identidad y proteger a los pacientes: solo pueden atenderse con quien está autorizado para ejercer. La cédula se valida en el Registro Nacional de Profesionistas.";
+export const ID_HINT =
+  "Tu identificación oficial es obligatoria: soporte la compara manualmente con tu cédula para confirmar que eres tú. Así evitamos la usurpación de identidad y protegemos a los pacientes. Solo la ve el equipo de soporte para esta validación.";
+
 function text(body: Record<string, unknown>, key: string): string {
   const value = body[key];
   return typeof value === "string" ? value.slice(0, 300) : "";
@@ -45,10 +50,11 @@ ${form({
     }),
     checkbox({
       name: "acceptPrivacy",
-      label: html`He leído y acepto el <a href="/legal/doctor_privacy" target="_blank" rel="noopener">Aviso de Privacidad para Médicos</a> y autorizo la validación de mi cédula profesional, acreditación académica e información de consultorio por parte del equipo de soporte.`,
+      label: html`He leído y acepto el <a href="/legal/doctor_privacy" target="_blank" rel="noopener">Aviso de Privacidad para Médicos</a> y autorizo la validación de mi cédula profesional, identificación oficial, acreditación académica e información de consultorio por parte del equipo de soporte.`,
       errors: errors.acceptPrivacy,
     }),
-    fileInput({ name: "cedulaFile", label: "Foto o PDF de tu cédula (máximo 5 MB)", accept: "image/jpeg,image/png,application/pdf", errors: errors.cedulaFile }),
+    fileInput({ name: "cedulaFile", label: "Foto o PDF de tu cédula (máximo 5 MB)", accept: "image/jpeg,image/png,application/pdf", errors: errors.cedulaFile, hint: CEDULA_HINT }),
+    fileInput({ name: "idFile", label: "Foto o PDF de tu identificación oficial (máximo 5 MB)", accept: "image/jpeg,image/png,application/pdf", errors: errors.idFile, hint: ID_HINT }),
     submitButton("Enviar solicitud"),
   ],
 })}
@@ -66,6 +72,7 @@ export function registerDoctorRegistrationRoutes(app: FastifyInstance, services:
     { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } },
     async (request, reply) => {
       const body = (request.body ?? {}) as Record<string, unknown>;
+      // Los archivos no se devuelven al formulario al reintentar.
       try {
         const { userId } = await services.doctors.register(body);
         // El médico queda con sesión iniciada para ver el estado de su solicitud.

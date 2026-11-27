@@ -152,10 +152,11 @@ ${definitionList([
 ])}
 <p><a href="/soporte/historial?objetivo=${doctor.id}">Ver historial de esta cuenta</a></p>
 ${doctor.cedulaFilePath ? html`<p><a href="${action("cedula")}" target="_blank" rel="noopener">Ver archivo de la cédula</a></p>` : html`<p>Sin archivo de cédula.</p>`}
+${doctor.idFilePath ? html`<p><a href="${action("identificacion")}" target="_blank" rel="noopener">Ver identificación oficial (cotejar con la cédula)</a></p>` : html`<p>Sin identificación oficial (cuenta anterior a este requisito).</p>`}
 ${
   doctor.approvalStatus === "pending"
     ? html`<h3>Aprobar</h3><form method="post" action="${action("aprobar")}">${csrfInput(options.csrf)}
-  <p><label><input type="checkbox" name="confirm" value="yes"> Confirmo que revisé la cédula y quiero aprobar esta cuenta</label></p>
+  <p><label><input type="checkbox" name="confirm" value="yes"> Confirmo que revisé la cédula, la cotejé con la identificación oficial y quiero aprobar esta cuenta</label></p>
   <button type="submit">Aprobar</button>
 </form>
 <h3>Rechazar</h3>${actionForm({ action: action("rechazar"), csrf: options.csrf, button: "Rechazar", variant: "danger" })}`
@@ -290,6 +291,7 @@ export const ACTION_LABEL: Readonly<Record<string, string>> = {
   retry_email: "Reintentó un correo",
   cancel_email: "Canceló un correo",
   view_cedula: "Consultó la cédula",
+  view_identificacion: "Consultó la identificación oficial",
 };
 const TARGET_LABEL = { doctor: "Médico", site: "Micrositio", email: "Correo" } as const;
 

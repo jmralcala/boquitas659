@@ -146,6 +146,33 @@ describe("archivo de la cédula", () => {
   });
 });
 
+describe("archivo de la identificación oficial", () => {
+  it("se entrega como la cédula, queda en el historial y la ficha ofrece el enlace para cotejarla", async () => {
+    const stored = await t.services.cedulaStorage.save(JPEG);
+    const doctor = await createDoctor(pool, { status: "pending" });
+    await pool.query("UPDATE doctor SET id_file_path = ? WHERE id = ?", [stored.name, doctor.doctorId]);
+    const ficha = await t.app.inject({ method: "GET", url: `/soporte/medicos/${doctor.doctorId}`, headers: { cookie: support.cookie, accept: "text/html" } });
+    expect(ficha.body).toContain(`/soporte/medicos/${doctor.doctorId}/identificacion`);
+    const response = await t.app.inject({ method: "GET", url: `/soporte/medicos/${doctor.doctorId}/identificacion`, headers: { cookie: support.cookie } });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("image/jpeg");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.rawPayload.equals(JPEG)).toBe(true);
+    const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>("SELECT action, target_id FROM support_action_log WHERE action = 'view_identificacion'");
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0]?.target_id)).toBe(doctor.doctorId);
+  });
+
+  it("devuelve 404 si la cuenta no tiene identificación y no registra nada", async () => {
+    const sin = await createDoctor(pool, { status: "pending" });
+    const response = await t.app.inject({ method: "GET", url: `/soporte/medicos/${sin.doctorId}/identificacion`, headers: { cookie: support.cookie, accept: "application/json" } });
+    expect(response.statusCode).toBe(404);
+    const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>("SELECT COUNT(*) AS n FROM support_action_log WHERE action = 'view_identificacion'");
+    expect(Number(rows[0]?.n)).toBe(0);
+  });
+});
+
 describe("historial de soporte", () => {
   it("aprobar, rechazar y liberar la cédula dejan su entrada con autor y fecha en la misma operación", async () => {
     const [users] = await pool.query<RowDataPacket[]>("SELECT id FROM `user` WHERE role = 'support' LIMIT 1");

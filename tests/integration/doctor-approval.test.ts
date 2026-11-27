@@ -105,7 +105,7 @@ describe("rechazar", () => {
 describe("reenviar la solicitud (rejected → pending)", () => {
   it("el médico rechazado corrige y reenvía sin crear otra cuenta, y soporte es avisado", async () => {
     const doctor = await createDoctor(pool, { status: "rejected" });
-    await t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: "7654321", cedulaFile: JPEG });
+    await t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: "7654321", cedulaFile: JPEG, idFile: JPEG });
     const row = await doctorRow(doctor.doctorId);
     expect(row).toMatchObject({ approval_status: "pending", rejection_reason: null, cedula_normalized: "7654321" });
     expect(row.cedula_file_path).toMatch(/^[a-f0-9]{32}\.jpg$/);
@@ -114,6 +114,17 @@ describe("reenviar la solicitud (rejected → pending)", () => {
     expect(t.transport.sent.some((m) => m.to === "soporte@innvend.com")).toBe(true);
     const [users] = await pool.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM `user`");
     expect(Number(users[0]?.n)).toBe(2); // soporte + médico
+  });
+
+  it("el reenvío exige la identificación oficial si la cuenta no la tiene, y la conserva si ya existe", async () => {
+    const doctor = await createDoctor(pool, { status: "rejected" });
+    await expect(t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: "7654321", cedulaFile: JPEG })).rejects.toMatchObject({ status: 400 });
+    await t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: "7654321", cedulaFile: JPEG, idFile: JPEG });
+    const first = (await doctorRow(doctor.doctorId)).id_file_path;
+    expect(first).toMatch(/^[a-f0-9]{32}\.jpg$/);
+    await pool.query("UPDATE doctor SET approval_status = 'rejected' WHERE id = ?", [doctor.doctorId]);
+    await t.services.doctors.resubmit(doctor.user.id, { cedulaFile: JPEG });
+    expect((await doctorRow(doctor.doctorId)).id_file_path).toBe(first);
   });
 
   it("solo se puede reenviar una solicitud rechazada", async () => {
@@ -127,7 +138,7 @@ describe("reenviar la solicitud (rejected → pending)", () => {
     const other = await createDoctor(pool, { status: "approved" });
     const doctor = await createDoctor(pool, { status: "rejected" });
     await expect(
-      t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: other.cedula, cedulaFile: JPEG }),
+      t.services.doctors.resubmit(doctor.user.id, { cedulaNumber: other.cedula, cedulaFile: JPEG, idFile: JPEG }),
     ).rejects.toMatchObject({ status: 400 });
     expect((await doctorRow(doctor.doctorId)).approval_status).toBe("rejected");
   });
@@ -157,6 +168,7 @@ describe("liberar cédula y móvil", () => {
       cedulaNumber: doctor.cedula,
       emergencyMobile: doctor.mobile,
       cedulaFile: JPEG,
+      idFile: JPEG,
     });
     expect(await doctorRow(other.doctorId)).toMatchObject({
       cedula_normalized: doctor.cedula,
@@ -171,6 +183,7 @@ describe("liberar cédula y móvil", () => {
     await t.services.doctors.resubmit(doctor.user.id, {
       cedulaNumber: "2222222",
       cedulaFile: JPEG,
+      idFile: JPEG,
       emergencyMobile: "5544332211",
     });
     expect(await doctorRow(doctor.doctorId)).toMatchObject({

@@ -1,5 +1,6 @@
 import { html, type SafeHtml } from "../../lib/html.js";
 import { CSRF_FIELD } from "../csrf.js";
+import { icon } from "./icons.js";
 
 export function csrfInput(token: string): SafeHtml {
   return html`<input type="hidden" name="${CSRF_FIELD}" value="${token}">`;
@@ -45,11 +46,16 @@ export function checkbox(options: { name: string; label: string | SafeHtml; erro
 </p>`;
 }
 
-export function fileInput(options: { name: string; label: string; accept?: string; errors?: readonly string[] }): SafeHtml {
+/**
+ * Archivo con una ayuda opcional: un ícono de información que, al hacer clic (o con teclado), muestra el motivo. Usa
+ * `<details>`, así que no necesita JavaScript. Va fuera del `<label>` para que abrirla no abra el selector de archivos.
+ */
+export function fileInput(options: { name: string; label: string; accept?: string; errors?: readonly string[]; hint?: string }): SafeHtml {
   return html`<p>
   <label>${options.label}
     <input type="file" name="${options.name}"${options.accept ? html` accept="${options.accept}"` : null}>
   </label>
+  ${options.hint ? html`<details class="info-hint"><summary>${icon("info")}<span class="visually-hidden">¿Por qué se pide este documento?</span></summary><p class="info-hint__text">${options.hint}</p></details>` : null}
   ${errorList(options.errors)}
 </p>`;
 }

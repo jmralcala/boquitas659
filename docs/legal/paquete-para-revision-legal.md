@@ -67,8 +67,8 @@ Los textos se muestran como párrafos de texto simple (separados por líneas en 
 ### 3.5 Registro de médicos
 - Introducción: «Tu cuenta quedará en revisión hasta que soporte valide tu cédula profesional.»
 - Casilla 1 (términos): «He leído y acepto los **Términos y Condiciones del Servicio para Médicos**, reconociendo y aceptando que la plataforma opera exclusivamente como una herramienta tecnológica de gestión de agenda y no presta servicios médicos ni odontológicos.»
-- Casilla 2 (privacidad): «He leído y acepto el **Aviso de Privacidad para Médicos** y autorizo la validación de mi cédula profesional, acreditación académica e información de consultorio por parte del equipo de soporte.» Mensaje si falta: «Debes aceptar el aviso de privacidad para continuar.»
-- Campos que se piden: nombre completo, correo, contraseña, cédula profesional, móvil de emergencias (10 dígitos), teléfono del consultorio (opcional) y foto o PDF de la cédula (máx. 5 MB).
+- Casilla 2 (privacidad): «He leído y acepto el **Aviso de Privacidad para Médicos** y autorizo la validación de mi cédula profesional, identificación oficial, acreditación académica e información de consultorio por parte del equipo de soporte.» Mensaje si falta: «Debes aceptar el aviso de privacidad para continuar.»
+- Campos que se piden: nombre completo, correo, contraseña, cédula profesional, móvil de emergencias (10 dígitos), teléfono del consultorio (opcional) foto o PDF de la cédula y foto o PDF de una identificación oficial (máx. 5 MB cada uno). Cada archivo lleva un ícono de información con el motivo: se piden para evitar la usurpación de identidad y proteger al paciente; soporte coteja la identificación con la cédula a mano. **A verificar con usted**: conservación y borrado de la identificación (hoy se conserva mientras exista la cuenta) y su mención expresa en el Aviso de Privacidad para Médicos.
 
 ### 3.6 Invitación a recepción
 - «{médico} te invitó a colaborar como personal de recepción con el correo {correo}.»

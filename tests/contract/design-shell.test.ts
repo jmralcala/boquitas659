@@ -32,7 +32,7 @@ const get = (url: string, cookie?: string) =>
   t.app.inject({ method: "GET", url, remoteAddress: uniqueIp(), headers: { accept: "text/html", ...(cookie ? { cookie } : {}) } });
 
 /** Rutas GET que no son pantallas HTML: archivos, imágenes y recursos del diseño. */
-const NOT_SCREENS = new Set(["/assets/styles.css", "/assets/fonts/inter-var-latin.woff2", "/assets/fonts/manrope-var-latin.woff2", "/c/:slug/logo", "/soporte/medicos/:id/cedula"]);
+const NOT_SCREENS = new Set(["/assets/styles.css", "/assets/fonts/inter-var-latin.woff2", "/assets/fonts/manrope-var-latin.woff2", "/c/:slug/logo", "/soporte/medicos/:id/cedula", "/soporte/medicos/:id/identificacion"]);
 
 const SAMPLE: Record<string, string> = {
   ":token": "a".repeat(43),

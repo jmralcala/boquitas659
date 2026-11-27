@@ -32,7 +32,7 @@ afterAll(async () => {
 });
 
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const NOT_SCREENS = new Set(["/assets/styles.css", "/assets/fonts/inter-var-latin.woff2", "/assets/fonts/manrope-var-latin.woff2", "/c/:slug/logo", "/soporte/medicos/:id/cedula"]);
+const NOT_SCREENS = new Set(["/assets/styles.css", "/assets/fonts/inter-var-latin.woff2", "/assets/fonts/manrope-var-latin.woff2", "/c/:slug/logo", "/soporte/medicos/:id/cedula", "/soporte/medicos/:id/identificacion"]);
 const SAMPLE: Record<string, string> = { ":token": "a".repeat(43), ":slug": "clinica-rios", ":fecha": "2026-06-16", ":type": "patient_privacy", ":version": "1" };
 const concrete = (url: string): string => url.replace(/:[A-Za-z]+/g, (name) => SAMPLE[name] ?? "1");
 

@@ -92,6 +92,23 @@ export function registerSupportRoutes(app: FastifyInstance, services: Services):
       .send(file.buffer);
   });
 
+  app.get("/soporte/medicos/:id/identificacion", read, async (request, reply) => {
+    const { id } = parseInput(idParams, request.params);
+    const doctor = await services.support.get(id);
+    if (!doctor?.idFilePath) throw new NotFoundError();
+    const file = await services.cedulaStorage.read(doctor.idFilePath);
+    if (!file) throw new NotFoundError();
+    // Igual que la cédula: la lectura se audita y, si el registro falla, no se entrega el archivo.
+    await appendSupportAction(services.db, { supportUserId: requireAuth(request).userId, action: "view_identificacion", targetType: "doctor", targetId: doctor.id, reason: null, occurredAt: services.clock.now() });
+    const extension = doctor.idFilePath.slice(doctor.idFilePath.lastIndexOf(".") + 1);
+    return reply
+      .header("content-type", file.mime)
+      .header("content-disposition", `inline; filename="identificacion.${extension}"`)
+      .header("x-content-type-options", "nosniff")
+      .header("cache-control", "private, no-store")
+      .send(file.buffer);
+  });
+
   app.post("/soporte/medicos/:id/aprobar", write, async (request, reply) => {
     const { id } = parseInput(idParams, request.params);
     parseInput(approveBody, request.body ?? {});

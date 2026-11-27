@@ -100,7 +100,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   // Los archivos llegan como Buffer dentro de `request.body` (así el CSRF y zod ven todos los campos).
   await app.register(multipart, {
     attachFieldsToBody: "keyValues",
-    limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 20, parts: 25 },
+    limits: { fileSize: 5 * 1024 * 1024, files: 2, fields: 20, parts: 25 },
   });
   await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute" });
 

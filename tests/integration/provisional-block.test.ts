@@ -63,7 +63,7 @@ async function registerDoctor(t: TestApp) {
     t.app,
     "/medicos/registro",
     { fullName: "Dra. Fernanda Gutiérrez", email: "fernanda@example.com", password: "una frase larga que se recuerda", cedulaNumber: "1234567", emergencyMobile: "5512345678", acceptPrivacy: "yes", acceptTerms: "yes", _csrf: token },
-    [{ field: "cedulaFile", filename: "c.jpg", content: JPEG, contentType: "image/jpeg" }],
+    [{ field: "cedulaFile", filename: "c.jpg", content: JPEG, contentType: "image/jpeg" }, { field: "idFile", filename: "identificacion.jpg", content: JPEG, contentType: "image/jpeg" }],
     cookie,
   );
 }

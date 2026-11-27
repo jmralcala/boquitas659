@@ -14,6 +14,7 @@ export const SUPPORT_ACTIONS = [
   "retry_email",
   "cancel_email",
   "view_cedula",
+  "view_identificacion",
 ] as const;
 export type SupportAction = (typeof SUPPORT_ACTIONS)[number];
 export type SupportTarget = "doctor" | "site" | "email";

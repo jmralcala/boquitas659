@@ -364,7 +364,7 @@ describe("panel de soporte (feature 5)", () => {
     };
     const before = await snapshot();
     const urls = supportRoutes()
-      .filter((route) => route.method === "GET" && !route.url.endsWith("/cedula"))
+      .filter((route) => route.method === "GET" && !route.url.endsWith("/cedula") && !route.url.endsWith("/identificacion"))
       .map((route) => concrete(route.url).replace(/\/1(?=\/|$)/g, `/${doctor.doctorId}`));
     expect(urls.length).toBeGreaterThanOrEqual(9);
     for (const url of urls) {
