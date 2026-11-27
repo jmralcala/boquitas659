@@ -1,0 +1,14 @@
+# Configuración de gitleaks (la lee gitleaks-action desde la raíz del repositorio).
+title = "boquitas659"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores de prueba que no son secretos"
+regexes = [
+  # Contraseñas inventadas de las pruebas de inicio de sesión (tests/contract, tests/integration).
+  '''(incorrecta|lo-que-sea)-123456''',
+  # SHA-256 de la cadena "abc": vector de prueba estándar de tests/unit/tokens.test.ts.
+  '''ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad''',
+]
