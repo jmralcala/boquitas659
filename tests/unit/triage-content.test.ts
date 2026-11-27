@@ -36,6 +36,10 @@ describe("contenido del triaje", () => {
     expect(TRIAGE_CONTENT.hospitalNotice.trim()).not.toBe("");
     expect(TRIAGE_CONTENT.alarmNotice.trim()).not.toBe("");
     expect(TRIAGE_CONTENT.firstAid.length).toBeGreaterThan(0);
+    expect(TRIAGE_CONTENT.hospitalNotice).toContain("911");
+    expect(TRIAGE_CONTENT.alarmNotice).toContain("911");
+    expect(TRIAGE_CONTENT.emergencyConditions.length).toBeGreaterThan(0);
+    expect(TRIAGE_CONTENT.disclaimer.text.trim()).not.toBe("");
     expect(categoryById("rojo").requiresHospitalNotice).toBe(true);
     expect(categoryById("verde").requiresHospitalNotice).toBe(false);
   });

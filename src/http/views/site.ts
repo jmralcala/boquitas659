@@ -189,7 +189,7 @@ ${form({
     passwordInput({ name: "password", label: "Contraseña (mínimo 10 caracteres)", autocomplete: "new-password", required: true, errors: errors.password }),
     checkbox({
       name: "acceptPrivacy",
-      label: html`He leído y acepto el <a href="/legal/patient_privacy" target="_blank" rel="noopener">aviso de privacidad</a> y doy mi consentimiento expreso para el tratamiento de mis datos de salud`,
+      label: html`He leído y acepto el <a href="/legal/patient_privacy" target="_blank" rel="noopener">Aviso de Privacidad para Pacientes</a> y otorgo mi <strong>consentimiento expreso</strong> para el tratamiento de mis datos personales y de salud con la finalidad exclusiva de gestionar mis citas odontológicas.`,
       errors: errors.acceptPrivacy,
     }),
     submitButton("Crear cuenta y continuar"),
@@ -284,7 +284,7 @@ ${day.slots.length > 0
         options.needsAuthorization
           ? checkbox({
               name: "autorizo",
-              label: html`Autorizo que ${options.doctorName} vea el nombre y los datos de contacto (correo y teléfono) de los pacientes de mi cuenta para atender mi cita, conforme al <a href="/legal/patient_privacy" target="_blank" rel="noopener">aviso de privacidad</a>. Puedo revocarlo cuando quiera.`,
+              label: html`Autorizo a <strong>${options.doctorName}</strong> y a su personal de recepción debidamente autorizado a consultar el nombre y datos de contacto (teléfono y correo electrónico) vinculados a mi cuenta, exclusivamente para la programación, confirmación y seguimiento de mis citas. Reconozco que puedo revocar este acceso en cualquier momento desde la sección «Mis consultorios» de mi cuenta.`,
               errors: errors.autorizo,
             })
           : null,
@@ -326,7 +326,7 @@ ${form({
     textInput({ name: "phone", label: "Teléfono (opcional)", type: "tel", value: values.phone ?? "", errors: errors.phone }),
     checkbox({
       name: "acceptPrivacyOnBehalf",
-      label: html`Como tutor, acepto en nombre del menor el <a href="/legal/patient_privacy" target="_blank" rel="noopener">aviso de privacidad</a> y doy mi consentimiento expreso para el tratamiento de sus datos de salud`,
+      label: html`Declaro bajo protesta de decir verdad que ejerzo la patria potestad o tutela legal del menor registrado, acepto en su representación el <a href="/legal/patient_privacy" target="_blank" rel="noopener">Aviso de Privacidad para Pacientes</a> y otorgo el <strong>consentimiento expreso</strong> para el tratamiento de sus datos personales y de salud para la gestión de sus citas odontológicas.`,
       errors: errors.acceptPrivacyOnBehalf,
     }),
     submitButton("Añadir paciente"),

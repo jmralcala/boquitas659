@@ -51,7 +51,7 @@ describe("GET /pacientes/registro", () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain('name="acceptPrivacy"');
     expect(response.body).not.toMatch(/\bchecked\b/);
-    expect(response.body).toContain("datos de salud");
+    expect(response.body).toContain("datos personales y de salud");
   });
 });
 

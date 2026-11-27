@@ -56,6 +56,8 @@ const schema = z
     TURNSTILE_SECRET_KEY: z.string().min(10).optional(),
     RIGHTS_CONTACT_EMAIL: z.email().default("soporte@innvend.com"),
     RIGHTS_RESPONSE_DAYS: z.coerce.number().int().min(1).max(60).default(20),
+    /** Plazo para hacer efectivo el derecho ejercido, contado desde la notificación de la respuesta (días hábiles). */
+    RIGHTS_EXECUTION_DAYS: z.coerce.number().int().min(1).max(60).default(15),
   })
   .superRefine((value, ctx) => {
     if ((value.TURNSTILE_SITE_KEY === undefined) !== (value.TURNSTILE_SECRET_KEY === undefined)) {

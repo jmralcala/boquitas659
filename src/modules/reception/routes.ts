@@ -137,12 +137,12 @@ ${form({
     summary.existingAccount ? null : passwordInput({ name: "password", label: "Contraseña (mínimo 10 caracteres)", autocomplete: "new-password", required: true, errors: errors.password }),
     checkbox({
       name: "acceptPrivacy",
-      label: html`He leído y acepto el <a href="/legal/reception_privacy" target="_blank" rel="noopener">aviso de privacidad</a>`,
+      label: html`He leído y acepto el <a href="/legal/reception_privacy" target="_blank" rel="noopener">Aviso de Privacidad para Personal de Recepción</a>.`,
       errors: errors.acceptPrivacy,
     }),
     checkbox({
       name: "acceptConfidentiality",
-      label: html`Me comprometo a guardar la confidencialidad de los datos de los pacientes (<a href="/legal/reception_confidentiality" target="_blank" rel="noopener">compromiso de confidencialidad</a>)`,
+      label: html`He leído y acepto el <a href="/legal/reception_confidentiality" target="_blank" rel="noopener">Compromiso de Confidencialidad</a>, obligándome a guardar estricto secreto profesional respecto de toda información, datos de contacto y registros de agenda a los que tenga acceso en el ejercicio de mis funciones.`,
       errors: errors.acceptConfidentiality,
     }),
     submitButton("Aceptar invitación"),

@@ -33,7 +33,7 @@ const registrationSchema = z.object({
   phone: z.string({ error: required }).trim().min(1, required),
   password: z.string({ error: required }).min(1, required).max(256),
   acceptPrivacy: z.literal("yes", {
-    error: "Debes aceptar el aviso de privacidad y dar tu consentimiento para el tratamiento de tus datos de salud.",
+    error: "Debes aceptar el aviso de privacidad y otorgar tu consentimiento expreso para poder continuar con el agendamiento.",
   }),
 });
 

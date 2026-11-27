@@ -111,15 +111,25 @@ ${form({ action: "/legal/aceptar", csrf: app.csrf.tokenFor(request, reply), chil
   });
 
   app.get("/derechos", async (_request, reply) => {
-    const { RIGHTS_CONTACT_EMAIL: email, RIGHTS_RESPONSE_DAYS: days } = services.env;
+    const { RIGHTS_CONTACT_EMAIL: email, RIGHTS_RESPONSE_DAYS: days, RIGHTS_EXECUTION_DAYS: executionDays } = services.env;
     return send(
       reply,
       200,
       "Tus derechos sobre tus datos",
       html`<h1>Tus derechos sobre tus datos</h1>
-<p>Tienes derecho a conocer qué datos personales tenemos de ti y cómo los usamos (<strong>acceso</strong>), a pedir que se corrijan si son inexactos (<strong>rectificación</strong>), a pedir que se eliminen cuando proceda (<strong>cancelación</strong>) y a oponerte a que se usen para ciertos fines (<strong>oposición</strong>).</p>
-<p>Para ejercer cualquiera de estos derechos escribe a <a href="mailto:${email}">${email}</a> indicando tu nombre completo, el correo de tu cuenta y qué derecho quieres ejercer.</p>
-<p>Responderemos en un plazo de ${days} días hábiles.</p>
+<h2>Derechos ARCO, revocación y limitación del tratamiento</h2>
+<p>Como titular de datos personales (o representante legal de un menor registrado), usted tiene derecho a conocer qué datos recabamos y las condiciones de su uso (<strong>Acceso</strong>); solicitar la corrección de su información en caso de estar desactualizada, ser inexacta o incompleta (<strong>Rectificación</strong>); pedir que sea eliminada de nuestras bases de datos cuando considere que no está siendo utilizada conforme a los principios legales aplicables (<strong>Cancelación</strong>); y oponerse al tratamiento de sus datos para finalidades específicas (<strong>Oposición</strong>).</p>
+<p>Asimismo, tiene derecho a <strong>revocar el consentimiento</strong> que nos haya otorgado previamente para el tratamiento de su información y a <strong>limitar el uso o divulgación</strong> de sus datos personales.</p>
+<h3>Requisitos para la solicitud</h3>
+<p>Para tramitar el ejercicio de cualquiera de estos derechos, envíe un correo electrónico a la cuenta oficial de contacto: <a href="mailto:${email}">${email}</a>, adjuntando:</p>
+<ol>
+<li>Nombre completo del titular y dirección de correo electrónico vinculada a la cuenta de la plataforma.</li>
+<li>Copia de una identificación oficial vigente (en caso de actuar en representación de un menor o tercero, deberá acompañar copia del documento que acredite la patria potestad o representación legal).</li>
+<li>Descripción clara y precisa del derecho que desea ejercer (Acceso, Rectificación, Cancelación, Oposición, Revocación o Limitación) y los datos personales sobre los cuales recae la solicitud.</li>
+<li>En caso de solicitar rectificación, indicar las modificaciones precisas a realizar y adjuntar la documentación que justifique la corrección.</li>
+</ol>
+<h3>Plazos de respuesta</h3>
+<p>Recibida su solicitud completa, le responderemos en un plazo máximo de <strong>${days} días hábiles</strong> a través del correo electrónico registrado, informándole la determinación adoptada y, en su caso, haciéndola efectiva dentro de los <strong>${executionDays} días hábiles</strong> siguientes a la notificación.</p>
 <p><a href="/legal">Ver los avisos de privacidad</a></p>`,
     );
   });

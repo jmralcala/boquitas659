@@ -24,6 +24,7 @@ ficticios. **Nunca** se commitean valores reales; para desarrollo se usa un `.en
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | no (van en pareja) | Claves de Cloudflare Turnstile para el CAPTCHA del paso de urgencia. Sin ellas la urgencia **no se ofrece en producción**; en desarrollo el paso del CAPTCHA se omite. Para probar con el widget real usa las claves de prueba oficiales de Turnstile (la clave de sitio `1x00000000000000000000AA` y el secreto `1x0000000000000000000000000000000AA` siempre pasan). El secreto nunca se registra | (las entrega Cloudflare) |
 | `RIGHTS_CONTACT_EMAIL` | no (`soporte@innvend.com`) | Canal para derechos ARCO (provisional hasta revisión legal) | `soporte@innvend.com` |
 | `RIGHTS_RESPONSE_DAYS` | no (`20`) | Plazo de respuesta a derechos ARCO en días hábiles (provisional hasta revisión legal) | `20` |
+| `RIGHTS_EXECUTION_DAYS` | no (`15`) | Plazo para hacer efectivo el derecho ejercido, tras notificar la respuesta, en días hábiles (provisional hasta revisión legal) | `15` |
 
 ## Notas
 

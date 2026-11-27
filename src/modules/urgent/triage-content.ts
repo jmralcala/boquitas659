@@ -41,16 +41,23 @@ export interface TriageContent {
   reviewedByDentist: boolean;
   categories: readonly TriageCategory[];
   alarmSignals: readonly AlarmSignal[];
+  /** Aviso de deslinde de responsabilidad que se muestra en el formulario de urgencia. */
+  disclaimer: { title: string; text: string };
+  /** Encabezado, introducción y condiciones del aviso de emergencia hospitalaria. */
+  emergencyHeading: string;
+  emergencyIntro: string;
+  emergencyConditions: readonly string[];
   /** Indicaciones provisionales mientras llega la cita. */
-  firstAid: readonly string[];
-  /** Aviso cuando no hay espacio en un nivel alto. */
+  firstAidHeading: string;
+  firstAid: readonly { label: string; text: string }[];
+  /** Instrucción final cuando no hay espacio en un nivel alto (se muestra tras las condiciones de emergencia). */
   hospitalNotice: string;
-  /** Pantalla cuando el paciente marca una señal de alarma. */
+  /** Instrucción final cuando el paciente marca una señal de alarma (se muestra tras las condiciones de emergencia). */
   alarmNotice: string;
 }
 
 export const TRIAGE_CONTENT: TriageContent = {
-  version: "2026-11-23-provisional-1",
+  version: "2026-11-26-provisional-2",
   reviewedByDentist: false,
   categories: [
     {
@@ -98,16 +105,40 @@ export const TRIAGE_CONTENT: TriageContent = {
     { id: "dificultad_respirar_tragar", label: "Tengo dificultad para tragar o para respirar" },
     { id: "hinchazon_ojo", label: "Tengo hinchazón cerca del ojo" },
   ],
+  disclaimer: {
+    title: "Aviso de deslinde de responsabilidad médica y asistencial:",
+    text:
+      "Este asistente de agenda de urgencias es una herramienta tecnológica orientativa para la asignación y priorización de horarios de consulta presencial. " +
+      "En ningún caso constituye un diagnóstico clínico, triaje médico definitivo ni sustituto del examen directo por parte de un profesional de la salud dental. " +
+      "Si experimenta dolor incontrolable o malestar severo, acuda de inmediato a un centro de salud.",
+  },
+  emergencyHeading: "ATENCIÓN - RIESGO DE EMERGENCIA MÉDICA:",
+  emergencyIntro: "Si usted o el paciente presenta alguna de las siguientes condiciones:",
+  emergencyConditions: [
+    "Sangrado continuo o abundante que no se detiene tras aplicar presión directa.",
+    "Inflamación de rápido avance que compromete el ojo, el cuello o el piso de la boca.",
+    "Dificultad para respirar, hablar o deglutir (tragar).",
+    "Traumatismo con pérdida de consciencia o desorientación.",
+  ],
+  firstAidHeading: "Recomendaciones de cuidado mientras acude a su consulta:",
   firstAid: [
-    "Enjuaga la boca con agua tibia.",
-    "Si hay sangrado, presiona con una gasa limpia durante 10 minutos.",
-    "Aplica frío por fuera de la cara; no pongas calor.",
-    "Si se cayó un diente, tómalo por la corona (no por la raíz) y guárdalo en leche.",
+    {
+      label: "Diente expulsado por golpe (avulsión dental)",
+      text: "Sujete la pieza dental únicamente por la corona blanca; evite frotar o limpiar la raíz. Consérvela de inmediato sumergida en leche pasteurizada o solución salina estéril y llévela consigo al consultorio.",
+    },
+    {
+      label: "Control de hemorragia",
+      text: "Coloque una gasa limpia y seca sobre la zona afectada y muerda o presione firmemente de forma continua durante al menos 10 a 15 minutos.",
+    },
+    {
+      label: "Manejo del dolor e inflamación",
+      text: "Aplique compresas frías sobre la mejilla en el área afectada. No aplique fuentes de calor ni coloque tabletas de analgésicos directamente sobre la encía o la mucosa bucal.",
+    },
   ],
   hospitalNotice:
-    "Si el sangrado no se detiene, tienes dificultad para respirar o tragar, o la hinchazón crece, acude de inmediato a un hospital o a urgencias.",
+    "No espere una cita dental. Diríjase de inmediato al servicio de urgencias hospitalarias más cercano o comuníquese a la línea de emergencias médicas de su localidad (911).",
   alarmNotice:
-    "Lo que describes puede ser una emergencia. Acude de inmediato a un hospital o a urgencias, o llama al número de emergencias de tu localidad.",
+    "No espere una cita dental. Diríjase de inmediato al servicio de urgencias hospitalarias más cercano o comuníquese a la línea de emergencias médicas de su localidad (911).",
 };
 
 export const categorySchema = z.enum(CATEGORY_IDS, { error: "Elige una de las opciones." });

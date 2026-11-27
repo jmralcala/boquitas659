@@ -72,7 +72,8 @@ describe("documentos legales sin sesión", () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain("derechos@example.com");
     expect(response.body).toContain("15 días hábiles");
-    for (const word of ["acceso", "rectificación", "cancelación", "oposición"]) {
+    expect(response.body).toContain("15 días hábiles</strong> siguientes");
+    for (const word of ["Acceso", "Rectificación", "Cancelación", "Oposición", "revocar el consentimiento", "limitar el uso o divulgación"]) {
       expect(response.body).toContain(word);
     }
   });

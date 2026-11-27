@@ -37,7 +37,8 @@ export function urgentFormPage(options: UrgentFormOptions): string {
   const content = html`<h1>${options.doctorName}</h1>
 <h2>Tengo una urgencia</h2>
 <p>Responde estas preguntas y te asignaremos el espacio más próximo con el consultorio. No tendrás que elegir fecha ni hora.</p>
-<p><small>Contenido provisional (versión ${TRIAGE_CONTENT.version}); no sustituye la valoración de un profesional.</small></p>
+${alert("info", html`<strong>${TRIAGE_CONTENT.disclaimer.title}</strong> ${TRIAGE_CONTENT.disclaimer.text}`)}
+<p><small>Contenido provisional (versión ${TRIAGE_CONTENT.version}).</small></p>
 ${errorList(errors._)}
 ${form({
   action: `/c/${options.slug}/urgencia`,
@@ -58,7 +59,7 @@ ${errorList(errors.categoria)}</fieldset>`,
     options.needsAuthorization
       ? checkbox({
           name: "autorizo",
-          label: html`Autorizo que ${options.doctorName} vea el nombre y los datos de contacto (correo y teléfono) de los pacientes de mi cuenta para atender mi cita, conforme al <a href="/legal/patient_privacy" target="_blank" rel="noopener">aviso de privacidad</a>. Puedo revocarlo cuando quiera.`,
+          label: html`Autorizo a <strong>${options.doctorName}</strong> y a su personal de recepción debidamente autorizado a consultar el nombre y datos de contacto (teléfono y correo electrónico) vinculados a mi cuenta, exclusivamente para la programación, confirmación y seguimiento de mis citas. Reconozco que puedo revocar este acceso en cualquier momento desde la sección «Mis consultorios» de mi cuenta.`,
           errors: errors.autorizo,
         })
       : null,
@@ -72,17 +73,30 @@ ${errorList(errors.categoria)}</fieldset>`,
   return sitePage({ title: options.doctorName, content });
 }
 
+/** Aviso prominente de emergencia: encabezado, condiciones y la instrucción final de acudir a urgencias o llamar al 911. */
+function emergencyNotice(action: string): SafeHtml {
+  return alert(
+    "error",
+    html`<p><strong>${TRIAGE_CONTENT.emergencyHeading}</strong></p>
+<p>${TRIAGE_CONTENT.emergencyIntro}</p>
+<ul>${TRIAGE_CONTENT.emergencyConditions.map((condition) => html`<li>${condition}</li>`)}</ul>
+<p><strong>${action}</strong></p>`,
+    { prominent: true },
+  );
+}
+
 /** Resultado cuando no hay espacio: cómo comunicarse con el médico y, en los niveles altos, el aviso de hospital. */
 export function noSpacePage(options: { doctorName: string; contact: EmergencyContact; hospitalNotice: boolean }): string {
   return sitePage({
     title: options.doctorName,
     content: html`<h1>No encontramos espacio</h1>
 <p>No hay un espacio libre en <strong>${options.doctorName}</strong> dentro del tiempo que necesitas. No se agendó ninguna cita.</p>
-${options.hospitalNotice ? alert("error", html`<strong>${TRIAGE_CONTENT.hospitalNotice}</strong>`, { prominent: true }) : null}
+${options.hospitalNotice ? emergencyNotice(TRIAGE_CONTENT.hospitalNotice) : null}
 <p>Comunícate directamente:</p>
 ${contactLines(options.contact)}
 <h2>Mientras tanto</h2>
-<ul>${TRIAGE_CONTENT.firstAid.map((line) => html`<li>${line}</li>`)}</ul>`,
+<p><strong>${TRIAGE_CONTENT.firstAidHeading}</strong></p>
+<ul>${TRIAGE_CONTENT.firstAid.map((item) => html`<li><strong>${item.label}:</strong> ${item.text}</li>`)}</ul>`,
   });
 }
 
@@ -91,7 +105,7 @@ export function alarmPage(options: { doctorName: string; contact: EmergencyConta
   return sitePage({
     title: options.doctorName,
     content: html`<h1>Busca atención de inmediato</h1>
-${alert("error", html`<strong>${TRIAGE_CONTENT.alarmNotice}</strong>`, { prominent: true })}
+${emergencyNotice(TRIAGE_CONTENT.alarmNotice)}
 ${contactLines(options.contact)}`,
   });
 }
